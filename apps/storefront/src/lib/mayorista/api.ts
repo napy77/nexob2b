@@ -1,8 +1,14 @@
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+
+const baseHeaders = () => ({
+  "Content-Type": "application/json",
+  "x-publishable-api-key": PUB_KEY,
+})
 
 async function handleResponse(res: Response) {
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error || "Error desconocido")
+  if (!res.ok) throw new Error(data.error || data.message || "Error desconocido")
   return data
 }
 
@@ -10,7 +16,7 @@ export const mayoristasApi = {
   registro: async (data: Record<string, unknown>) => {
     const res = await fetch(`${BACKEND_URL}/store/mayoristas`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: baseHeaders(),
       body: JSON.stringify(data),
     })
     return handleResponse(res)
@@ -19,7 +25,7 @@ export const mayoristasApi = {
   login: async (email: string, password: string) => {
     const res = await fetch(`${BACKEND_URL}/store/mayoristas/auth`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: baseHeaders(),
       body: JSON.stringify({ email, password }),
     })
     return handleResponse(res)
@@ -27,7 +33,7 @@ export const mayoristasApi = {
 
   getMe: async (token: string) => {
     const res = await fetch(`${BACKEND_URL}/store/mayoristas/me`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
     })
     return handleResponse(res)
   },
@@ -35,10 +41,7 @@ export const mayoristasApi = {
   updateMe: async (token: string, data: Record<string, unknown>) => {
     const res = await fetch(`${BACKEND_URL}/store/mayoristas/me`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),
     })
     return handleResponse(res)
