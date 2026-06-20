@@ -1,5 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Container, Heading, Badge, Button, Table, Text } from "@medusajs/ui"
 
 export const config = defineRouteConfig({
