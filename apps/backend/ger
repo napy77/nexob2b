@@ -1,0 +1,19 @@
+# Configurar PM2 con los paths correctos
+cat > /root/ecosystem.config.js <<'EOF'
+module.exports = {
+  apps: [
+    {
+      name: 'nexob2b-backend',
+      script: 'npm',
+      args: 'run dev',
+      cwd: '/var/www/nexob2b/nexob2b/apps/backend',
+      env: { NODE_ENV: 'development', PORT: 9000 },
+      autorestart: true,
+      watch: false
+    }
+  ]
+}
+EOF
+
+pm2 start /root/ecosystem.config.js
+pm2 save
