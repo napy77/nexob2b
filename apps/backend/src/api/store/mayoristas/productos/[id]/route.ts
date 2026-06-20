@@ -42,7 +42,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(403).json({ error: "No tenés acceso a este producto" })
   }
 
-  const { nombre, descripcion, precio, unidad, compra_minima, stock, imagen_base64, rubro, pasillo, activo } = req.body as any
+  const { nombre, descripcion, precio, unidad, compra_minima, stock, sku, ean, imagen_base64, rubro, pasillo, activo } = req.body as any
 
   const updateData: Record<string, any> = { id: req.params.id }
   if (nombre !== undefined) updateData.nombre = nombre
@@ -51,6 +51,8 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (unidad !== undefined) updateData.unidad = unidad
   if (compra_minima !== undefined) updateData.compra_minima = parseInt(compra_minima)
   if (stock !== undefined) updateData.stock = stock !== "" ? parseInt(stock) : null
+  if (sku !== undefined) updateData.sku = sku || null
+  if (ean !== undefined) updateData.ean = ean || null
   if (rubro !== undefined) updateData.rubro = rubro
   if (pasillo !== undefined) updateData.pasillo = pasillo
   if (activo !== undefined) updateData.activo = activo

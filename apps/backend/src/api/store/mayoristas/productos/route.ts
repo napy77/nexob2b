@@ -43,7 +43,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.status(403).json({ error: "Tu cuenta debe estar aprobada para publicar productos" })
   }
 
-  const { nombre, descripcion, precio, unidad, compra_minima, stock, imagen_base64, rubro, pasillo } = req.body as any
+  const { nombre, descripcion, precio, unidad, compra_minima, stock, sku, ean, imagen_base64, rubro, pasillo } = req.body as any
 
   if (!nombre || !precio || !unidad) {
     return res.status(400).json({ error: "Campos requeridos: nombre, precio, unidad" })
@@ -76,6 +76,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     unidad,
     compra_minima: compra_minima ? parseInt(compra_minima) : 1,
     stock: stock !== undefined && stock !== "" ? parseInt(stock) : null,
+    sku: sku || null,
+    ean: ean || null,
     imagen_url,
     rubro: rubro || null,
     pasillo: pasillo || null,

@@ -24,6 +24,8 @@ export default function NuevoProductoPage() {
     unidad: "unidad",
     compra_minima: "1",
     stock: "",
+    sku: "",
+    ean: "",
     rubro: "",
     pasillo: "",
   })
@@ -155,6 +157,21 @@ export default function NuevoProductoPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Stock disponible</label>
                 <input type="number" min="0" value={form.stock} onChange={(e) => set("stock", e.target.value)}
                   placeholder="Opcional"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                <input value={form.sku} onChange={(e) => set("sku", e.target.value)}
+                  placeholder="Código interno del mayorista"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">EAN / Código de barras</label>
+                <input value={form.ean} onChange={(e) => set("ean", e.target.value)}
+                  placeholder="Ej: 7790001234567"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>

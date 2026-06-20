@@ -9,6 +9,8 @@ const Producto = model.define("producto", {
   unidad: model.text(),
   compra_minima: model.number().default(1),
   stock: model.number().nullable(),
+  sku: model.text().nullable(),
+  ean: model.text().nullable(),
   imagen_url: model.text().nullable(),
   rubro: model.text().nullable(),
   pasillo: model.text().nullable(),
