@@ -22,6 +22,8 @@
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
     "@medusajs/admin-sdk": "2.16.0",
     "@medusajs/admin-shared": "2.16.0",
     "@medusajs/caching": "2.16.0",
@@ -37,6 +39,8 @@
     "zod": "4.2.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
     "@medusajs/test-utils": "2.16.0",
     "@swc/core": "^1.7.28",
     "@swc/jest": "^0.2.36",
