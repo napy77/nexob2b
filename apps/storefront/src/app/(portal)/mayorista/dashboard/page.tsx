@@ -147,29 +147,22 @@ export default function DashboardPage() {
             disabled={mayorista.estado !== "aprobado"}
           />
           <NavCard
-            href="#"
-            icon="🤝"
-            title="Contactos"
-            description="Minoristas que solicitaron conectarse con vos"
-            disabled={mayorista.estado !== "aprobado"}
-          />
-          <NavCard
-            href="#"
-            icon="🗺️"
-            title="Zona de influencia"
-            description="Definí en qué provincias distribuís"
-          />
-          <NavCard
-            href="#"
+            href="/mayorista/perfil"
             icon="👤"
             title="Mi perfil"
             description="Actualizá los datos de tu empresa"
+          />
+          <NavCard
+            href="/mayorista/zona"
+            icon="🗺️"
+            title="Zona de influencia"
+            description="Definí en qué provincias distribuís"
           />
         </div>
 
         {mayorista.estado !== "aprobado" && (
           <p className="text-xs text-gray-400 mt-4 text-center">
-            Las secciones marcadas estarán disponibles una vez que tu cuenta sea aprobada.
+            Mis productos estará disponible una vez que tu cuenta sea aprobada.
           </p>
         )}
       </main>
