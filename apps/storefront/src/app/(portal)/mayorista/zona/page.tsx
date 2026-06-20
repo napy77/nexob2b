@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { mayoristasApi, PROVINCIAS_ARGENTINA } from "../../../../../lib/mayorista/api"
+import { mayoristasApi, PROVINCIAS_ARGENTINA } from "../../../../lib/mayorista/api"
 
 export default function ZonaPage() {
   const router = useRouter()

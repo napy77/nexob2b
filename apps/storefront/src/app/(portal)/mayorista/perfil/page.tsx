@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { mayoristasApi, RUBROS_DISPONIBLES } from "../../../../../lib/mayorista/api"
+import { mayoristasApi, RUBROS_DISPONIBLES } from "../../../../lib/mayorista/api"
 
 type Mayorista = {
   id: string
