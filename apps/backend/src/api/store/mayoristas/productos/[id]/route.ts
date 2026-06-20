@@ -1,6 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { PRODUCTO_MODULE } from "../../../../../modules/producto"
-import ProductoModuleService from "../../../../../modules/producto/service"
 import jwt from "jsonwebtoken"
 import fs from "fs"
 import path from "path"
@@ -21,10 +20,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const payload = verifyToken(req)
   if (!payload) return res.status(401).json({ error: "No autorizado" })
 
-  const productoService: ProductoModuleService = req.scope.resolve(PRODUCTO_MODULE)
+  const productoService: any = req.scope.resolve(PRODUCTO_MODULE)
   const producto = await productoService.retrieveProducto(req.params.id)
 
-  if ((producto as any).mayorista_id !== payload.mayorista_id) {
+  if (producto.mayorista_id !== payload.mayorista_id) {
     return res.status(403).json({ error: "No tenés acceso a este producto" })
   }
 
@@ -36,10 +35,10 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   const payload = verifyToken(req)
   if (!payload) return res.status(401).json({ error: "No autorizado" })
 
-  const productoService: ProductoModuleService = req.scope.resolve(PRODUCTO_MODULE)
+  const productoService: any = req.scope.resolve(PRODUCTO_MODULE)
   const existing = await productoService.retrieveProducto(req.params.id)
 
-  if ((existing as any).mayorista_id !== payload.mayorista_id) {
+  if (existing.mayorista_id !== payload.mayorista_id) {
     return res.status(403).json({ error: "No tenés acceso a este producto" })
   }
 
@@ -56,7 +55,6 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (pasillo !== undefined) updateData.pasillo = pasillo
   if (activo !== undefined) updateData.activo = activo
 
-  // Procesar nueva imagen base64
   if (imagen_base64) {
     try {
       const matches = imagen_base64.match(/^data:([A-Za-z-+/]+);base64,(.+)$/)
@@ -69,8 +67,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
       fs.writeFileSync(path.join(uploadsDir, filename), buffer)
       updateData.imagen_url = `/uploads/productos/${filename}`
 
-      // Borrar imagen anterior si existe
-      const old = (existing as any).imagen_url
+      const old = existing.imagen_url
       if (old) {
         const oldPath = path.join(process.cwd(), old)
         if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath)
@@ -80,7 +77,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  const producto = await productoService.updateProductoes(updateData)
+  const producto = await productoService.updateProductos(updateData)
   res.json({ producto })
 }
 
@@ -89,20 +86,19 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   const payload = verifyToken(req)
   if (!payload) return res.status(401).json({ error: "No autorizado" })
 
-  const productoService: ProductoModuleService = req.scope.resolve(PRODUCTO_MODULE)
+  const productoService: any = req.scope.resolve(PRODUCTO_MODULE)
   const existing = await productoService.retrieveProducto(req.params.id)
 
-  if ((existing as any).mayorista_id !== payload.mayorista_id) {
+  if (existing.mayorista_id !== payload.mayorista_id) {
     return res.status(403).json({ error: "No tenés acceso a este producto" })
   }
 
-  // Borrar imagen si existe
-  const imagenUrl = (existing as any).imagen_url
+  const imagenUrl = existing.imagen_url
   if (imagenUrl) {
     const imgPath = path.join(process.cwd(), imagenUrl)
     if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath)
   }
 
-  await productoService.deleteProductoes(req.params.id)
+  await productoService.deleteProductos(req.params.id)
   res.json({ success: true })
 }

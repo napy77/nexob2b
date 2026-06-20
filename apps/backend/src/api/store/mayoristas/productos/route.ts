@@ -2,7 +2,6 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MAYORISTA_MODULE } from "../../../../modules/mayorista"
 import MayoristaModuleService from "../../../../modules/mayorista/service"
 import { PRODUCTO_MODULE } from "../../../../modules/producto"
-import ProductoModuleService from "../../../../modules/producto/service"
 import jwt from "jsonwebtoken"
 import fs from "fs"
 import path from "path"
@@ -23,8 +22,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const payload = verifyToken(req)
   if (!payload) return res.status(401).json({ error: "No autorizado" })
 
-  const productoService: ProductoModuleService = req.scope.resolve(PRODUCTO_MODULE)
-  const productos = await productoService.listProductoes(
+  // Usamos `as any` porque los tipos de Medusa pluralizan mal "producto"
+  const productoService: any = req.scope.resolve(PRODUCTO_MODULE)
+  const productos = await productoService.listProductos(
     { mayorista_id: payload.mayorista_id },
     { order: { pasillo: "ASC", nombre: "ASC" } }
   )
@@ -52,7 +52,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   let imagen_url: string | null = null
 
-  // Decodificar imagen base64 si viene
   if (imagen_base64) {
     try {
       const matches = imagen_base64.match(/^data:([A-Za-z-+/]+);base64,(.+)$/)
@@ -69,8 +68,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  const productoService: ProductoModuleService = req.scope.resolve(PRODUCTO_MODULE)
-  const producto = await productoService.createProductoes({
+  const productoService: any = req.scope.resolve(PRODUCTO_MODULE)
+  const producto = await productoService.createProductos({
     mayorista_id: payload.mayorista_id,
     nombre,
     descripcion: descripcion || null,
