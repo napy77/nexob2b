@@ -10,8 +10,8 @@ const Mayorista = model.define("mayorista", {
   direccion: model.text().nullable(),
   ciudad: model.text().nullable(),
   provincia: model.text().nullable(),
-  rubros: model.json<string[]>(),
-  zonas: model.json<string[]>().default([]),
+  rubros: model.json(),
+  zonas: model.json().nullable(),
   estado: model.enum(["pendiente", "aprobado", "suspendido"]).default("pendiente"),
 })
 
