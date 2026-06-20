@@ -80,7 +80,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  const producto = await productoService.updateProductos(updateData)
+  const producto = await productoService.updateProductoes(updateData)
   res.json({ producto })
 }
 
@@ -103,6 +103,6 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
     if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath)
   }
 
-  await productoService.deleteProductos(req.params.id)
+  await productoService.deleteProductoes(req.params.id)
   res.json({ success: true })
 }

@@ -24,7 +24,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!payload) return res.status(401).json({ error: "No autorizado" })
 
   const productoService: ProductoModuleService = req.scope.resolve(PRODUCTO_MODULE)
-  const productos = await productoService.listProductos(
+  const productos = await productoService.listProductoes(
     { mayorista_id: payload.mayorista_id },
     { order: { pasillo: "ASC", nombre: "ASC" } }
   )
@@ -70,7 +70,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const productoService: ProductoModuleService = req.scope.resolve(PRODUCTO_MODULE)
-  const producto = await productoService.createProductos({
+  const producto = await productoService.createProductoes({
     mayorista_id: payload.mayorista_id,
     nombre,
     descripcion: descripcion || null,
