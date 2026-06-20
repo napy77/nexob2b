@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { productosApi } from "../../../../lib/mayorista/api"
+import { productosApi, ApiError } from "../../../../lib/mayorista/api"
 
 type Producto = {
   id: string
@@ -22,6 +22,7 @@ export default function ProductosPage() {
   const router = useRouter()
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorGeneral, setErrorGeneral] = useState("")
   const [eliminando, setEliminando] = useState<string | null>(null)
 
   const cargar = () => {
@@ -29,7 +30,14 @@ export default function ProductosPage() {
     if (!token) { router.replace("/mayorista/login"); return }
     productosApi.listar(token)
       .then((data) => setProductos(data.productos))
-      .catch(() => { localStorage.removeItem("mayorista_token"); router.replace("/mayorista/login") })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          localStorage.removeItem("mayorista_token")
+          router.replace("/mayorista/login")
+        } else {
+          setErrorGeneral(err.message || "Error al cargar productos")
+        }
+      })
       .finally(() => setLoading(false))
   }
 
@@ -101,7 +109,13 @@ export default function ProductosPage() {
           </div>
         </div>
 
-        {productos.length === 0 ? (
+        {errorGeneral && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6">
+            Error al cargar productos: {errorGeneral}
+          </div>
+        )}
+
+        {!errorGeneral && productos.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
             <div className="text-4xl mb-4">📦</div>
             <h3 className="text-lg font-semibold text-gray-800 mb-2">Tu catálogo está vacío</h3>
@@ -113,7 +127,7 @@ export default function ProductosPage() {
               Agregar primer producto
             </button>
           </div>
-        ) : (
+        ) : !errorGeneral ? (
           <div className="space-y-8">
             {Object.entries(pasillos).map(([pasillo, items]) => (
               <div key={pasillo}>
@@ -180,7 +194,7 @@ export default function ProductosPage() {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </main>
     </div>
   )

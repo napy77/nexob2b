@@ -6,11 +6,21 @@ const baseHeaders = () => ({
   "x-publishable-api-key": PUB_KEY,
 })
 
+class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
+}
+
 async function handleResponse(res: Response) {
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error || data.message || "Error desconocido")
+  if (!res.ok) throw new ApiError(data.error || data.message || "Error desconocido", res.status)
   return data
 }
+
+export { ApiError }
 
 export const mayoristasApi = {
   registro: async (data: Record<string, unknown>) => {
