@@ -1,4 +1,4 @@
-import React from "react"
+import { Component } from "react"
 
 type Mayorista = {
   id: string
@@ -17,107 +17,100 @@ type State = {
   updating: string | null
 }
 
-export default class MayoristasPage extends React.Component<Record<string, never>, State> {
-  state: State = { mayoristas: [], loading: true, updating: null }
+export default class MayoristasPage extends Component<Record<string, never>, State> {
+  override state: State = { mayoristas: [], loading: true, updating: null }
 
-  componentDidMount() {
-    this.cargarMayoristas()
+  override componentDidMount() {
+    this.cargar()
   }
 
-  cargarMayoristas() {
+  cargar() {
     fetch("/admin/mayoristas", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => this.setState({ mayoristas: d.mayoristas || [], loading: false }))
       .catch(() => this.setState({ loading: false }))
   }
 
-  cambiarEstado(id: string, estado: string) {
+  aprobar(id: string) {
     this.setState({ updating: id })
     fetch(`/admin/mayoristas/${id}`, {
-      method: "PUT",
-      credentials: "include",
+      method: "PUT", credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estado }),
-    })
-      .then(() => this.cargarMayoristas())
-      .then(() => this.setState({ updating: null }))
+      body: JSON.stringify({ estado: "aprobado" }),
+    }).then(() => { this.cargar(); this.setState({ updating: null }) })
   }
 
-  render() {
-    const { mayoristas, loading, updating } = this.state
+  suspender(id: string) {
+    this.setState({ updating: id })
+    fetch(`/admin/mayoristas/${id}`, {
+      method: "PUT", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estado: "suspendido" }),
+    }).then(() => { this.cargar(); this.setState({ updating: null }) })
+  }
 
-    if (loading) return <div className="p-6 text-sm text-gray-500">Cargando...</div>
+  override render() {
+    const { mayoristas, loading, updating } = this.state
+    if (loading) return <div style={{ padding: 24, color: "#888" }}>Cargando...</div>
 
     return (
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Mayoristas</h1>
-          <span className="text-sm text-gray-500">{mayoristas.length} registrados</span>
+      <div style={{ padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>Mayoristas</h1>
+          <span style={{ color: "#888", fontSize: 13 }}>{mayoristas.length} registrados</span>
         </div>
-
         {mayoristas.length === 0 ? (
-          <p className="text-gray-500 text-sm">No hay mayoristas registrados todavía.</p>
+          <p style={{ color: "#888" }}>No hay mayoristas registrados todavía.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="pb-3 font-medium text-gray-600 pr-4">Empresa</th>
-                  <th className="pb-3 font-medium text-gray-600 pr-4">CUIT</th>
-                  <th className="pb-3 font-medium text-gray-600 pr-4">Email</th>
-                  <th className="pb-3 font-medium text-gray-600 pr-4">Ubicación</th>
-                  <th className="pb-3 font-medium text-gray-600 pr-4">Estado</th>
-                  <th className="pb-3 font-medium text-gray-600">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mayoristas.map((m) => (
-                  <tr key={m.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 pr-4">
-                      <div className="font-medium text-gray-900">{m.nombre}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">{m.rubros?.join(", ")}</div>
-                    </td>
-                    <td className="py-3 pr-4 text-gray-700">{m.cuit}</td>
-                    <td className="py-3 pr-4 text-gray-700">{m.email}</td>
-                    <td className="py-3 pr-4 text-gray-700">
-                      {m.ciudad && m.provincia ? `${m.ciudad}, ${m.provincia}` : m.provincia || m.ciudad || "—"}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                        m.estado === "aprobado" ? "bg-green-100 text-green-700" :
-                        m.estado === "suspendido" ? "bg-red-100 text-red-700" :
-                        "bg-yellow-100 text-yellow-700"
-                      }`}>
-                        {m.estado}
-                      </span>
-                    </td>
-                    <td className="py-3">
-                      <div className="flex gap-2">
-                        {m.estado !== "aprobado" && (
-                          <button
-                            disabled={updating === m.id}
-                            onClick={() => this.cambiarEstado(m.id, "aprobado")}
-                            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                          >
-                            Aprobar
-                          </button>
-                        )}
-                        {m.estado !== "suspendido" && (
-                          <button
-                            disabled={updating === m.id}
-                            onClick={() => this.cambiarEstado(m.id, "suspendido")}
-                            className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-                          >
-                            Suspender
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: "2px solid #eee" }}>
+                {["Empresa", "CUIT", "Email", "Ubicación", "Estado", "Acciones"].map((h) => (
+                  <th key={h} style={{ textAlign: "left", paddingBottom: 8, paddingRight: 16, fontWeight: 500, color: "#555" }}>{h}</th>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </tr>
+            </thead>
+            <tbody>
+              {mayoristas.map((m) => (
+                <tr key={m.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                  <td style={{ padding: "10px 16px 10px 0" }}>
+                    <div style={{ fontWeight: 500 }}>{m.nombre}</div>
+                    <div style={{ color: "#999", fontSize: 11 }}>{m.rubros?.join(", ")}</div>
+                  </td>
+                  <td style={{ paddingRight: 16 }}>{m.cuit}</td>
+                  <td style={{ paddingRight: 16 }}>{m.email}</td>
+                  <td style={{ paddingRight: 16 }}>
+                    {m.ciudad && m.provincia ? `${m.ciudad}, ${m.provincia}` : m.provincia || m.ciudad || "—"}
+                  </td>
+                  <td style={{ paddingRight: 16 }}>
+                    <span style={{
+                      padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 500,
+                      background: m.estado === "aprobado" ? "#dcfce7" : m.estado === "suspendido" ? "#fee2e2" : "#fef9c3",
+                      color: m.estado === "aprobado" ? "#166534" : m.estado === "suspendido" ? "#991b1b" : "#854d0e",
+                    }}>
+                      {m.estado}
+                    </span>
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {m.estado !== "aprobado" && (
+                        <button disabled={updating === m.id} onClick={() => this.aprobar(m.id)}
+                          style={{ padding: "4px 10px", fontSize: 12, background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", opacity: updating === m.id ? 0.5 : 1 }}>
+                          Aprobar
+                        </button>
+                      )}
+                      {m.estado !== "suspendido" && (
+                        <button disabled={updating === m.id} onClick={() => this.suspender(m.id)}
+                          style={{ padding: "4px 10px", fontSize: 12, background: "#dc2626", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", opacity: updating === m.id ? 0.5 : 1 }}>
+                          Suspender
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     )
