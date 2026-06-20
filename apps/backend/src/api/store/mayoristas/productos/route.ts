@@ -23,22 +23,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!payload) return res.status(401).json({ error: "No autorizado" })
 
   const productoService: any = req.scope.resolve(PRODUCTO_MODULE)
+  const productos = await productoService.listProductos(
+    { mayorista_id: payload.mayorista_id },
+    { order: { pasillo: "ASC", nombre: "ASC" } }
+  )
 
-  // DEBUG temporal: loguear métodos disponibles
-  const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(productoService))
-    .filter((m) => !m.startsWith("__") && m !== "constructor")
-  console.log("[DEBUG] productoService methods:", methods.join(", "))
-
-  try {
-    const productos = await productoService.listProductos(
-      { mayorista_id: payload.mayorista_id },
-      { order: { pasillo: "ASC", nombre: "ASC" } }
-    )
-    res.json({ productos })
-  } catch (err: any) {
-    console.error("[DEBUG] listProductos error:", err.message)
-    res.status(500).json({ error: err.message })
-  }
+  res.json({ productos })
 }
 
 // POST /store/mayoristas/productos — crear producto
