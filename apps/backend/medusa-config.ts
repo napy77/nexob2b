@@ -14,6 +14,7 @@ module.exports = defineConfig({
     }
   },
   admin: {
+    backendUrl: "https://nexob2b.app",
     vite: (config) => {
       config.server = {
         ...config.server,
@@ -25,6 +26,9 @@ module.exports = defineConfig({
   modules: [
     {
       resolve: "./src/modules/mayorista",
-    }
+    },
+    {
+      resolve: "./src/modules/producto",
+    },
   ]
 })

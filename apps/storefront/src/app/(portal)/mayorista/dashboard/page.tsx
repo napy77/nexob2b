@@ -140,7 +140,7 @@ export default function DashboardPage() {
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Secciones</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NavCard
-            href="#"
+            href="/mayorista/productos"
             icon="📦"
             title="Mis productos"
             description="Gestioná tu catálogo: precios, stock y descripción"

@@ -48,6 +48,57 @@ export const mayoristasApi = {
   },
 }
 
+export const productosApi = {
+  listar: async (token: string) => {
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/productos`, {
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+    })
+    return handleResponse(res)
+  },
+
+  obtener: async (token: string, id: string) => {
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/productos/${id}`, {
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+    })
+    return handleResponse(res)
+  },
+
+  crear: async (token: string, data: Record<string, unknown>) => {
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/productos`, {
+      method: "POST",
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    })
+    return handleResponse(res)
+  },
+
+  actualizar: async (token: string, id: string, data: Record<string, unknown>) => {
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/productos/${id}`, {
+      method: "PUT",
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    })
+    return handleResponse(res)
+  },
+
+  eliminar: async (token: string, id: string) => {
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/productos/${id}`, {
+      method: "DELETE",
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+    })
+    return handleResponse(res)
+  },
+}
+
+// Convierte un File a base64 data URL
+export const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
 export const RUBROS_DISPONIBLES = [
   "Alimentos y bebidas",
   "Limpieza y hogar",
