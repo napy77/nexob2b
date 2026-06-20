@@ -1,6 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import React, { useState, useEffect } from "react"
-import { Container, Heading, Badge, Button, Table, Text } from "@medusajs/ui"
 
 export const config = defineRouteConfig({
   label: "Mayoristas",
@@ -14,23 +13,15 @@ type Mayorista = {
   ciudad?: string
   provincia?: string
   rubros: string[]
-  zonas: string[]
   estado: "pendiente" | "aprobado" | "suspendido"
-  created_at: string
 }
 
-const ESTADO_COLORS: Record<string, "orange" | "green" | "red"> = {
-  pendiente: "orange",
-  aprobado: "green",
-  suspendido: "red",
-}
-
-export default function MayoristasPage() {
+function MayoristasPage() {
   const [mayoristas, setMayoristas] = useState<Mayorista[]>([])
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState<string | null>(null)
 
-  const fetchMayoristas = async () => {
+  async function fetchMayoristas() {
     const res = await fetch("/admin/mayoristas", { credentials: "include" })
     const data = await res.json()
     setMayoristas(data.mayoristas || [])
@@ -39,7 +30,7 @@ export default function MayoristasPage() {
 
   useEffect(() => { fetchMayoristas() }, [])
 
-  const cambiarEstado = async (id: string, estado: string) => {
+  async function cambiarEstado(id: string, estado: string) {
     setUpdating(id)
     await fetch(`/admin/mayoristas/${id}`, {
       method: "PUT",
@@ -51,75 +42,79 @@ export default function MayoristasPage() {
     setUpdating(null)
   }
 
-  if (loading) {
-    return <Container><Text>Cargando...</Text></Container>
-  }
+  if (loading) return <div className="p-6">Cargando...</div>
 
   return (
-    <Container>
+    <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <Heading level="h1">Mayoristas</Heading>
-        <Badge color="grey">{mayoristas.length} registrados</Badge>
+        <h1 className="text-2xl font-bold">Mayoristas</h1>
+        <span className="text-sm text-gray-500">{mayoristas.length} registrados</span>
       </div>
 
       {mayoristas.length === 0 ? (
-        <div className="text-center py-12">
-          <Text className="text-ui-fg-muted">No hay mayoristas registrados todavía.</Text>
-        </div>
+        <p className="text-gray-500">No hay mayoristas registrados todavía.</p>
       ) : (
-        <Table>
-          <Table.Header>
-            <Table.Row>
-              <Table.HeaderCell>Empresa</Table.HeaderCell>
-              <Table.HeaderCell>CUIT</Table.HeaderCell>
-              <Table.HeaderCell>Email</Table.HeaderCell>
-              <Table.HeaderCell>Ubicación</Table.HeaderCell>
-              <Table.HeaderCell>Estado</Table.HeaderCell>
-              <Table.HeaderCell>Acciones</Table.HeaderCell>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left">
+              <th className="pb-2 font-medium">Empresa</th>
+              <th className="pb-2 font-medium">CUIT</th>
+              <th className="pb-2 font-medium">Email</th>
+              <th className="pb-2 font-medium">Ubicación</th>
+              <th className="pb-2 font-medium">Estado</th>
+              <th className="pb-2 font-medium">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
             {mayoristas.map((m) => (
-              <Table.Row key={m.id}>
-                <Table.Cell>
-                  <Text weight="plus">{m.nombre}</Text>
-                  <Text size="small">{m.rubros.join(", ")}</Text>
-                </Table.Cell>
-                <Table.Cell>{m.cuit}</Table.Cell>
-                <Table.Cell>{m.email}</Table.Cell>
-                <Table.Cell>
+              <tr key={m.id} className="border-b hover:bg-gray-50">
+                <td className="py-3">
+                  <div className="font-medium">{m.nombre}</div>
+                  <div className="text-xs text-gray-400">{m.rubros?.join(", ")}</div>
+                </td>
+                <td className="py-3">{m.cuit}</td>
+                <td className="py-3">{m.email}</td>
+                <td className="py-3">
                   {m.ciudad && m.provincia ? `${m.ciudad}, ${m.provincia}` : m.provincia || m.ciudad || "—"}
-                </Table.Cell>
-                <Table.Cell>
-                  <Badge color={ESTADO_COLORS[m.estado] || "grey"}>{m.estado}</Badge>
-                </Table.Cell>
-                <Table.Cell>
+                </td>
+                <td className="py-3">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    m.estado === "aprobado" ? "bg-green-100 text-green-700" :
+                    m.estado === "suspendido" ? "bg-red-100 text-red-700" :
+                    "bg-yellow-100 text-yellow-700"
+                  }`}>
+                    {m.estado}
+                  </span>
+                </td>
+                <td className="py-3">
                   <div className="flex gap-2">
                     {m.estado !== "aprobado" && (
-                      <Button size="small" variant="secondary" disabled={updating === m.id}
-                        onClick={() => cambiarEstado(m.id, "aprobado")}>
+                      <button
+                        disabled={updating === m.id}
+                        onClick={() => cambiarEstado(m.id, "aprobado")}
+                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                      >
                         Aprobar
-                      </Button>
+                      </button>
                     )}
                     {m.estado !== "suspendido" && (
-                      <Button size="small" variant="danger" disabled={updating === m.id}
-                        onClick={() => cambiarEstado(m.id, "suspendido")}>
+                      <button
+                        disabled={updating === m.id}
+                        onClick={() => cambiarEstado(m.id, "suspendido")}
+                        className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                      >
                         Suspender
-                      </Button>
-                    )}
-                    {m.estado === "suspendido" && (
-                      <Button size="small" variant="secondary" disabled={updating === m.id}
-                        onClick={() => cambiarEstado(m.id, "pendiente")}>
-                        Reactivar
-                      </Button>
+                      </button>
                     )}
                   </div>
-                </Table.Cell>
-              </Table.Row>
+                </td>
+              </tr>
             ))}
-          </Table.Body>
-        </Table>
+          </tbody>
+        </table>
       )}
-    </Container>
+    </div>
   )
 }
+
+export default MayoristasPage
