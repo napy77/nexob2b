@@ -30,5 +30,8 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/producto",
     },
+    {
+      resolve: "./src/modules/comercio",
+    },
   ]
 })
