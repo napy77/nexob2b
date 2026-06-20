@@ -21,5 +21,10 @@ module.exports = defineConfig({
       }
       return config
     }
-  }
+  },
+  modules: [
+    {
+      resolve: "./src/modules/mayorista",
+    }
+  ]
 })
