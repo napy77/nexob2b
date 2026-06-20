@@ -101,8 +101,9 @@ async function getCountryCode(
  * Middleware to handle region selection and onboarding status.
  */
 export async function middleware(request: NextRequest) {
-  // Portales — sin redirección por countryCode
+  // Landing y portales — sin redirección por countryCode
   if (
+    request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname.startsWith("/mayorista") ||
     request.nextUrl.pathname.startsWith("/comercio")
   ) {
