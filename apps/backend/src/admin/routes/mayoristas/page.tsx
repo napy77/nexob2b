@@ -1,11 +1,9 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { useState, useEffect } from "react"
 import { Container, Heading, Badge, Button, Table, Text } from "@medusajs/ui"
-import { BuildingStorefront } from "@medusajs/icons"
 
 export const config = defineRouteConfig({
   label: "Mayoristas",
-  icon: BuildingStorefront,
 })
 
 type Mayorista = {
@@ -54,11 +52,7 @@ export default function MayoristasPage() {
   }
 
   if (loading) {
-    return (
-      <Container>
-        <Text>Cargando...</Text>
-      </Container>
-    )
+    return <Container><Text>Cargando...</Text></Container>
   }
 
   return (
@@ -69,8 +63,8 @@ export default function MayoristasPage() {
       </div>
 
       {mayoristas.length === 0 ? (
-        <div className="text-center py-12 text-ui-fg-muted">
-          <Text>No hay mayoristas registrados todavía.</Text>
+        <div className="text-center py-12">
+          <Text className="text-ui-fg-muted">No hay mayoristas registrados todavía.</Text>
         </div>
       ) : (
         <Table>
@@ -88,54 +82,34 @@ export default function MayoristasPage() {
             {mayoristas.map((m) => (
               <Table.Row key={m.id}>
                 <Table.Cell>
-                  <div>
-                    <Text weight="plus">{m.nombre}</Text>
-                    <Text size="small" className="text-ui-fg-muted">
-                      {m.rubros.join(", ")}
-                    </Text>
-                  </div>
+                  <Text weight="plus">{m.nombre}</Text>
+                  <Text size="small">{m.rubros.join(", ")}</Text>
                 </Table.Cell>
                 <Table.Cell>{m.cuit}</Table.Cell>
                 <Table.Cell>{m.email}</Table.Cell>
                 <Table.Cell>
-                  {m.ciudad && m.provincia
-                    ? `${m.ciudad}, ${m.provincia}`
-                    : m.provincia || m.ciudad || "—"}
+                  {m.ciudad && m.provincia ? `${m.ciudad}, ${m.provincia}` : m.provincia || m.ciudad || "—"}
                 </Table.Cell>
                 <Table.Cell>
-                  <Badge color={ESTADO_COLORS[m.estado] || "grey"}>
-                    {m.estado}
-                  </Badge>
+                  <Badge color={ESTADO_COLORS[m.estado] || "grey"}>{m.estado}</Badge>
                 </Table.Cell>
                 <Table.Cell>
                   <div className="flex gap-2">
                     {m.estado !== "aprobado" && (
-                      <Button
-                        size="small"
-                        variant="secondary"
-                        disabled={updating === m.id}
-                        onClick={() => cambiarEstado(m.id, "aprobado")}
-                      >
+                      <Button size="small" variant="secondary" disabled={updating === m.id}
+                        onClick={() => cambiarEstado(m.id, "aprobado")}>
                         Aprobar
                       </Button>
                     )}
                     {m.estado !== "suspendido" && (
-                      <Button
-                        size="small"
-                        variant="danger"
-                        disabled={updating === m.id}
-                        onClick={() => cambiarEstado(m.id, "suspendido")}
-                      >
+                      <Button size="small" variant="danger" disabled={updating === m.id}
+                        onClick={() => cambiarEstado(m.id, "suspendido")}>
                         Suspender
                       </Button>
                     )}
                     {m.estado === "suspendido" && (
-                      <Button
-                        size="small"
-                        variant="secondary"
-                        disabled={updating === m.id}
-                        onClick={() => cambiarEstado(m.id, "pendiente")}
-                      >
+                      <Button size="small" variant="secondary" disabled={updating === m.id}
+                        onClick={() => cambiarEstado(m.id, "pendiente")}>
                         Reactivar
                       </Button>
                     )}
