@@ -105,7 +105,8 @@ export async function middleware(request: NextRequest) {
   if (
     request.nextUrl.pathname === "/" ||
     request.nextUrl.pathname.startsWith("/mayorista") ||
-    request.nextUrl.pathname.startsWith("/comercio")
+    request.nextUrl.pathname.startsWith("/comercio") ||
+    request.nextUrl.pathname.startsWith("/portal")
   ) {
     return NextResponse.next()
   }

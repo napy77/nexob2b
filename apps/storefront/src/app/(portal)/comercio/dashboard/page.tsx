@@ -118,8 +118,15 @@ export default function ComercioDashboardPage() {
           <NavCard
             href="/comercio/catalogo"
             icon="🛒"
-            title="Explorar catálogo"
-            description="Buscá productos de mayoristas en tu zona"
+            title="Catálogo de productos"
+            description="Explorá productos de mayoristas disponibles en la plataforma"
+            disabled={comercio.estado !== "aprobado"}
+          />
+          <NavCard
+            href="/comercio/contactos"
+            icon="🤝"
+            title="Mis contactos"
+            description="Gestioná tus relaciones con mayoristas y explorá nuevos"
             disabled={comercio.estado !== "aprobado"}
           />
           <NavCard
