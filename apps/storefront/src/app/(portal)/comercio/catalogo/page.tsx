@@ -276,9 +276,15 @@ export default function CatalogoProductosPage() {
                     )}
                   </>
                 ) : seleccionado.acceso.solicitud?.estado === "pendiente" ? (
-                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-xl px-4 py-3 text-sm text-center">
-                    Tu solicitud con este mayorista está pendiente de aprobación
-                  </div>
+                  <>
+                    <button disabled
+                      className="w-full bg-gray-200 text-gray-400 px-4 py-3 rounded-xl text-sm font-medium cursor-not-allowed">
+                      Solicitar alta para contactar
+                    </button>
+                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-xl px-4 py-3 text-sm text-center">
+                      ⏳ Solicitud pendiente — el mayorista revisará tu pedido
+                    </div>
+                  </>
                 ) : seleccionado.acceso.solicitud?.estado === "rechazado" ? (
                   <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm text-center">
                     Solicitud rechazada
