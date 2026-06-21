@@ -56,6 +56,23 @@ export const mayoristasApi = {
     })
     return handleResponse(res)
   },
+
+  getContactos: async (token: string, estado?: string) => {
+    const qs = estado ? `?estado=${estado}` : ""
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/contactos${qs}`, {
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+    })
+    return handleResponse(res)
+  },
+
+  actualizarContacto: async (token: string, solicitudId: string, estado: string) => {
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/contactos/${solicitudId}`, {
+      method: "PUT",
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ estado }),
+    })
+    return handleResponse(res)
+  },
 }
 
 export const productosApi = {

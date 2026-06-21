@@ -158,6 +158,13 @@ export default function DashboardPage() {
             title="Zona de influencia"
             description="Definí en qué provincias distribuís"
           />
+          <NavCard
+            href="/mayorista/contactos"
+            icon="🤝"
+            title="Contactos"
+            description="Gestioná los comercios que solicitan comprar con vos"
+            disabled={mayorista.estado !== "aprobado"}
+          />
         </div>
 
         {mayorista.estado !== "aprobado" && (

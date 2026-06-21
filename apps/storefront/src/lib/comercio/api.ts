@@ -67,6 +67,36 @@ export const comerciosApi = {
     })
     return handleResponse(res)
   },
+
+  getMayoristas: async (token: string) => {
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/lista`, {
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+    })
+    return handleResponse(res)
+  },
+
+  getCatalogoMayorista: async (token: string, mayoristaId: string) => {
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/${mayoristaId}/catalogo`, {
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+    })
+    return handleResponse(res)
+  },
+
+  solicitarAlta: async (token: string, mayorista_id: string, mensaje?: string) => {
+    const res = await fetch(`${BACKEND_URL}/store/solicitudes`, {
+      method: "POST",
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ mayorista_id, mensaje }),
+    })
+    return handleResponse(res)
+  },
+
+  getMisSolicitudes: async (token: string) => {
+    const res = await fetch(`${BACKEND_URL}/store/solicitudes`, {
+      headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
+    })
+    return handleResponse(res)
+  },
 }
 
 export const RUBROS_DISPONIBLES = [
