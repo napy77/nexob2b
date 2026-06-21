@@ -143,17 +143,11 @@ export default function CatalogoProductosPage() {
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
             <div className="text-4xl mb-4">🛒</div>
             <h3 className="text-lg font-semibold text-gray-800 mb-2">No hay productos disponibles</h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500">
               {busqueda || rubroFiltro
                 ? "Probá con otros filtros."
-                : "Explorá mayoristas para ver sus catálogos."}
+                : "Todavía no hay productos disponibles en la plataforma."}
             </p>
-            {!busqueda && !rubroFiltro && (
-              <button onClick={() => router.push("/comercio/mayoristas")}
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
-                Explorar mayoristas
-              </button>
-            )}
           </div>
         ) : (
           <div className="space-y-8">
