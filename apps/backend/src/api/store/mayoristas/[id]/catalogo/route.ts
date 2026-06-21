@@ -4,7 +4,7 @@ import { MAYORISTA_MODULE } from "../../../../../modules/mayorista"
 import { SOLICITUD_MODULE } from "../../../../../modules/solicitud"
 import jwt from "jsonwebtoken"
 
-// GET /store/mayoristas/:id/catalogo — comercio con relación aceptada ve productos
+// GET /store/mayoristas/:id/catalogo
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   try {
     const auth = req.headers.authorization?.replace("Bearer ", "")
@@ -24,21 +24,20 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     const mayoristaService: any = req.scope.resolve(MAYORISTA_MODULE)
     const productoService: any = req.scope.resolve(PRODUCTO_MODULE)
 
-    // Verificar relación aceptada
+    // Datos del mayorista
+    const mayorista = await mayoristaService.retrieveMayorista(mayoristaId, {
+      select: ["id", "nombre", "email", "telefono", "ciudad", "provincia", "rubros", "visibilidad", "descripcion"],
+    })
+
+    const visibilidad: string = mayorista.visibilidad || "sin_precio"
+
+    // Verificar si tiene relación aceptada
     const solicitudes = await solicitudService.listSolicituds({
       comercio_id: comercioId,
       mayorista_id: mayoristaId,
-      estado: "aceptado",
     })
-
-    if (solicitudes.length === 0) {
-      return res.status(403).json({ error: "Sin acceso. Solicitá alta con este mayorista." })
-    }
-
-    // Datos del mayorista
-    const mayorista = await mayoristaService.retrieveMayorista(mayoristaId, {
-      select: ["id", "nombre", "email", "telefono", "ciudad", "provincia", "rubros"],
-    })
+    const solicitud = solicitudes[0] || null
+    const aceptado = solicitud?.estado === "aceptado"
 
     // Productos activos
     const productos = await productoService.listProductos(
@@ -46,7 +45,29 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       { order: { pasillo: "ASC", nombre: "ASC" } }
     )
 
-    return res.json({ mayorista, productos })
+    // Aplicar reglas de visibilidad
+    // - publico: todos ven precios y pueden contactar
+    // - con_precio: todos ven precios, contacto solo si aceptado
+    // - sin_precio: precios ocultos hasta ser aceptado
+    const mostrarPrecio = visibilidad === "publico" || visibilidad === "con_precio" || aceptado
+    const puedeContactar = visibilidad === "publico" || aceptado
+
+    const productosResponse = productos.map((p: any) => ({
+      ...p,
+      precio: mostrarPrecio ? p.precio : null,
+    }))
+
+    return res.json({
+      mayorista,
+      productos: productosResponse,
+      acceso: {
+        visibilidad,
+        aceptado,
+        mostrarPrecio,
+        puedeContactar,
+        solicitud,
+      },
+    })
   } catch (e: any) {
     return res.status(500).json({ error: e.message })
   }

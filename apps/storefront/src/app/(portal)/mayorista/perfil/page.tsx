@@ -16,6 +16,8 @@ type Mayorista = {
   rubros: string[]
   zonas: string[]
   estado: string
+  visibilidad?: string
+  descripcion?: string
 }
 
 const PROVINCIAS = [
@@ -23,6 +25,33 @@ const PROVINCIAS = [
   "Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja",
   "Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis",
   "Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán",
+]
+
+const VISIBILIDAD_OPCIONES = [
+  {
+    value: "publico",
+    label: "Público",
+    description: "Cualquier comercio logueado ve tus productos, precios y puede contactarte directamente.",
+    icon: "🌐",
+    color: "border-green-500 bg-green-50",
+    selectedColor: "border-green-500 bg-green-50 ring-2 ring-green-500",
+  },
+  {
+    value: "con_precio",
+    label: "Con precio, sin compra directa",
+    description: "Los comercios ven tus productos y precios, pero necesitan solicitar alta para poder contactarte.",
+    icon: "🏷️",
+    color: "border-blue-300 bg-blue-50",
+    selectedColor: "border-blue-500 bg-blue-50 ring-2 ring-blue-500",
+  },
+  {
+    value: "sin_precio",
+    label: "Sin precio",
+    description: "Los comercios ven tus productos pero sin precios. Deben solicitar alta para ver precios y contactarte.",
+    icon: "🔒",
+    color: "border-gray-300 bg-gray-50",
+    selectedColor: "border-gray-500 bg-gray-50 ring-2 ring-gray-500",
+  },
 ]
 
 export default function PerfilPage() {
@@ -34,7 +63,8 @@ export default function PerfilPage() {
   const [error, setError] = useState("")
 
   const [form, setForm] = useState({
-    nombre: "", telefono: "", direccion: "", ciudad: "", provincia: "", rubros: [] as string[],
+    nombre: "", telefono: "", direccion: "", ciudad: "", provincia: "",
+    rubros: [] as string[], visibilidad: "sin_precio", descripcion: "",
   })
 
   useEffect(() => {
@@ -51,6 +81,8 @@ export default function PerfilPage() {
           ciudad: m.ciudad || "",
           provincia: m.provincia || "",
           rubros: m.rubros || [],
+          visibilidad: m.visibilidad || "sin_precio",
+          descripcion: m.descripcion || "",
         })
       })
       .catch(() => { localStorage.removeItem("mayorista_token"); router.replace("/mayorista/login") })
@@ -149,7 +181,47 @@ export default function PerfilPage() {
                   {PROVINCIAS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <textarea value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+                  rows={3} placeholder="Contá brevemente qué vendés y a qué tipo de comercios le conviene trabajar con vos..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              </div>
             </div>
+          </div>
+
+          {/* Visibilidad del catálogo */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <h2 className="font-semibold text-gray-800 mb-1">Visibilidad del catálogo</h2>
+            <p className="text-sm text-gray-400 mb-4">Controlá cómo ven tus productos los comercios que aún no tienen relación con vos</p>
+            <div className="space-y-3">
+              {VISIBILIDAD_OPCIONES.map((op) => (
+                <button
+                  key={op.value}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, visibilidad: op.value }))}
+                  className={`w-full text-left border rounded-xl p-4 transition-all ${
+                    form.visibilidad === op.value ? op.selectedColor : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl mt-0.5">{op.icon}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 text-sm">{op.label}</span>
+                        {form.visibilidad === op.value && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Activo</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{op.description}</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-3">
+              Los comercios con relación <strong>aceptada</strong> siempre ven precios y pueden contactarte, sin importar este ajuste.
+            </p>
           </div>
 
           {/* Rubros */}

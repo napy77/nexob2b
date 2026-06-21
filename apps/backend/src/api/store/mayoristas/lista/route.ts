@@ -23,7 +23,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     // Todos los mayoristas aprobados
     const mayoristas = await mayoristaService.listMayoristas(
       { estado: "aprobado" },
-      { select: ["id", "nombre", "email", "telefono", "ciudad", "provincia", "rubros", "zonas", "descripcion"] }
+      { select: ["id", "nombre", "email", "telefono", "ciudad", "provincia", "rubros", "zonas", "descripcion", "visibilidad"] }
     )
 
     // Solicitudes del comercio

@@ -33,7 +33,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const mayoristaService: MayoristaModuleService = req.scope.resolve(MAYORISTA_MODULE)
 
-  const { nombre, telefono, direccion, ciudad, provincia, rubros, zonas } = req.body as any
+  const { nombre, telefono, direccion, ciudad, provincia, rubros, zonas, visibilidad, descripcion } = req.body as any
 
   const updateData: Record<string, any> = { id: payload.mayorista_id }
   if (nombre !== undefined) updateData.nombre = nombre
@@ -43,6 +43,8 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (provincia !== undefined) updateData.provincia = provincia
   if (rubros !== undefined) updateData.rubros = rubros
   if (zonas !== undefined) updateData.zonas = zonas
+  if (visibilidad !== undefined) updateData.visibilidad = visibilidad
+  if (descripcion !== undefined) updateData.descripcion = descripcion
 
   const mayorista = await mayoristaService.updateMayoristas(updateData)
 

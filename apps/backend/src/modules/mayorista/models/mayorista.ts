@@ -13,6 +13,8 @@ const Mayorista = model.define("mayorista", {
   rubros: model.json(),
   zonas: model.json().nullable(),
   estado: model.enum(["pendiente", "aprobado", "suspendido"]).default("pendiente"),
+  visibilidad: model.enum(["publico", "con_precio", "sin_precio"]).default("sin_precio"),
+  descripcion: model.text().nullable(),
 })
 
 export default Mayorista
