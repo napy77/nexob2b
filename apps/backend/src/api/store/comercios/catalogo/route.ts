@@ -46,13 +46,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // Mayoristas aprobados
   const todosMayoristas = await mayoristaService.listMayoristas({ estado: "aprobado" })
 
-  // Incluir mayorista si: es público, con_precio, o si el comercio tiene relación aceptada
-  const mayoristasFiltrados = todosMayoristas.filter((m: any) => {
-    const vis = m.visibilidad || "sin_precio"
-    const solicitud = solicitudMap[m.id]
-    const aceptado = solicitud?.estado === "aceptado"
-    return vis === "publico" || vis === "con_precio" || aceptado
-  })
+  // Incluir todos los mayoristas aprobados — la visibilidad controla qué info se muestra, no si aparece
+  const mayoristasFiltrados = todosMayoristas
 
   if (mayoristasFiltrados.length === 0) {
     return res.json({ productos: [] })
