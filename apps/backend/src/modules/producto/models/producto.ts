@@ -13,6 +13,7 @@ const Producto = model.define("producto", {
   ean: model.text().nullable(),
   imagen_url: model.text().nullable(),
   rubro: model.text().nullable(),
+  subrubro: model.text().nullable(),
   pasillo: model.text().nullable(),
   activo: model.boolean().default(true),
 })

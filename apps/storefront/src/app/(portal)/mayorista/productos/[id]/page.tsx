@@ -4,12 +4,12 @@ import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { productosApi, fileToBase64 } from "../../../../../lib/mayorista/api"
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 const UNIDADES = ["unidad", "kg", "g", "litro", "ml", "caja", "pack", "docena", "bolsa", "rollo"]
-const PASILLOS_SUGERIDOS = [
-  "Bebidas", "Alimentos secos", "Lácteos y frescos", "Limpieza",
-  "Higiene personal", "Electrónica", "Indumentaria", "Ferretería", "Otros",
-]
-const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || ""
+
+type TaxItem = { id: string; nombre: string; activo: boolean }
+type Subrubro = TaxItem & { rubro_id: string }
 
 export default function EditarProductoPage() {
   const router = useRouter()
@@ -24,6 +24,12 @@ export default function EditarProductoPage() {
   const [imagenBase64, setImagenBase64] = useState<string | null>(null)
   const [imagenActual, setImagenActual] = useState<string | null>(null)
 
+  // Taxonomía
+  const [rubros, setRubros] = useState<TaxItem[]>([])
+  const [subrubros, setSubrubros] = useState<Subrubro[]>([])
+  const [pasillos, setPasillos] = useState<TaxItem[]>([])
+  const [taxLoading, setTaxLoading] = useState(true)
+
   const [form, setForm] = useState({
     nombre: "",
     descripcion: "",
@@ -34,9 +40,24 @@ export default function EditarProductoPage() {
     sku: "",
     ean: "",
     rubro: "",
+    subrubro: "",
     pasillo: "",
     activo: true,
   })
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/store/taxonomia`, {
+      headers: { "x-publishable-api-key": PUB_KEY },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setRubros(data.rubros || [])
+        setSubrubros(data.subrubros || [])
+        setPasillos(data.pasillos || [])
+      })
+      .catch(() => {})
+      .finally(() => setTaxLoading(false))
+  }, [])
 
   useEffect(() => {
     const token = localStorage.getItem("mayorista_token")
@@ -54,6 +75,7 @@ export default function EditarProductoPage() {
           sku: p.sku || "",
           ean: p.ean || "",
           rubro: p.rubro || "",
+          subrubro: p.subrubro || "",
           pasillo: p.pasillo || "",
           activo: p.activo !== false,
         })
@@ -63,8 +85,20 @@ export default function EditarProductoPage() {
       .finally(() => setLoading(false))
   }, [id, router])
 
-  const setField = (field: string, value: string | boolean) =>
-    setForm((f) => ({ ...f, [field]: value }))
+  const setField = (field: string, value: string | boolean) => {
+    if (field === "rubro") {
+      setForm((f) => ({ ...f, rubro: value as string, subrubro: "" }))
+    } else {
+      setForm((f) => ({ ...f, [field]: value }))
+    }
+  }
+
+  const subrubrosFiltrados = form.rubro
+    ? subrubros.filter((s) => {
+        const rubro = rubros.find((r) => r.nombre === form.rubro)
+        return rubro && s.rubro_id === rubro.id
+      })
+    : subrubros
 
   const handleImagen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -90,7 +124,7 @@ export default function EditarProductoPage() {
       })
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
-      if (imagenBase64) setImagenActual(null) // se actualizó, ya no mostramos la vieja URL
+      if (imagenBase64) setImagenActual(null)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -99,6 +133,7 @@ export default function EditarProductoPage() {
   }
 
   const imagenMostrar = imagenPreview ?? (imagenActual ? `${BACKEND_URL}${imagenActual}` : null)
+  const selectClass = "w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
 
   if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -192,8 +227,7 @@ export default function EditarProductoPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Unidad *</label>
-                <select value={form.unidad} onChange={(e) => setField("unidad", e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select value={form.unidad} onChange={(e) => setField("unidad", e.target.value)} className={selectClass}>
                   {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
@@ -231,23 +265,36 @@ export default function EditarProductoPage() {
 
           {/* Categorización */}
           <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-            <h2 className="font-semibold text-gray-800">Categorización</h2>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Rubro</label>
-              <input value={form.rubro} onChange={(e) => setField("rubro", e.target.value)}
-                placeholder="Ej: Bebidas alcohólicas"
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">Categorización</h2>
+              {taxLoading && <span className="text-xs text-gray-400">Cargando categorías...</span>}
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rubro</label>
+              <select value={form.rubro} onChange={(e) => setField("rubro", e.target.value)} className={selectClass}>
+                <option value="">— Sin rubro —</option>
+                {rubros.map((r) => <option key={r.id} value={r.nombre}>{r.nombre}</option>)}
+              </select>
+            </div>
+
+            {form.rubro && subrubrosFiltrados.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subrubro</label>
+                <select value={form.subrubro} onChange={(e) => setField("subrubro", e.target.value)} className={selectClass}>
+                  <option value="">— Sin subrubro —</option>
+                  {subrubrosFiltrados.map((s) => <option key={s.id} value={s.nombre}>{s.nombre}</option>)}
+                </select>
+              </div>
+            )}
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Pasillo</label>
-              <input value={form.pasillo} onChange={(e) => setField("pasillo", e.target.value)}
-                list="pasillos-list"
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              <datalist id="pasillos-list">
-                {PASILLOS_SUGERIDOS.map((p) => <option key={p} value={p} />)}
-              </datalist>
+              <select value={form.pasillo} onChange={(e) => setField("pasillo", e.target.value)} className={selectClass}>
+                <option value="">— Sin pasillo —</option>
+                {pasillos.map((p) => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Agrupa tus productos como pasillos de supermercado</p>
             </div>
           </div>
 
