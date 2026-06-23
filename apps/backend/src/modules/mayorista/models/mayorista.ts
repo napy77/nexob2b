@@ -15,6 +15,7 @@ const Mayorista = model.define("mayorista", {
   estado: model.enum(["pendiente", "aprobado", "suspendido"]).default("pendiente"),
   visibilidad: model.enum(["publico", "con_precio", "sin_precio"]).default("sin_precio"),
   descripcion: model.text().nullable(),
+  condicion_fiscal: model.text().nullable(),
 })
 
 export default Mayorista

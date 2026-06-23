@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { mayoristasApi, RUBROS_DISPONIBLES, PROVINCIAS_ARGENTINA } from "../../../../lib/mayorista/api"
 
@@ -9,6 +9,17 @@ export default function RegistroPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
+
+  const [tiposImpositivos, setTiposImpositivos] = useState<{ id: string; nombre: string; descripcion?: string }[]>([])
+
+  useEffect(() => {
+    const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+    const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+    fetch(`${BACKEND_URL}/store/taxonomia`, { headers: { "x-publishable-api-key": PUB_KEY } })
+      .then((r) => r.json())
+      .then((data) => { if (data.tipos_impositivos?.length) setTiposImpositivos(data.tipos_impositivos) })
+      .catch(() => {})
+  }, [])
 
   const [form, setForm] = useState({
     nombre: "",
@@ -22,6 +33,7 @@ export default function RegistroPage() {
     provincia: "",
     rubros: [] as string[],
     zonas: [] as string[],
+    condicion_fiscal: "",
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -54,6 +66,10 @@ export default function RegistroPage() {
       return
     }
 
+    if (!form.condicion_fiscal) {
+      setError("Seleccioná tu condición fiscal ante ARCA")
+      return
+    }
     setLoading(true)
     try {
       const { confirmPassword, ...payload } = form
@@ -202,6 +218,55 @@ export default function RegistroPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Condición fiscal */}
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800 mb-1">Condición fiscal ante ARCA *</h2>
+              <p className="text-sm text-gray-500 mb-3">¿Cuál es tu situación impositiva?</p>
+              {tiposImpositivos.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {tiposImpositivos.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, condicion_fiscal: t.nombre }))}
+                      className={`text-left p-4 rounded-xl border-2 transition-all ${
+                        form.condicion_fiscal === t.nombre
+                          ? "border-blue-600 bg-blue-50"
+                          : "border-gray-200 bg-white hover:border-blue-300"
+                      }`}
+                    >
+                      <div className="font-semibold text-sm text-gray-900">{t.nombre}</div>
+                      {t.descripcion && <div className="text-xs text-gray-500 mt-1">{t.descripcion}</div>}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                /* Fallback estático mientras no hay tipos cargados en admin */
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { nombre: "Responsable Inscripto", desc: "Factura A — precio + IVA" },
+                    { nombre: "Monotributo", desc: "Factura C — precio con impuestos incluidos" },
+                    { nombre: "Exento", desc: "Sin cobro de IVA" },
+                    { nombre: "Consumidor Final", desc: "Persona física sin CUIT empresa" },
+                  ].map((t) => (
+                    <button
+                      key={t.nombre}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, condicion_fiscal: t.nombre }))}
+                      className={`text-left p-4 rounded-xl border-2 transition-all ${
+                        form.condicion_fiscal === t.nombre
+                          ? "border-blue-600 bg-blue-50"
+                          : "border-gray-200 bg-white hover:border-blue-300"
+                      }`}
+                    >
+                      <div className="font-semibold text-sm text-gray-900">{t.nombre}</div>
+                      <div className="text-xs text-gray-500 mt-1">{t.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Zona de influencia */}

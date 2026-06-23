@@ -11,6 +11,7 @@ const Comercio = model.define("comercio", {
   ciudad: model.text().nullable(),
   provincia: model.text().nullable(),
   rubros: model.json(),
+  condicion_fiscal: model.text().nullable(),
   estado: model.enum(["pendiente", "aprobado", "suspendido"]).default("pendiente"),
 })
 

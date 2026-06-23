@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { comerciosApi, RUBROS_DISPONIBLES, PROVINCIAS_ARGENTINA } from "../../../../lib/comercio/api"
 
@@ -10,9 +10,21 @@ export default function ComercioRegistroPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
 
+  const [tiposImpositivos, setTiposImpositivos] = useState<{ id: string; nombre: string; descripcion?: string }[]>([])
+
+  useEffect(() => {
+    const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+    const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+    fetch(`${BACKEND_URL}/store/taxonomia`, { headers: { "x-publishable-api-key": PUB_KEY } })
+      .then((r) => r.json())
+      .then((data) => { if (data.tipos_impositivos?.length) setTiposImpositivos(data.tipos_impositivos) })
+      .catch(() => {})
+  }, [])
+
   const [form, setForm] = useState({
     nombre: "", cuit: "", email: "", password: "", confirmPassword: "",
     telefono: "", direccion: "", ciudad: "", provincia: "", rubros: [] as string[],
+    condicion_fiscal: "",
   })
 
   const set = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }))
@@ -28,12 +40,13 @@ export default function ComercioRegistroPage() {
     e.preventDefault()
     if (form.password !== form.confirmPassword) { setError("Las contraseñas no coinciden"); return }
     if (form.rubros.length === 0) { setError("Seleccioná al menos un rubro"); return }
+    if (!form.condicion_fiscal) { setError("Seleccioná tu condición fiscal ante ARCA"); return }
     setError(""); setLoading(true)
     try {
       await comerciosApi.registro({
         nombre: form.nombre, cuit: form.cuit, email: form.email, password: form.password,
         telefono: form.telefono, direccion: form.direccion, ciudad: form.ciudad,
-        provincia: form.provincia, rubros: form.rubros,
+        provincia: form.provincia, rubros: form.rubros, condicion_fiscal: form.condicion_fiscal,
       })
       setSuccess(true)
     } catch (err: any) {
@@ -126,6 +139,54 @@ export default function ComercioRegistroPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Condición fiscal */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <h2 className="font-semibold text-gray-800 mb-1">Condición fiscal ante ARCA *</h2>
+            <p className="text-sm text-gray-400 mb-4">¿Cuál es tu situación impositiva?</p>
+            {tiposImpositivos.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {tiposImpositivos.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, condicion_fiscal: t.nombre }))}
+                    className={`text-left p-4 rounded-xl border-2 transition-all ${
+                      form.condicion_fiscal === t.nombre
+                        ? "border-blue-600 bg-blue-50"
+                        : "border-gray-200 bg-white hover:border-blue-300"
+                    }`}
+                  >
+                    <div className="font-semibold text-sm text-gray-900">{t.nombre}</div>
+                    {t.descripcion && <div className="text-xs text-gray-500 mt-1">{t.descripcion}</div>}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { nombre: "Responsable Inscripto", desc: "Factura A — precio + IVA" },
+                  { nombre: "Monotributo", desc: "Factura C — precio con impuestos incluidos" },
+                  { nombre: "Exento", desc: "Sin cobro de IVA" },
+                  { nombre: "Consumidor Final", desc: "Persona física sin CUIT empresa" },
+                ].map((t) => (
+                  <button
+                    key={t.nombre}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, condicion_fiscal: t.nombre }))}
+                    className={`text-left p-4 rounded-xl border-2 transition-all ${
+                      form.condicion_fiscal === t.nombre
+                        ? "border-blue-600 bg-blue-50"
+                        : "border-gray-200 bg-white hover:border-blue-300"
+                    }`}
+                  >
+                    <div className="font-semibold text-sm text-gray-900">{t.nombre}</div>
+                    <div className="text-xs text-gray-500 mt-1">{t.desc}</div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
