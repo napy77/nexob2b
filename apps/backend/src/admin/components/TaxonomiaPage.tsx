@@ -492,9 +492,9 @@ export default function TaxonomiaPage() {
 
   return (
     <div style={{ padding: 24, maxWidth: 720 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Taxonomía</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 4 }}>Config. General</h1>
       <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>
-        Administrá rubros, subrubros, pasillos y condiciones fiscales de la plataforma.
+        Administrá rubros, subrubros, pasillos, condiciones fiscales y alícuotas de IVA.
       </p>
 
       {error && (
