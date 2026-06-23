@@ -11,14 +11,28 @@ type TipoImpositivo = Item & { descripcion?: string; precio_con_impuestos: boole
 type Tab = "rubros" | "subrubros" | "pasillos" | "tipos_impositivos"
 
 async function apiFetch(url: string, options?: RequestInit) {
+  // En Medusa v2 admin, el token JWT se guarda en localStorage
+  const token = typeof window !== "undefined"
+    ? (localStorage.getItem("medusa_auth_token") ||
+       localStorage.getItem("_medusa_auth_token") ||
+       localStorage.getItem("medusa-auth-token") || "")
+    : ""
+
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
     credentials: "include",
     ...options,
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || "Error en la solicitud")
+    let errMsg = `HTTP ${res.status}`
+    try {
+      const err = await res.json()
+      errMsg = err.error || err.message || errMsg
+    } catch {}
+    throw new Error(errMsg)
   }
   return res.json()
 }
