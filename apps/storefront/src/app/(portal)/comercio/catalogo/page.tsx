@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { comerciosApi, ApiError } from "../../../../lib/comercio/api"
+import { useCart } from "../../../../lib/comercio/cart"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || ""
 
@@ -44,6 +45,7 @@ type Producto = {
 
 export default function CatalogoProductosPage() {
   const router = useRouter()
+  const { addItem, mayorista_id: carritoMayoristaId } = useCart()
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -196,6 +198,31 @@ export default function CatalogoProductosPage() {
                           )}
                         </div>
                         <p className="text-xs text-gray-400 mt-0.5">Mín: {p.compra_minima} {p.unidad}{p.compra_minima !== 1 ? "s" : ""}</p>
+
+                        {p.acceso.mostrarPrecio && p.precio != null && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (carritoMayoristaId && carritoMayoristaId !== p.mayorista.id) {
+                                if (!confirm(`Tu carrito tiene productos de ${p.mayorista.nombre !== p.mayorista.nombre ? "otro mayorista" : "otro mayorista"}. ¿Vaciarlo y agregar este?`)) return
+                              }
+                              addItem({
+                                producto_id: p.id,
+                                nombre: p.nombre,
+                                precio_unitario: p.precio!,
+                                alicuota_iva: p.alicuota_iva,
+                                cantidad: p.compra_minima || 1,
+                                unidad: p.unidad,
+                                imagen_url: p.imagen_url,
+                                mayorista_id: p.mayorista.id,
+                                mayorista_nombre: p.mayorista.nombre,
+                              })
+                            }}
+                            className="mt-2 w-full bg-blue-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            + Agregar
+                          </button>
+                        )}
                       </div>
                     </button>
                   ))}

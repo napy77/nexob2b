@@ -39,5 +39,8 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/taxonomia",
     },
+    {
+      resolve: "./src/modules/orden",
+    },
   ]
 })
