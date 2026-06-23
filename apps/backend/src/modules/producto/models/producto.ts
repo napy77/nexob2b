@@ -15,6 +15,7 @@ const Producto = model.define("producto", {
   rubro: model.text().nullable(),
   subrubro: model.text().nullable(),
   pasillo: model.text().nullable(),
+  alicuota_iva: model.number().default(21),
   activo: model.boolean().default(true),
 })
 

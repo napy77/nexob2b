@@ -3,6 +3,7 @@ import { COMERCIO_MODULE } from "../../../../modules/comercio"
 import { MAYORISTA_MODULE } from "../../../../modules/mayorista"
 import { PRODUCTO_MODULE } from "../../../../modules/producto"
 import { SOLICITUD_MODULE } from "../../../../modules/solicitud"
+import { TAXONOMIA_MODULE } from "../../../../modules/taxonomia"
 import jwt from "jsonwebtoken"
 
 const verifyToken = (req: MedusaRequest): { comercio_id: string } | null => {
@@ -35,6 +36,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const mayoristaService: any = req.scope.resolve(MAYORISTA_MODULE)
   const productoService: any = req.scope.resolve(PRODUCTO_MODULE)
   const solicitudService: any = req.scope.resolve(SOLICITUD_MODULE)
+  const taxonomiaService: any = req.scope.resolve(TAXONOMIA_MODULE)
+
+  // Tipos impositivos para resolver precio_con_impuestos según condicion_fiscal
+  const tiposImpositivos = await taxonomiaService.listTipoImpositivos({})
+  const tipoMap: Record<string, { precio_con_impuestos: boolean }> = {}
+  tiposImpositivos.forEach((t: any) => { tipoMap[t.nombre] = t })
+
+  // precio_con_impuestos del comercio logueado
+  const comercio_precio_con_impuestos: boolean =
+    comercio.condicion_fiscal
+      ? (tipoMap[comercio.condicion_fiscal]?.precio_con_impuestos ?? true)
+      : true
 
   const { rubro, pasillo, busqueda } = req.query as any
 
@@ -94,9 +107,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const mostrarPrecio = vis === "publico" || vis === "con_precio" || aceptado
     const puedeContactar = vis === "publico" || aceptado
 
+    // precio_con_impuestos del mayorista (según su condicion_fiscal)
+    const mayorista_precio_con_impuestos: boolean =
+      m?.condicion_fiscal
+        ? (tipoMap[m.condicion_fiscal]?.precio_con_impuestos ?? true)
+        : true
+
+    // Se muestra precio desglosado (neto + IVA) solo cuando ambos son RI (precio_con_impuestos = false)
+    const mostrarDesglosado = !mayorista_precio_con_impuestos && !comercio_precio_con_impuestos
+
     return {
       ...p,
       precio: mostrarPrecio ? p.precio : null,
+      alicuota_iva: p.alicuota_iva ?? 21,
       mayorista: {
         id: m.id,
         nombre: m.nombre,
@@ -105,15 +128,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         ciudad: m.ciudad,
         provincia: m.provincia,
         visibilidad: vis,
+        precio_con_impuestos: mayorista_precio_con_impuestos,
       },
       acceso: {
         mostrarPrecio,
         puedeContactar,
         solicitud,
         visibilidad: vis,
+        mostrarDesglosado,
       },
     }
   })
 
-  return res.json({ productos: productosEnriquecidos })
+  return res.json({ productos: productosEnriquecidos, comercio_precio_con_impuestos })
 }

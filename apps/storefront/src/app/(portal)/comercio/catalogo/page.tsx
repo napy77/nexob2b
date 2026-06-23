@@ -11,6 +11,7 @@ type Acceso = {
   puedeContactar: boolean
   solicitud: any
   visibilidad: string
+  mostrarDesglosado: boolean
 }
 
 type Mayorista = {
@@ -28,6 +29,7 @@ type Producto = {
   nombre: string
   descripcion?: string
   precio: number | null
+  alicuota_iva: number
   unidad: string
   compra_minima: number
   stock?: number
@@ -169,10 +171,26 @@ export default function CatalogoProductosPage() {
                         <h3 className="font-semibold text-gray-900 text-sm leading-tight">{p.nombre}</h3>
                         <div className="mt-1">
                           {p.precio != null ? (
-                            <div className="flex items-baseline gap-1">
-                              <span className="text-base font-bold text-gray-900">${p.precio.toLocaleString("es-AR")}</span>
-                              <span className="text-xs text-gray-400">/ {p.unidad}</span>
-                            </div>
+                            p.acceso.mostrarDesglosado ? (
+                              <div className="text-xs space-y-0.5">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-base font-bold text-gray-900">${p.precio.toLocaleString("es-AR")}</span>
+                                  <span className="text-gray-400">neto</span>
+                                </div>
+                                {p.alicuota_iva > 0 && (
+                                  <div className="text-gray-500">
+                                    + IVA {p.alicuota_iva}% = <strong className="text-gray-700">${(p.precio * (1 + p.alicuota_iva / 100)).toLocaleString("es-AR")}</strong>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-base font-bold text-gray-900">
+                                  ${(p.precio * (1 + p.alicuota_iva / 100)).toLocaleString("es-AR")}
+                                </span>
+                                <span className="text-xs text-gray-400">/ {p.unidad}</span>
+                              </div>
+                            )
                           ) : (
                             <span className="text-xs text-gray-400 italic">Precio bajo solicitud</span>
                           )}
@@ -216,10 +234,23 @@ export default function CatalogoProductosPage() {
                 <div className="bg-gray-50 rounded-xl p-3">
                   <p className="text-gray-400 text-xs">Precio</p>
                   {seleccionado.precio != null ? (
-                    <>
-                      <p className="font-bold text-gray-900 text-lg">${seleccionado.precio.toLocaleString("es-AR")}</p>
-                      <p className="text-gray-400 text-xs">/ {seleccionado.unidad}</p>
-                    </>
+                    seleccionado.acceso.mostrarDesglosado ? (
+                      <>
+                        <p className="text-xs text-gray-500 mt-1">Neto: <strong className="text-gray-900">${seleccionado.precio.toLocaleString("es-AR")}</strong></p>
+                        {seleccionado.alicuota_iva > 0 && (
+                          <>
+                            <p className="text-xs text-gray-500">+ IVA {seleccionado.alicuota_iva}%: <strong className="text-gray-900">${(seleccionado.precio * seleccionado.alicuota_iva / 100).toLocaleString("es-AR")}</strong></p>
+                            <p className="text-xs font-bold text-gray-900 mt-1">Total: ${(seleccionado.precio * (1 + seleccionado.alicuota_iva / 100)).toLocaleString("es-AR")}</p>
+                          </>
+                        )}
+                        <p className="text-gray-400 text-xs mt-0.5">/ {seleccionado.unidad} · Factura A</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-bold text-gray-900 text-lg">${(seleccionado.precio * (1 + seleccionado.alicuota_iva / 100)).toLocaleString("es-AR")}</p>
+                        <p className="text-gray-400 text-xs">/ {seleccionado.unidad} {seleccionado.alicuota_iva > 0 ? "· IVA inc." : "· sin IVA"}</p>
+                      </>
+                    )
                   ) : (
                     <p className="text-sm text-gray-400 italic mt-1">Bajo solicitud</p>
                   )}

@@ -7,8 +7,9 @@ type Rubro = Item
 type Subrubro = Item & { rubro_id: string }
 type Pasillo = Item
 type TipoImpositivo = Item & { descripcion?: string; precio_con_impuestos: boolean }
+type AlicuotaIva = { id: string; nombre: string; porcentaje: number; activo: boolean }
 
-type Tab = "rubros" | "subrubros" | "pasillos" | "tipos_impositivos"
+type Tab = "rubros" | "subrubros" | "pasillos" | "tipos_impositivos" | "alicuotas"
 
 async function apiFetch(url: string, options?: RequestInit) {
   // En Medusa v2 admin, el token JWT se guarda en localStorage
@@ -241,6 +242,91 @@ function TipoImpositivoList({
   )
 }
 
+// ---- AlicuotaIvaList ----
+function AlicuotaIvaList({ alicuotas, onToggle, onEdit, onDelete }: {
+  alicuotas: AlicuotaIva[]
+  onToggle: (a: AlicuotaIva) => void
+  onEdit: (a: AlicuotaIva, nombre: string, porcentaje: number) => void
+  onDelete: (id: string) => void
+}) {
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editNombre, setEditNombre] = useState("")
+  const [editPorcentaje, setEditPorcentaje] = useState("")
+
+  const startEdit = (a: AlicuotaIva) => {
+    setEditId(a.id)
+    setEditNombre(a.nombre)
+    setEditPorcentaje(String(a.porcentaje))
+  }
+
+  const saveEdit = (a: AlicuotaIva) => {
+    onEdit(a, editNombre, Number(editPorcentaje))
+    setEditId(null)
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {alicuotas.map((a) => (
+        <div key={a.id} style={{
+          border: "1px solid #e5e7eb", borderRadius: 10, padding: "12px 14px",
+          background: a.activo ? "#fff" : "#f9fafb",
+          opacity: a.activo ? 1 : 0.6,
+        }}>
+          {editId === a.id ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input value={editNombre} onChange={(e) => setEditNombre(e.target.value)}
+                style={{ border: "1px solid #93c5fd", borderRadius: 6, padding: "5px 10px", fontSize: 14, flex: 1, minWidth: 120 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1px solid #93c5fd", borderRadius: 6, padding: "5px 10px", background: "#fff" }}>
+                <input type="number" value={editPorcentaje} onChange={(e) => setEditPorcentaje(e.target.value)}
+                  min="0" max="100" step="0.5"
+                  style={{ border: "none", outline: "none", width: 50, fontSize: 14 }} />
+                <span style={{ fontSize: 14, color: "#6b7280" }}>%</span>
+              </div>
+              <button onClick={() => saveEdit(a)}
+                style={{ background: "#111827", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                Guardar
+              </button>
+              <button onClick={() => setEditId(null)}
+                style={{ background: "#f3f4f6", border: "none", borderRadius: 6, padding: "5px 10px", cursor: "pointer", fontSize: 13 }}>
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{
+                background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 8,
+                padding: "4px 12px", fontSize: 15, fontWeight: 700, color: "#0369a1", minWidth: 56, textAlign: "center",
+              }}>
+                {a.porcentaje}%
+              </span>
+              <span style={{ fontSize: 14, color: "#111827", fontWeight: 500, flex: 1 }}>{a.nombre}</span>
+              <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                <button onClick={() => onToggle(a)}
+                  style={{
+                    fontSize: 12, border: "1px solid", borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontWeight: 600,
+                    background: a.activo ? "#f0fdf4" : "#f9fafb",
+                    borderColor: a.activo ? "#86efac" : "#e5e7eb",
+                    color: a.activo ? "#15803d" : "#9ca3af",
+                  }}>
+                  {a.activo ? "Activo" : "Inactivo"}
+                </button>
+                <button onClick={() => startEdit(a)}
+                  style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 13 }}>
+                  ✏️
+                </button>
+                <button onClick={() => { if (confirm(`¿Eliminar "${a.nombre} (${a.porcentaje}%)"?`)) onDelete(a.id) }}
+                  style={{ background: "#fee2e2", border: "none", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontSize: 13 }}>
+                  🗑️
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ---- Componente principal ----
 export default function TaxonomiaPage() {
   const [tab, setTab] = useState<Tab>("rubros")
@@ -248,6 +334,7 @@ export default function TaxonomiaPage() {
   const [subrubros, setSubrubros] = useState<Subrubro[]>([])
   const [pasillos, setPasillos] = useState<Pasillo[]>([])
   const [tipos, setTipos] = useState<TipoImpositivo[]>([])
+  const [alicuotas, setAlicuotas] = useState<AlicuotaIva[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [rubroFiltro, setRubroFiltro] = useState("")
@@ -255,6 +342,8 @@ export default function TaxonomiaPage() {
   const [nuevoTipoDesc, setNuevoTipoDesc] = useState("")
   const [nuevoTipoPrecio, setNuevoTipoPrecio] = useState(true)
   const [nuevoTipoNombre, setNuevoTipoNombre] = useState("")
+  const [nuevoAliNombre, setNuevoAliNombre] = useState("")
+  const [nuevoAliPorcentaje, setNuevoAliPorcentaje] = useState("")
 
   const cargar = () => {
     setLoading(true)
@@ -263,11 +352,13 @@ export default function TaxonomiaPage() {
       apiFetch(`${API}/subrubros`),
       apiFetch(`${API}/pasillos`),
       apiFetch(`${API}/tipos-impositivos`),
-    ]).then(([r, s, p, ti]) => {
+      apiFetch(`${API}/alicuotas`),
+    ]).then(([r, s, p, ti, ali]) => {
       setRubros(r.rubros)
       setSubrubros(s.subrubros)
       setPasillos(p.pasillos)
       setTipos(ti.tipos)
+      setAlicuotas(ali.alicuotas)
     }).catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }
@@ -360,6 +451,31 @@ export default function TaxonomiaPage() {
     apiFetch(`${API}/tipos-impositivos/${id}`, { method: "DELETE" })
       .then(cargar).catch((e) => alert(e.message))
 
+  // --- Alícuotas IVA ---
+  const addAlicuota = () => {
+    if (!nuevoAliNombre.trim()) return alert("Ingresá un nombre")
+    if (nuevoAliPorcentaje === "" || isNaN(Number(nuevoAliPorcentaje))) return alert("Ingresá un porcentaje válido")
+    apiFetch(`${API}/alicuotas`, {
+      method: "POST",
+      body: JSON.stringify({ nombre: nuevoAliNombre.trim(), porcentaje: Number(nuevoAliPorcentaje) }),
+    }).then(() => { setNuevoAliNombre(""); setNuevoAliPorcentaje(""); cargar() })
+      .catch((e) => alert(e.message))
+  }
+
+  const editAlicuota = (a: AlicuotaIva, nombre: string, porcentaje: number) =>
+    apiFetch(`${API}/alicuotas/${a.id}`, {
+      method: "PUT", body: JSON.stringify({ nombre, porcentaje }),
+    }).then(cargar).catch((e) => alert(e.message))
+
+  const toggleActivoAlicuota = (a: AlicuotaIva) =>
+    apiFetch(`${API}/alicuotas/${a.id}`, {
+      method: "PUT", body: JSON.stringify({ activo: !a.activo }),
+    }).then(cargar).catch((e) => alert(e.message))
+
+  const deleteAlicuota = (id: string) =>
+    apiFetch(`${API}/alicuotas/${id}`, { method: "DELETE" })
+      .then(cargar).catch((e) => alert(e.message))
+
   const subrubrosFiltrados = rubroFiltro
     ? subrubros.filter((s) => s.rubro_id === rubroFiltro)
     : subrubros
@@ -371,6 +487,7 @@ export default function TaxonomiaPage() {
     { key: "subrubros", label: "Subrubros", count: subrubros.length },
     { key: "pasillos", label: "Pasillos", count: pasillos.length },
     { key: "tipos_impositivos", label: "Tipos impositivos", count: tipos.length },
+    { key: "alicuotas", label: "Alícuotas IVA", count: alicuotas.length },
   ]
 
   return (
@@ -457,7 +574,7 @@ export default function TaxonomiaPage() {
             : <ItemList items={pasillos} onToggle={togglePasillo} onEdit={editPasillo} onDelete={deletePasillo} />
           }
         </>
-      ) : (
+      ) : tab === "tipos_impositivos" ? (
         /* --- Tipos Impositivos --- */
         <>
           <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
@@ -520,6 +637,56 @@ export default function TaxonomiaPage() {
                 onTogglePrecio={togglePrecioTipo}
                 onDelete={deleteTipo}
                 onEdit={editTipo}
+              />
+          }
+        </>
+      ) : (
+        /* --- Alícuotas IVA --- */
+        <>
+          <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+            Administrá las alícuotas de IVA disponibles para los productos. En Argentina: 0%, 10.5%, 21% y 27%.
+          </p>
+
+          {/* Agregar nueva alícuota */}
+          <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 10 }}>Nueva alícuota</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <input
+                value={nuevoAliNombre}
+                onChange={(e) => setNuevoAliNombre(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") addAlicuota() }}
+                placeholder="Ej: IVA General"
+                style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 14, flex: 1, minWidth: 160 }}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", background: "#fff" }}>
+                <input
+                  type="number"
+                  value={nuevoAliPorcentaje}
+                  onChange={(e) => setNuevoAliPorcentaje(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") addAlicuota() }}
+                  placeholder="21"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  style={{ border: "none", outline: "none", width: 60, fontSize: 14 }}
+                />
+                <span style={{ fontSize: 14, color: "#6b7280" }}>%</span>
+              </div>
+              <button
+                onClick={addAlicuota}
+                style={{ background: "#111827", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
+                + Agregar
+              </button>
+            </div>
+          </div>
+
+          {alicuotas.length === 0
+            ? <p style={{ color: "#9ca3af", fontSize: 14 }}>Sin alícuotas configuradas. Agregá IVA 0%, 10.5%, 21% y 27%.</p>
+            : <AlicuotaIvaList
+                alicuotas={alicuotas}
+                onToggle={toggleActivoAlicuota}
+                onEdit={editAlicuota}
+                onDelete={deleteAlicuota}
               />
           }
         </>

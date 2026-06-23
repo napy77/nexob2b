@@ -10,6 +10,14 @@ const UNIDADES = ["unidad", "kg", "g", "litro", "ml", "caja", "pack", "docena", 
 
 type TaxItem = { id: string; nombre: string; activo: boolean }
 type Subrubro = TaxItem & { rubro_id: string }
+type AlicuotaIva = { id: string; nombre: string; porcentaje: number }
+
+const ALICUOTAS_FALLBACK: AlicuotaIva[] = [
+  { id: "0", nombre: "Exento / No gravado", porcentaje: 0 },
+  { id: "10.5", nombre: "IVA reducido", porcentaje: 10.5 },
+  { id: "21", nombre: "IVA general", porcentaje: 21 },
+  { id: "27", nombre: "IVA diferencial", porcentaje: 27 },
+]
 
 export default function NuevoProductoPage() {
   const router = useRouter()
@@ -22,12 +30,14 @@ export default function NuevoProductoPage() {
   const [rubros, setRubros] = useState<TaxItem[]>([])
   const [subrubros, setSubrubros] = useState<Subrubro[]>([])
   const [pasillos, setPasillos] = useState<TaxItem[]>([])
+  const [alicuotas, setAlicuotas] = useState<AlicuotaIva[]>(ALICUOTAS_FALLBACK)
   const [taxLoading, setTaxLoading] = useState(true)
 
   const [form, setForm] = useState({
     nombre: "",
     descripcion: "",
     precio: "",
+    alicuota_iva: 21,
     unidad: "unidad",
     compra_minima: "1",
     stock: "",
@@ -47,14 +57,15 @@ export default function NuevoProductoPage() {
         setRubros(data.rubros || [])
         setSubrubros(data.subrubros || [])
         setPasillos(data.pasillos || [])
+        if (data.alicuotas?.length) setAlicuotas(data.alicuotas)
       })
       .catch(() => {})
       .finally(() => setTaxLoading(false))
   }, [])
 
-  const set = (field: string, value: string) => {
+  const set = (field: string, value: string | number) => {
     if (field === "rubro") {
-      setForm((f) => ({ ...f, rubro: value, subrubro: "" }))
+      setForm((f) => ({ ...f, rubro: value as string, subrubro: "" }))
     } else {
       setForm((f) => ({ ...f, [field]: value }))
     }
@@ -167,12 +178,21 @@ export default function NuevoProductoPage() {
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Precio * (ARS)</label>
                 <input required type="number" min="0" step="0.01" value={form.precio} onChange={(e) => set("precio", e.target.value)}
                   placeholder="0.00"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <p className="text-xs text-gray-400 mt-1">Precio neto (sin IVA)</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">IVA *</label>
+                <select value={form.alicuota_iva} onChange={(e) => set("alicuota_iva", Number(e.target.value))} className={selectClass}>
+                  {alicuotas.map((a) => (
+                    <option key={a.id} value={a.porcentaje}>{a.porcentaje}% — {a.nombre}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Unidad *</label>
@@ -181,6 +201,17 @@ export default function NuevoProductoPage() {
                 </select>
               </div>
             </div>
+            {form.precio && (
+              <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-800">
+                Precio neto: <strong>${Number(form.precio).toLocaleString("es-AR")}</strong>
+                {form.alicuota_iva > 0 && (
+                  <>
+                    {" "}+ IVA {form.alicuota_iva}%: <strong>${(Number(form.precio) * form.alicuota_iva / 100).toLocaleString("es-AR")}</strong>
+                    {" "}= Total: <strong>${(Number(form.precio) * (1 + form.alicuota_iva / 100)).toLocaleString("es-AR")}</strong>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
