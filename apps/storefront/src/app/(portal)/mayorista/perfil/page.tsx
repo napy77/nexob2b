@@ -4,6 +4,9 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { mayoristasApi, RUBROS_DISPONIBLES } from "../../../../lib/mayorista/api"
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+
 type Mayorista = {
   id: string
   nombre: string
@@ -18,7 +21,10 @@ type Mayorista = {
   estado: string
   visibilidad?: string
   descripcion?: string
+  condicion_fiscal?: string
 }
+
+type TipoImpositivo = { id: string; nombre: string; descripcion?: string }
 
 const PROVINCIAS = [
   "Buenos Aires","Ciudad Autónoma de Buenos Aires","Catamarca","Chaco","Chubut",
@@ -54,6 +60,13 @@ const VISIBILIDAD_OPCIONES = [
   },
 ]
 
+const TIPOS_FALLBACK: TipoImpositivo[] = [
+  { id: "ri", nombre: "Responsable Inscripto", descripcion: "Factura A — precio + IVA" },
+  { id: "mono", nombre: "Monotributo", descripcion: "Factura C — precio con impuestos incluidos" },
+  { id: "exento", nombre: "Exento", descripcion: "Sin cobro de IVA" },
+  { id: "cf", nombre: "Consumidor Final", descripcion: "Persona física sin CUIT empresa" },
+]
+
 export default function PerfilPage() {
   const router = useRouter()
   const [mayorista, setMayorista] = useState<Mayorista | null>(null)
@@ -61,11 +74,19 @@ export default function PerfilPage() {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
+  const [tiposImpositivos, setTiposImpositivos] = useState<TipoImpositivo[]>(TIPOS_FALLBACK)
 
   const [form, setForm] = useState({
     nombre: "", telefono: "", direccion: "", ciudad: "", provincia: "",
-    rubros: [] as string[], visibilidad: "sin_precio", descripcion: "",
+    rubros: [] as string[], visibilidad: "sin_precio", descripcion: "", condicion_fiscal: "",
   })
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/store/taxonomia`, { headers: { "x-publishable-api-key": PUB_KEY } })
+      .then((r) => r.json())
+      .then((data) => { if (data.tipos_impositivos?.length) setTiposImpositivos(data.tipos_impositivos) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const token = localStorage.getItem("mayorista_token")
@@ -83,6 +104,7 @@ export default function PerfilPage() {
           rubros: m.rubros || [],
           visibilidad: m.visibilidad || "sin_precio",
           descripcion: m.descripcion || "",
+          condicion_fiscal: m.condicion_fiscal || "",
         })
       })
       .catch(() => { localStorage.removeItem("mayorista_token"); router.replace("/mayorista/login") })
@@ -187,6 +209,36 @@ export default function PerfilPage() {
                   rows={3} placeholder="Contá brevemente qué vendés y a qué tipo de comercios le conviene trabajar con vos..."
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
               </div>
+            </div>
+          </div>
+
+          {/* Condición fiscal */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <h2 className="font-semibold text-gray-800 mb-1">Condición fiscal ante ARCA</h2>
+            <p className="text-sm text-gray-400 mb-4">Tu situación impositiva determina cómo se emiten las facturas</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {tiposImpositivos.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, condicion_fiscal: t.nombre }))}
+                  className={`text-left p-4 rounded-xl border-2 transition-all ${
+                    form.condicion_fiscal === t.nombre
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-gray-200 bg-white hover:border-blue-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm text-gray-900">{t.nombre}</div>
+                      {t.descripcion && <div className="text-xs text-gray-500 mt-0.5">{t.descripcion}</div>}
+                    </div>
+                    {form.condicion_fiscal === t.nombre && (
+                      <span className="text-blue-600 mt-0.5">✓</span>
+                    )}
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 

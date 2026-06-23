@@ -31,7 +31,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!payload) return res.status(401).json({ error: "No autorizado" })
 
   const comercioService: any = req.scope.resolve(COMERCIO_MODULE)
-  const { nombre, telefono, direccion, ciudad, provincia, rubros } = req.body as any
+  const { nombre, telefono, direccion, ciudad, provincia, rubros, condicion_fiscal } = req.body as any
 
   const updateData: Record<string, any> = { id: payload.comercio_id }
   if (nombre !== undefined) updateData.nombre = nombre
@@ -40,6 +40,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (ciudad !== undefined) updateData.ciudad = ciudad
   if (provincia !== undefined) updateData.provincia = provincia
   if (rubros !== undefined) updateData.rubros = rubros
+  if (condicion_fiscal !== undefined) updateData.condicion_fiscal = condicion_fiscal
 
   const comercio = await comercioService.updateComercios(updateData)
   const { password_hash, ...comercioSafe } = comercio as any

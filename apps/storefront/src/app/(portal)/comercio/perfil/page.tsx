@@ -4,16 +4,38 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { comerciosApi, RUBROS_DISPONIBLES, PROVINCIAS_ARGENTINA, ApiError } from "../../../../lib/comercio/api"
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+
+type TipoImpositivo = { id: string; nombre: string; descripcion?: string }
+
+const TIPOS_FALLBACK: TipoImpositivo[] = [
+  { id: "ri", nombre: "Responsable Inscripto", descripcion: "Factura A — precio + IVA" },
+  { id: "mono", nombre: "Monotributo", descripcion: "Factura C — precio con impuestos incluidos" },
+  { id: "exento", nombre: "Exento", descripcion: "Sin cobro de IVA" },
+  { id: "cf", nombre: "Consumidor Final", descripcion: "Persona física sin CUIT empresa" },
+]
+
 export default function ComercioPerfilPage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
+  const [cuit, setCuit] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
+  const [tiposImpositivos, setTiposImpositivos] = useState<TipoImpositivo[]>(TIPOS_FALLBACK)
   const [form, setForm] = useState({
-    nombre: "", telefono: "", direccion: "", ciudad: "", provincia: "", rubros: [] as string[],
+    nombre: "", telefono: "", direccion: "", ciudad: "", provincia: "",
+    rubros: [] as string[], condicion_fiscal: "",
   })
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/store/taxonomia`, { headers: { "x-publishable-api-key": PUB_KEY } })
+      .then((r) => r.json())
+      .then((data) => { if (data.tipos_impositivos?.length) setTiposImpositivos(data.tipos_impositivos) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const token = localStorage.getItem("comercio_token")
@@ -22,9 +44,11 @@ export default function ComercioPerfilPage() {
       .then((data) => {
         const c = data.comercio
         setEmail(c.email)
+        setCuit(c.cuit || "")
         setForm({
           nombre: c.nombre || "", telefono: c.telefono || "", direccion: c.direccion || "",
           ciudad: c.ciudad || "", provincia: c.provincia || "", rubros: c.rubros || [],
+          condicion_fiscal: c.condicion_fiscal || "",
         })
       })
       .catch((err) => {
@@ -48,7 +72,7 @@ export default function ComercioPerfilPage() {
     setError(""); setSaving(true); setSuccess(false)
     try {
       const token = localStorage.getItem("comercio_token")!
-      await comerciosApi.updateMe(token, form)
+      await comerciosApi.updateMe(token, { ...form })
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err: any) {
@@ -98,6 +122,11 @@ export default function ComercioPerfilPage() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">CUIT</label>
+                <input value={cuit} disabled
+                  className="w-full border border-gray-100 bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-400 cursor-not-allowed" />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
                 <input value={form.telefono} onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -120,6 +149,36 @@ export default function ComercioPerfilPage() {
                   {PROVINCIAS_ARGENTINA.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
+            </div>
+          </div>
+
+          {/* Condición fiscal */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <h2 className="font-semibold text-gray-800 mb-1">Condición fiscal ante ARCA</h2>
+            <p className="text-sm text-gray-400 mb-4">Tu situación impositiva determina cómo se emiten las facturas</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {tiposImpositivos.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, condicion_fiscal: t.nombre }))}
+                  className={`text-left p-4 rounded-xl border-2 transition-all ${
+                    form.condicion_fiscal === t.nombre
+                      ? "border-blue-600 bg-blue-50"
+                      : "border-gray-200 bg-white hover:border-blue-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm text-gray-900">{t.nombre}</div>
+                      {t.descripcion && <div className="text-xs text-gray-500 mt-0.5">{t.descripcion}</div>}
+                    </div>
+                    {form.condicion_fiscal === t.nombre && (
+                      <span className="text-blue-600 mt-0.5">✓</span>
+                    )}
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 
