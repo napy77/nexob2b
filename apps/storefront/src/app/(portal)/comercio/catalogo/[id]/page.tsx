@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { comerciosApi, ApiError } from "../../../../../lib/comercio/api"
+import { useCart } from "../../../../../lib/comercio/cart"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || ""
 
@@ -29,6 +30,7 @@ type Producto = {
   nombre: string
   descripcion?: string
   precio: number | null
+  alicuota_iva?: number
   unidad: string
   compra_minima: number
   stock?: number
@@ -42,6 +44,7 @@ type Producto = {
 export default function CatalogoMayoristaPage() {
   const router = useRouter()
   const { id: mayoristaId } = useParams<{ id: string }>()
+  const { addItem, mayorista_id: cartMayoristaId } = useCart()
   const [mayorista, setMayorista] = useState<Mayorista | null>(null)
   const [productos, setProductos] = useState<Producto[]>([])
   const [acceso, setAcceso] = useState<Acceso | null>(null)
@@ -49,6 +52,7 @@ export default function CatalogoMayoristaPage() {
   const [error, setError] = useState("")
   const [busqueda, setBusqueda] = useState("")
   const [seleccionado, setSeleccionado] = useState<Producto | null>(null)
+  const [cantidadModal, setCantidadModal] = useState(1)
   const [solicitando, setSolicitando] = useState(false)
 
   const cargar = () => {
@@ -72,6 +76,11 @@ export default function CatalogoMayoristaPage() {
 
   useEffect(() => { cargar() }, [router, mayoristaId])
 
+  const abrirDetalle = (p: Producto) => {
+    setSeleccionado(p)
+    setCantidadModal(p.compra_minima || 1)
+  }
+
   const handleSolicitar = async () => {
     const token = localStorage.getItem("comercio_token")!
     setSolicitando(true)
@@ -83,6 +92,27 @@ export default function CatalogoMayoristaPage() {
     } finally {
       setSolicitando(false)
     }
+  }
+
+  const handleAgregarAlCarrito = () => {
+    if (!seleccionado || !mayorista || seleccionado.precio == null) return
+    if (cartMayoristaId && cartMayoristaId !== mayorista.id) {
+      if (!confirm(`Tu carrito tiene productos de otro mayorista. ¿Querés vaciarlo y agregar de ${mayorista.nombre}?`)) return
+    }
+    addItem({
+      producto_id: seleccionado.id,
+      nombre: seleccionado.nombre,
+      sku: seleccionado.sku ?? null,
+      ean: seleccionado.ean ?? null,
+      precio_unitario: seleccionado.precio,
+      alicuota_iva: seleccionado.alicuota_iva ?? 21,
+      cantidad: cantidadModal,
+      unidad: seleccionado.unidad,
+      imagen_url: seleccionado.imagen_url,
+      mayorista_id: mayorista.id,
+      mayorista_nombre: mayorista.nombre,
+    })
+    setSeleccionado(null)
   }
 
   const filtrados = productos.filter((p) =>
@@ -110,7 +140,7 @@ export default function CatalogoMayoristaPage() {
       <nav className="bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.push("/comercio/catalogo")} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600 transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
@@ -197,29 +227,39 @@ export default function CatalogoMayoristaPage() {
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{pasillo}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {items.map((p) => (
-                    <button key={p.id} onClick={() => setSeleccionado(p)}
-                      className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all text-left">
-                      <div className="aspect-video bg-gray-50 overflow-hidden">
-                        {p.imagen_url
-                          ? <img src={`${BACKEND_URL}${p.imagen_url}`} alt={p.nombre} className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
-                        }
-                      </div>
-                      <div className="p-3">
-                        <h3 className="font-semibold text-gray-900 text-sm leading-tight">{p.nombre}</h3>
-                        <div className="flex items-baseline gap-1 mt-1">
-                          {p.precio != null ? (
-                            <>
-                              <span className="text-base font-bold text-gray-900">${p.precio.toLocaleString("es-AR")}</span>
-                              <span className="text-xs text-gray-400">/ {p.unidad}</span>
-                            </>
-                          ) : (
-                            <span className="text-sm text-gray-400 italic">Precio bajo solicitud</span>
-                          )}
+                    <div key={p.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all">
+                      <button onClick={() => abrirDetalle(p)} className="w-full text-left">
+                        <div className="aspect-video bg-gray-50 overflow-hidden">
+                          {p.imagen_url
+                            ? <img src={`${BACKEND_URL}${p.imagen_url}`} alt={p.nombre} className="w-full h-full object-cover" />
+                            : <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
+                          }
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5">Mín: {p.compra_minima} {p.unidad}{p.compra_minima !== 1 ? "s" : ""}</p>
-                      </div>
-                    </button>
+                        <div className="p-3 pb-2">
+                          <h3 className="font-semibold text-gray-900 text-sm leading-tight">{p.nombre}</h3>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            {p.precio != null ? (
+                              <>
+                                <span className="text-base font-bold text-gray-900">${p.precio.toLocaleString("es-AR")}</span>
+                                <span className="text-xs text-gray-400">/ {p.unidad}</span>
+                              </>
+                            ) : (
+                              <span className="text-sm text-gray-400 italic">Precio bajo solicitud</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400 mt-0.5">Mín: {p.compra_minima} {p.unidad}{p.compra_minima !== 1 ? "s" : ""}</p>
+                        </div>
+                      </button>
+                      {acceso?.mostrarPrecio && p.precio != null && (
+                        <div className="px-3 pb-3">
+                          <button
+                            onClick={() => abrirDetalle(p)}
+                            className="w-full bg-blue-600 text-white text-xs font-semibold py-2 rounded-xl hover:bg-blue-700 transition-colors">
+                            + Agregar
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -283,6 +323,46 @@ export default function CatalogoMayoristaPage() {
                   {seleccionado.ean && <span>EAN: {seleccionado.ean}</span>}
                 </div>
               )}
+
+              {/* Selector de cantidad y botón carrito */}
+              {acceso?.mostrarPrecio && seleccionado.precio != null && (
+                <div className="border-t border-gray-100 pt-4 mb-2">
+                  <p className="text-xs font-medium text-gray-500 mb-2">Cantidad a pedir</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setCantidadModal((q) => Math.max(seleccionado.compra_minima || 1, q - 1))}
+                        className="px-3 py-2 text-gray-600 hover:bg-gray-50 transition-colors font-bold">
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        min={seleccionado.compra_minima || 1}
+                        value={cantidadModal}
+                        onChange={(e) => setCantidadModal(Math.max(seleccionado.compra_minima || 1, parseInt(e.target.value) || 1))}
+                        className="w-14 text-center text-sm font-semibold border-x border-gray-200 py-2 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => setCantidadModal((q) => q + 1)}
+                        className="px-3 py-2 text-gray-600 hover:bg-gray-50 transition-colors font-bold">
+                        +
+                      </button>
+                    </div>
+                    <span className="text-xs text-gray-400">{seleccionado.unidad}s</span>
+                    {cantidadModal > 1 && (
+                      <span className="text-sm text-gray-600">
+                        Total: <strong className="text-gray-900">${(seleccionado.precio * cantidadModal).toLocaleString("es-AR")}</strong>
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleAgregarAlCarrito}
+                    className="mt-3 w-full bg-blue-600 text-white py-3 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                    Agregar al carrito · {cantidadModal} {seleccionado.unidad}{cantidadModal !== 1 ? "s" : ""}
+                  </button>
+                </div>
+              )}
+
               <div className="border-t border-gray-100 pt-4 space-y-2">
                 {acceso?.puedeContactar ? (
                   <>
