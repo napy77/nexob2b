@@ -68,8 +68,16 @@ export default function MapaPage() {
       if (res.status === 401) { router.push("/mayorista/login"); return }
       if (!res.ok) { setError(`Error ${res.status}`); return }
       const data = await res.json()
-      setComercio(data.comercios || [])
-      setVendedores(data.vendedores || [])
+      setComercio((data.comercios || []).map((c: any) => ({
+        ...c,
+        lat: c.lat != null ? parseFloat(c.lat) : null,
+        lng: c.lng != null ? parseFloat(c.lng) : null,
+      })))
+      setVendedores((data.vendedores || []).map((v: any) => ({
+        ...v,
+        lat: v.lat != null ? parseFloat(v.lat) : null,
+        lng: v.lng != null ? parseFloat(v.lng) : null,
+      })))
     } catch (e: any) {
       setError(e.message)
     } finally {
