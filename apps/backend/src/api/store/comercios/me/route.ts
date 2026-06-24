@@ -13,6 +13,21 @@ const verifyToken = (req: MedusaRequest): { comercio_id: string } | null => {
   }
 }
 
+async function geocodificar(dir: string, ciudad: string, provincia: string): Promise<{ lat: number; lng: number } | null> {
+  const key = process.env.GOOGLE_MAPS_KEY
+  if (!key) return null
+  const q = encodeURIComponent(`${dir}, ${ciudad}, ${provincia}, Argentina`)
+  try {
+    const r = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${key}`)
+    const data: any = await r.json()
+    if (data.status === "OK" && data.results?.[0]) {
+      const { lat, lng } = data.results[0].geometry.location
+      return { lat, lng }
+    }
+  } catch {}
+  return null
+}
+
 // GET /store/comercios/me
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const payload = verifyToken(req)
@@ -41,6 +56,21 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (provincia !== undefined) updateData.provincia = provincia
   if (rubros !== undefined) updateData.rubros = rubros
   if (condicion_fiscal !== undefined) updateData.condicion_fiscal = condicion_fiscal
+
+  // Auto-geocodificar si hay datos de ubicación
+  if (direccion !== undefined || ciudad !== undefined || provincia !== undefined) {
+    const actual = await comercioService.retrieveComercio(payload.comercio_id)
+    const dirFinal = (direccion ?? actual.direccion ?? "").trim()
+    const ciuFinal = (ciudad ?? actual.ciudad ?? "").trim()
+    const provFinal = (provincia ?? actual.provincia ?? "").trim()
+    if (dirFinal || ciuFinal || provFinal) {
+      const geo = await geocodificar(dirFinal, ciuFinal, provFinal)
+      if (geo) {
+        updateData.lat = geo.lat
+        updateData.lng = geo.lng
+      }
+    }
+  }
 
   const comercio = await comercioService.updateComercios(updateData)
   const { password_hash, ...comercioSafe } = comercio as any
