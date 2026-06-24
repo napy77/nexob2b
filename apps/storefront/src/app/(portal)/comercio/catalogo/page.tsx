@@ -55,7 +55,13 @@ export default function CatalogoProductosPage() {
   const [busqueda, setBusqueda] = useState("")
   const [rubroFiltro, setRubroFiltro] = useState("")
   const [seleccionado, setSeleccionado] = useState<Producto | null>(null)
+  const [cantidadModal, setCantidadModal] = useState(1)
   const [solicitando, setSolicitando] = useState<string | null>(null)
+
+  const abrirDetalle = (p: Producto) => {
+    setSeleccionado(p)
+    setCantidadModal(p.compra_minima || 1)
+  }
 
   const cargar = () => {
     const token = localStorage.getItem("comercio_token")
@@ -166,7 +172,7 @@ export default function CatalogoProductosPage() {
                     // div en lugar de button para evitar button>button (HTML inválido)
                     <div key={p.id}
                       className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer"
-                      onClick={() => setSeleccionado(p)}>
+                      onClick={() => abrirDetalle(p)}>
                       <div className="aspect-video bg-gray-50 overflow-hidden">
                         {p.imagen_url
                           ? <img src={`${BACKEND_URL}${p.imagen_url}`} alt={p.nombre} className="w-full h-full object-cover" />
@@ -312,6 +318,71 @@ export default function CatalogoProductosPage() {
                 <div className="flex gap-3 text-xs text-gray-400 mb-4">
                   {seleccionado.sku && <span>SKU: {seleccionado.sku}</span>}
                   {seleccionado.ean && <span>EAN: {seleccionado.ean}</span>}
+                </div>
+              )}
+
+              {/* Agregar al carrito — solo si tiene precio y puede contactar */}
+              {seleccionado.acceso.mostrarPrecio && seleccionado.precio != null && (
+                <div className="border-t border-gray-100 pt-4 mb-2">
+                  <p className="text-xs font-medium text-gray-500 mb-2">Cantidad a pedir</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setCantidadModal((q) => Math.max(seleccionado.compra_minima || 1, q - 1))}
+                        className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors text-lg font-medium">
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        min={seleccionado.compra_minima || 1}
+                        value={cantidadModal}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value) || (seleccionado.compra_minima || 1)
+                          setCantidadModal(Math.max(seleccionado.compra_minima || 1, v))
+                        }}
+                        className="w-14 text-center text-sm font-semibold border-x border-gray-200 h-9 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => setCantidadModal((q) => q + 1)}
+                        className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors text-lg font-medium">
+                        +
+                      </button>
+                    </div>
+                    <span className="text-xs text-gray-400">{seleccionado.unidad}{cantidadModal !== 1 ? "s" : ""}</span>
+                    {cantidadModal > 1 && (
+                      <span className="text-xs text-gray-500 ml-auto">
+                        Total: <strong className="text-gray-900">
+                          ${(seleccionado.precio * (1 + seleccionado.alicuota_iva / 100) * cantidadModal).toLocaleString("es-AR")}
+                        </strong>
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (carritoMayoristaId && carritoMayoristaId !== seleccionado.mayorista.id) {
+                        if (!confirm("Tu carrito tiene productos de otro mayorista. ¿Vaciarlo y agregar este?")) return
+                      }
+                      addItem({
+                        producto_id: seleccionado.id,
+                        nombre: seleccionado.nombre,
+                        sku: seleccionado.sku || null,
+                        ean: seleccionado.ean || null,
+                        precio_unitario: seleccionado.precio!,
+                        alicuota_iva: seleccionado.alicuota_iva,
+                        cantidad: cantidadModal,
+                        unidad: seleccionado.unidad,
+                        imagen_url: seleccionado.imagen_url,
+                        mayorista_id: seleccionado.mayorista.id,
+                        mayorista_nombre: seleccionado.mayorista.nombre,
+                      })
+                      setSeleccionado(null)
+                    }}
+                    className="mt-3 w-full bg-blue-600 text-white py-3 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Agregar al carrito · {cantidadModal} {seleccionado.unidad}{cantidadModal !== 1 ? "s" : ""}
+                  </button>
                 </div>
               )}
 
