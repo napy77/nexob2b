@@ -51,8 +51,8 @@ export default function MapaPage() {
   const directionsRendererRef = useRef<any>(null)
 
   const getToken = () => {
-    if (typeof document === "undefined") return null
-    return document.cookie.split("; ").find((r) => r.startsWith("mayorista_token="))?.split("=")[1] || null
+    if (typeof window === "undefined") return null
+    return localStorage.getItem("mayorista_token")
   }
 
   const cargarDatos = useCallback(async () => {
