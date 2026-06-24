@@ -66,11 +66,11 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   })
   const total = total_neto + total_iva
 
+  const svc: any = req.scope.resolve(ORDEN_MODULE)
+
   // Número de orden legible: contar todas y sumar 1
   const todasOrdenes = await svc.listOrdens({})
   const numero = `ORD-${String(todasOrdenes.length + 1).padStart(5, "0")}`
-
-  const svc: any = req.scope.resolve(ORDEN_MODULE)
   const orden = await svc.createOrdens({
     numero,
     comercio_id: payload.comercio_id,
