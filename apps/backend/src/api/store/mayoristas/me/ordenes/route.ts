@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ORDEN_MODULE } from "../../../../../modules/orden"
+import { COMERCIO_MODULE } from "../../../../../modules/comercio"
 import jwt from "jsonwebtoken"
 
 const verifyMayorista = (req: MedusaRequest): { mayorista_id: string } | null => {
@@ -21,9 +22,12 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     { order: { created_at: "DESC" } }
   )
 
+  const comercioSvc: any = req.scope.resolve(COMERCIO_MODULE)
+
   const ordenesConItems = await Promise.all(ordenes.map(async (o: any) => {
     const items = await svc.listOrdenItems({ orden_id: o.id }, { order: { created_at: "ASC" } })
-    return { ...o, items }
+    const comercio = await comercioSvc.retrieveComercio(o.comercio_id).catch(() => null)
+    return { ...o, items, comercio_nombre: comercio?.nombre || null }
   }))
 
   return res.json({ ordenes: ordenesConItems })

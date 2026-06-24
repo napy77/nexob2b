@@ -18,6 +18,7 @@ type Orden = {
   id: string
   numero: string
   comercio_id: string
+  comercio_nombre?: string
   estado: string
   total: number
   created_at: string
@@ -127,6 +128,9 @@ export default function PedidosMayoristaPage() {
                     </div>
                     <span className="font-bold text-gray-900">${o.total.toLocaleString("es-AR")}</span>
                   </div>
+                  {o.comercio_nombre && (
+                    <p className="text-xs text-blue-600 font-medium mb-0.5">{o.comercio_nombre}</p>
+                  )}
                   <p className="text-xs text-gray-500">
                     {o.items.slice(0, 2).map((i) => `${i.cantidad} ${i.unidad} ${i.nombre}`).join(" · ")}
                     {o.items.length > 2 && ` · +${o.items.length - 2} más`}
