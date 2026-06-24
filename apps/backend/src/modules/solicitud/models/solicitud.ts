@@ -6,6 +6,7 @@ const Solicitud = model.define("solicitud", {
   mayorista_id: model.text(),
   estado: model.enum(["pendiente", "aceptado", "rechazado"]).default("pendiente"),
   mensaje: model.text().nullable(),
+  vendedor_id: model.text().nullable(),   // vendedor asignado por el mayorista a este comercio
 })
 
 export default Solicitud

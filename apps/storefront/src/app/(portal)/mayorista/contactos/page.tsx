@@ -4,6 +4,9 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { mayoristasApi, ApiError } from "../../../../lib/mayorista/api"
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+
 type Comercio = {
   id: string
   nombre: string
@@ -21,29 +24,49 @@ type Contacto = {
   mayorista_id: string
   estado: "pendiente" | "aceptado" | "rechazado"
   mensaje?: string
+  vendedor_id: string | null
   created_at: string
   comercio: Comercio | null
 }
 
+type Vendedor = {
+  id: string
+  nombre: string
+  apellido: string
+  email: string | null
+  celular: string | null
+  activo: boolean
+}
+
 const TABS = [
-  { key: "pendiente", label: "Pendientes", color: "text-yellow-600" },
-  { key: "aceptado", label: "Aceptados", color: "text-green-600" },
-  { key: "rechazado", label: "Rechazados", color: "text-red-500" },
+  { key: "pendiente", label: "Pendientes" },
+  { key: "aceptado",  label: "Aceptados"  },
+  { key: "rechazado", label: "Rechazados" },
 ]
 
 export default function MayoristaContactosPage() {
   const router = useRouter()
   const [tab, setTab] = useState<"pendiente" | "aceptado" | "rechazado">("pendiente")
   const [contactos, setContactos] = useState<Contacto[]>([])
+  const [vendedores, setVendedores] = useState<Vendedor[]>([])
   const [loading, setLoading] = useState(true)
   const [accionando, setAccionando] = useState<string | null>(null)
+  const [asignando, setAsignando] = useState<string | null>(null)   // solicitudId en progreso de asignación
   const [error, setError] = useState("")
 
+  const token = () => localStorage.getItem("mayorista_token") || ""
+
+  const headers = (ct = true) => ({
+    ...(ct ? { "Content-Type": "application/json" } : {}),
+    "Authorization": `Bearer ${token()}`,
+    "x-publishable-api-key": PUB_KEY,
+  })
+
   const cargar = () => {
-    const token = localStorage.getItem("mayorista_token")
-    if (!token) { router.replace("/mayorista/login"); return }
+    const t = token()
+    if (!t) { router.replace("/mayorista/login"); return }
     setLoading(true)
-    mayoristasApi.getContactos(token, tab)
+    mayoristasApi.getContactos(t, tab)
       .then((data) => setContactos(data.contactos))
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
@@ -53,18 +76,47 @@ export default function MayoristaContactosPage() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { cargar() }, [tab, router])
+  const cargarVendedores = async () => {
+    const t = token()
+    if (!t) return
+    try {
+      const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/vendedores`, { headers: headers(false) })
+      const data = await res.json()
+      setVendedores((data.vendedores || []).filter((v: Vendedor) => v.activo))
+    } catch {}
+  }
+
+  useEffect(() => { cargar() }, [tab])
+  useEffect(() => { cargarVendedores() }, [])
 
   const handleAccion = async (solicitudId: string, estado: "aceptado" | "rechazado") => {
-    const token = localStorage.getItem("mayorista_token")!
     setAccionando(solicitudId)
     try {
-      await mayoristasApi.actualizarContacto(token, solicitudId, estado)
+      await mayoristasApi.actualizarContacto(token(), solicitudId, estado)
       cargar()
     } catch (err: any) {
       alert(err.message)
     } finally {
       setAccionando(null)
+    }
+  }
+
+  const asignarVendedor = async (solicitudId: string, vendedorId: string | null) => {
+    setAsignando(solicitudId)
+    try {
+      await fetch(`${BACKEND_URL}/store/mayoristas/contactos/${solicitudId}`, {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify({ vendedor_id: vendedorId }),
+      })
+      // Actualizar local sin recargar todo
+      setContactos((prev) =>
+        prev.map((c) => c.id === solicitudId ? { ...c, vendedor_id: vendedorId } : c)
+      )
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setAsignando(null)
     }
   }
 
@@ -86,18 +138,21 @@ export default function MayoristaContactosPage() {
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-6">
+        {/* Aviso de vendedores disponibles */}
+        {vendedores.length > 0 && tab === "aceptado" && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 mb-4 flex items-center gap-2">
+            <span>🧑‍💼</span>
+            <span>Tenés <strong>{vendedores.length} vendedor{vendedores.length !== 1 ? "es" : ""}</strong> activo{vendedores.length !== 1 ? "s" : ""}. Podés asignarlos a cada comercio usando el selector.</span>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="flex border-b border-gray-200 mb-6">
           {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key as any)}
+            <button key={t.key} onClick={() => setTab(t.key as any)}
               className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
-                tab === t.key
-                  ? `border-blue-600 text-blue-600`
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
+                tab === t.key ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}>
               {t.label}
               {t.key === "pendiente" && pendientes > 0 && tab !== "pendiente" && (
                 <span className="ml-2 bg-yellow-100 text-yellow-700 text-xs px-1.5 py-0.5 rounded-full font-semibold">
@@ -127,6 +182,8 @@ export default function MayoristaContactosPage() {
           <div className="space-y-3">
             {contactos.map((c) => {
               const comercio = c.comercio
+              const vendedorAsignado = vendedores.find((v) => v.id === c.vendedor_id) || null
+
               return (
                 <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-5">
                   <div className="flex items-start justify-between gap-4">
@@ -150,22 +207,51 @@ export default function MayoristaContactosPage() {
                         {comercio?.email && <span>{comercio.email}</span>}
                         {comercio?.telefono && <span>{comercio.telefono}</span>}
                       </div>
+
+                      {/* Selector de vendedor — solo para aceptados */}
+                      {tab === "aceptado" && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-xs text-gray-500 flex-shrink-0">Vendedor asignado:</span>
+                          {vendedores.length === 0 ? (
+                            <a href="/mayorista/vendedores"
+                              className="text-xs text-blue-600 hover:underline">
+                              + Agregar vendedores
+                            </a>
+                          ) : (
+                            <select
+                              value={c.vendedor_id || ""}
+                              disabled={asignando === c.id}
+                              onChange={(e) => asignarVendedor(c.id, e.target.value || null)}
+                              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white min-w-0 flex-1 max-w-xs">
+                              <option value="">— Sin asignar (contacto del perfil) —</option>
+                              {vendedores.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.nombre} {v.apellido}{v.celular ? ` · ${v.celular}` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {asignando === c.id && (
+                            <span className="text-xs text-gray-400">Guardando...</span>
+                          )}
+                          {vendedorAsignado && (
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full flex-shrink-0">
+                              🧑‍💼 asignado
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
+                    {/* Acciones por tab */}
                     {tab === "pendiente" && (
                       <div className="flex flex-col gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => handleAccion(c.id, "aceptado")}
-                          disabled={accionando === c.id}
-                          className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-60"
-                        >
+                        <button onClick={() => handleAccion(c.id, "aceptado")} disabled={accionando === c.id}
+                          className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-60">
                           Aceptar
                         </button>
-                        <button
-                          onClick={() => handleAccion(c.id, "rechazado")}
-                          disabled={accionando === c.id}
-                          className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-60"
-                        >
+                        <button onClick={() => handleAccion(c.id, "rechazado")} disabled={accionando === c.id}
+                          className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-60">
                           Rechazar
                         </button>
                       </div>
@@ -173,33 +259,27 @@ export default function MayoristaContactosPage() {
 
                     {tab === "aceptado" && comercio && (
                       <div className="flex flex-col gap-2 flex-shrink-0">
-                        {comercio.telefono && (
-                          <a href={`https://wa.me/${comercio.telefono.replace(/\D/g, "")}`}
+                        {(vendedorAsignado?.celular || comercio.telefono) && (
+                          <a href={`https://wa.me/${(vendedorAsignado?.celular || comercio.telefono || "").replace(/\D/g, "")}`}
                             target="_blank" rel="noopener noreferrer"
                             className="px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 transition-colors text-center">
                             WhatsApp
                           </a>
                         )}
-                        <a href={`mailto:${comercio.email}`}
+                        <a href={`mailto:${vendedorAsignado?.email || comercio.email}`}
                           className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors text-center">
                           Email
                         </a>
-                        <button
-                          onClick={() => handleAccion(c.id, "rechazado")}
-                          disabled={accionando === c.id}
-                          className="px-4 py-2 border border-red-100 text-red-500 rounded-xl text-xs font-medium hover:bg-red-50 transition-colors"
-                        >
+                        <button onClick={() => handleAccion(c.id, "rechazado")} disabled={accionando === c.id}
+                          className="px-4 py-2 border border-red-100 text-red-500 rounded-xl text-xs font-medium hover:bg-red-50 transition-colors">
                           Revocar acceso
                         </button>
                       </div>
                     )}
 
                     {tab === "rechazado" && (
-                      <button
-                        onClick={() => handleAccion(c.id, "aceptado")}
-                        disabled={accionando === c.id}
-                        className="px-4 py-2 border border-green-200 text-green-700 rounded-xl text-sm font-medium hover:bg-green-50 transition-colors flex-shrink-0"
-                      >
+                      <button onClick={() => handleAccion(c.id, "aceptado")} disabled={accionando === c.id}
+                        className="px-4 py-2 border border-green-200 text-green-700 rounded-xl text-sm font-medium hover:bg-green-50 transition-colors flex-shrink-0">
                         Aceptar
                       </button>
                     )}

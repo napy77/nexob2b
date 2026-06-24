@@ -6,6 +6,25 @@ import { SOLICITUD_MODULE } from "../../../../modules/solicitud"
 import { TAXONOMIA_MODULE } from "../../../../modules/taxonomia"
 import jwt from "jsonwebtoken"
 
+// Extrae el contacto efectivo: vendedor si tiene, sino mayorista
+function resolverContacto(solicitud: any, vendedorMap: Record<string, any>, mayorista: any) {
+  const v = solicitud?.vendedor_id ? vendedorMap[solicitud.vendedor_id] : null
+  if (v) {
+    return {
+      contacto_nombre: `${v.nombre} ${v.apellido}`,
+      contacto_celular: v.celular || null,
+      contacto_email: v.email || null,
+      es_vendedor: true,
+    }
+  }
+  return {
+    contacto_nombre: mayorista.nombre,
+    contacto_celular: mayorista.telefono || null,
+    contacto_email: mayorista.email || null,
+    es_vendedor: false,
+  }
+}
+
 const verifyToken = (req: MedusaRequest): { comercio_id: string } | null => {
   const auth = req.headers.authorization
   if (!auth?.startsWith("Bearer ")) return null
@@ -55,6 +74,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const solicitudes = await solicitudService.listSolicituds({ comercio_id: payload.comercio_id })
   const solicitudMap: Record<string, any> = {}
   solicitudes.forEach((s: any) => { solicitudMap[s.mayorista_id] = s })
+
+  // Cargar vendedores de los mayoristas con relación aceptada
+  const vendedorMap: Record<string, any> = {}
+  const vendedorIds = solicitudes
+    .filter((s: any) => s.vendedor_id)
+    .map((s: any) => s.vendedor_id)
+  if (vendedorIds.length > 0) {
+    const vendedores = await mayoristaService.listVendedors({ activo: true })
+    vendedores.forEach((v: any) => { vendedorMap[v.id] = v })
+  }
 
   // Mayoristas aprobados
   const todosMayoristas = await mayoristaService.listMayoristas({ estado: "aprobado" })
@@ -116,6 +145,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     // Se muestra precio desglosado (neto + IVA) solo cuando ambos son RI (precio_con_impuestos = false)
     const mostrarDesglosado = !mayorista_precio_con_impuestos && !comercio_precio_con_impuestos
 
+    const contacto = puedeContactar
+      ? resolverContacto(solicitudMap[m?.id], vendedorMap, m)
+      : { contacto_nombre: null, contacto_celular: null, contacto_email: null, es_vendedor: false }
+
     return {
       ...p,
       precio: mostrarPrecio ? p.precio : null,
@@ -123,12 +156,15 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       mayorista: {
         id: m.id,
         nombre: m.nombre,
-        telefono: puedeContactar ? m.telefono : null,
-        email: puedeContactar ? m.email : null,
+        telefono: contacto.contacto_celular,
+        email: contacto.contacto_email,
+        contacto_nombre: contacto.contacto_nombre,
+        es_vendedor: contacto.es_vendedor,
         ciudad: m.ciudad,
         provincia: m.provincia,
         visibilidad: vis,
         precio_con_impuestos: mayorista_precio_con_impuestos,
+        logo_url: m.logo_url || null,
       },
       acceso: {
         mostrarPrecio,
