@@ -60,9 +60,13 @@ export default function MapaPage() {
     if (!token) { router.push("/mayorista/login"); return }
     try {
       const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/mapa`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "",
+        },
       })
       if (res.status === 401) { router.push("/mayorista/login"); return }
+      if (!res.ok) { setError(`Error ${res.status}`); return }
       const data = await res.json()
       setComercio(data.comercios || [])
       setVendedores(data.vendedores || [])
