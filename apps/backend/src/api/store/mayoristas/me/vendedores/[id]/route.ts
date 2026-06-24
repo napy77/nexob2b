@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MAYORISTA_MODULE } from "../../../../../../modules/mayorista"
 import jwt from "jsonwebtoken"
+import bcrypt from "bcryptjs"
 
 const verify = (req: MedusaRequest): { mayorista_id: string } | null => {
   const auth = req.headers.authorization
@@ -20,16 +21,17 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     return res.status(404).json({ error: "Vendedor no encontrado" })
   }
 
-  const { nombre, apellido, email, celular, activo } = req.body as any
+  const { nombre, apellido, email, celular, activo, password } = req.body as any
   const update: Record<string, any> = { id: req.params.id }
   if (nombre !== undefined) update.nombre = nombre.trim()
   if (apellido !== undefined) update.apellido = apellido.trim()
   if (email !== undefined) update.email = email?.trim() || null
   if (celular !== undefined) update.celular = celular?.trim() || null
   if (activo !== undefined) update.activo = activo
+  if (password?.trim()) update.password_hash = await bcrypt.hash(password.trim(), 10)
 
   const updated = await svc.updateVendedors(update)
-  return res.json({ vendedor: updated })
+  return res.json({ vendedor: { ...updated, password_hash: undefined } })
 }
 
 // DELETE /store/mayoristas/me/vendedores/:id

@@ -15,7 +15,7 @@ type Vendedor = {
   activo: boolean
 }
 
-const EMPTY_FORM = { nombre: "", apellido: "", email: "", celular: "" }
+const EMPTY_FORM = { nombre: "", apellido: "", email: "", celular: "", password: "" }
 
 export default function VendedoresPage() {
   const router = useRouter()
@@ -53,7 +53,7 @@ export default function VendedoresPage() {
 
   const empezarEdicion = (v: Vendedor) => {
     setEditando(v.id)
-    setForm({ nombre: v.nombre, apellido: v.apellido, email: v.email || "", celular: v.celular || "" })
+    setForm({ nombre: v.nombre, apellido: v.apellido, email: v.email || "", celular: v.celular || "", password: "" })
     setFormError("")
   }
 
@@ -69,12 +69,13 @@ export default function VendedoresPage() {
     }
     setSaving(true); setFormError("")
     try {
-      const body = {
+      const body: Record<string, any> = {
         nombre: form.nombre.trim(),
         apellido: form.apellido.trim(),
         email: form.email.trim() || null,
         celular: form.celular.trim() || null,
       }
+      if (form.password.trim()) body.password = form.password.trim()
       if (editando) {
         await fetch(`${BACKEND_URL}/store/mayoristas/me/vendedores/${editando}`, {
           method: "PUT", headers: headers(), body: JSON.stringify(body),
@@ -174,6 +175,18 @@ export default function VendedoresPage() {
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 placeholder="juan@empresa.com"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Contraseña para la app {editando && <span className="text-gray-400 font-normal">(dejá vacío para no cambiarla)</span>}
+              </label>
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                placeholder={editando ? "Nueva contraseña (opcional)" : "Contraseña de acceso a la app"}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
