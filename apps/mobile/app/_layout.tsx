@@ -39,7 +39,7 @@ export default function RootLayout() {
             <RootGuard />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(auth)" options={{ presentation: "fullScreenModal", animation: "none" }} />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="(vendedor)" />
               <Stack.Screen name="catalogo/[id]" options={{ presentation: "card" }} />
