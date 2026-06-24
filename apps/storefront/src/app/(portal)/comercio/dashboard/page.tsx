@@ -123,6 +123,13 @@ export default function ComercioDashboardPage() {
             disabled={comercio.estado !== "aprobado"}
           />
           <NavCard
+            href="/comercio/pedidos"
+            icon="📋"
+            title="Mis pedidos"
+            description="Revisá el estado de tus órdenes de compra"
+            disabled={comercio.estado !== "aprobado"}
+          />
+          <NavCard
             href="/comercio/contactos"
             icon="🤝"
             title="Mis contactos"

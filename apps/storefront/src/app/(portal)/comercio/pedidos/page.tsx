@@ -9,7 +9,7 @@ const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string }> = {
   pendiente:  { label: "Pendiente",  color: "#92400e", bg: "#fef3c7" },
   confirmado: { label: "Confirmado", color: "#1e40af", bg: "#dbeafe" },
-  enviado:    { label: "Enviado",    color: "#5b21b6", bg: "#ede9fe" },
+  enviado:    { label: "En camino",  color: "#5b21b6", bg: "#ede9fe" },
   entregado:  { label: "Entregado",  color: "#065f46", bg: "#d1fae5" },
   cancelado:  { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2" },
 }
@@ -20,8 +20,6 @@ type Orden = {
   mayorista_id: string
   estado: string
   total: number
-  total_neto: number
-  total_iva: number
   created_at: string
   items: { nombre: string; cantidad: number; unidad: string }[]
 }
@@ -42,14 +40,20 @@ export default function PedidosComercioPage() {
     })
       .then((r) => r.json())
       .then(async (data) => {
-        setOrdenes(data.ordenes || [])
+        // Ordenar por fecha desc
+        const ordenadas = (data.ordenes || []).sort(
+          (a: Orden, b: Orden) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+        setOrdenes(ordenadas)
 
-        // Cargar nombres de mayoristas
-        const ids = [...new Set((data.ordenes || []).map((o: Orden) => o.mayorista_id))] as string[]
+        // Cargar nombres de mayoristas únicos
+        const ids = [...new Set(ordenadas.map((o: Orden) => o.mayorista_id))] as string[]
         const map: Record<string, string> = {}
         await Promise.all(ids.map(async (id) => {
           try {
-            const r = await fetch(`${BACKEND_URL}/store/mayoristas/${id}`)
+            const r = await fetch(`${BACKEND_URL}/store/mayoristas/${id}`, {
+              headers: { "x-publishable-api-key": PUB_KEY },
+            })
             const d = await r.json()
             map[id] = d.mayorista?.nombre || id
           } catch {}
@@ -59,6 +63,19 @@ export default function PedidosComercioPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [router])
+
+  // Agrupar por mayorista, manteniendo orden cronológico dentro de cada grupo
+  const porMayorista = ordenes.reduce((acc, o) => {
+    const key = o.mayorista_id
+    if (!acc[key]) acc[key] = []
+    acc[key].push(o)
+    return acc
+  }, {} as Record<string, Orden[]>)
+
+  // Ordenar grupos por fecha del pedido más reciente de cada mayorista
+  const gruposOrdenados = Object.entries(porMayorista).sort(([, a], [, b]) =>
+    new Date(b[0].created_at).getTime() - new Date(a[0].created_at).getTime()
+  )
 
   if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -76,10 +93,13 @@ export default function PedidosComercioPage() {
             </svg>
           </button>
           <span className="font-bold text-gray-900">Mis pedidos</span>
+          {ordenes.length > 0 && (
+            <span className="text-xs text-gray-400">({ordenes.length} total)</span>
+          )}
         </div>
       </nav>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
+      <main className="max-w-3xl mx-auto px-6 py-6">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6">{error}</div>
         )}
@@ -95,35 +115,59 @@ export default function PedidosComercioPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
-            {ordenes.map((o) => {
-              const estado = ESTADO_LABEL[o.estado] || { label: o.estado, color: "#374151", bg: "#f3f4f6" }
-              return (
-                <button key={o.id} onClick={() => router.push(`/comercio/pedidos/${o.id}`)}
-                  className="w-full bg-white rounded-2xl border border-gray-100 p-4 text-left hover:border-blue-200 hover:shadow-sm transition-all">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-gray-900 text-sm">{o.numero}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                        style={{ color: estado.color, background: estado.bg }}>
-                        {estado.label}
-                      </span>
-                    </div>
-                    <span className="font-bold text-gray-900">${o.total.toLocaleString("es-AR")}</span>
+          <div className="space-y-8">
+            {gruposOrdenados.map(([mayoristaId, ords]) => (
+              <div key={mayoristaId}>
+                {/* Header del mayorista */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-blue-600 font-bold text-sm">
+                      {(mayoristasMap[mayoristaId] || "M")[0].toUpperCase()}
+                    </span>
                   </div>
-                  <p className="text-xs text-blue-600 font-medium mb-1">
-                    {mayoristasMap[o.mayorista_id] || "Mayorista"}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {o.items.slice(0, 2).map((i) => `${i.cantidad} ${i.unidad} ${i.nombre}`).join(" · ")}
-                    {o.items.length > 2 && ` · +${o.items.length - 2} más`}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {new Date(o.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
-                  </p>
-                </button>
-              )
-            })}
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {mayoristasMap[mayoristaId] || "Mayorista"}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {ords.length} pedido{ords.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pedidos del mayorista */}
+                <div className="space-y-2 pl-11">
+                  {ords.map((o) => {
+                    const estado = ESTADO_LABEL[o.estado] || { label: o.estado, color: "#374151", bg: "#f3f4f6" }
+                    return (
+                      <button key={o.id} onClick={() => router.push(`/comercio/pedidos/${o.id}`)}
+                        className="w-full bg-white rounded-2xl border border-gray-100 p-4 text-left hover:border-blue-200 hover:shadow-sm transition-all">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-900 text-sm">{o.numero}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                              style={{ color: estado.color, background: estado.bg }}>
+                              {estado.label}
+                            </span>
+                          </div>
+                          <span className="font-bold text-gray-900 text-sm">${o.total.toLocaleString("es-AR")}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-1">
+                          {o.items.slice(0, 2).map((i) => `${i.cantidad} ${i.unidad} ${i.nombre}`).join(" · ")}
+                          {o.items.length > 2 && ` · +${o.items.length - 2} más`}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(o.created_at).toLocaleDateString("es-AR", {
+                            day: "2-digit", month: "short", year: "numeric",
+                            hour: "2-digit", minute: "2-digit"
+                          })}
+                        </p>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </main>
