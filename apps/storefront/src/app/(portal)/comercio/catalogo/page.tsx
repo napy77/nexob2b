@@ -160,8 +160,10 @@ export default function CatalogoProductosPage() {
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{pasillo}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {items.map((p) => (
-                    <button key={p.id} onClick={() => setSeleccionado(p)}
-                      className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all text-left">
+                    // div en lugar de button para evitar button>button (HTML inválido)
+                    <div key={p.id}
+                      className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer"
+                      onClick={() => setSeleccionado(p)}>
                       <div className="aspect-video bg-gray-50 overflow-hidden">
                         {p.imagen_url
                           ? <img src={`${BACKEND_URL}${p.imagen_url}`} alt={p.nombre} className="w-full h-full object-cover" />
@@ -204,7 +206,7 @@ export default function CatalogoProductosPage() {
                             onClick={(e) => {
                               e.stopPropagation()
                               if (carritoMayoristaId && carritoMayoristaId !== p.mayorista.id) {
-                                if (!confirm(`Tu carrito tiene productos de ${p.mayorista.nombre !== p.mayorista.nombre ? "otro mayorista" : "otro mayorista"}. ¿Vaciarlo y agregar este?`)) return
+                                if (!confirm("Tu carrito tiene productos de otro mayorista. ¿Vaciarlo y agregar este?")) return
                               }
                               addItem({
                                 producto_id: p.id,
@@ -224,7 +226,7 @@ export default function CatalogoProductosPage() {
                           </button>
                         )}
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>

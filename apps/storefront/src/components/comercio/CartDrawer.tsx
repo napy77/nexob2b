@@ -43,8 +43,9 @@ export default function CartDrawer() {
           })),
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Error al confirmar pedido")
+      let data: any = {}
+      try { data = await res.json() } catch {}
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
 
       clearCart()
       setOpen(false)
