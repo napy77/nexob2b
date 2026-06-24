@@ -3,7 +3,7 @@ import { MAYORISTA_MODULE } from "../../../../modules/mayorista"
 import { SOLICITUD_MODULE } from "../../../../modules/solicitud"
 import jwt from "jsonwebtoken"
 
-// GET /store/mayoristas/lista — comercio ve mayoristas disponibles con estado de relación
+// GET /store/mayoristas/lista — comercio ve mayoristas disponibles con estado de relación y vendedor asignado
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
   try {
     const auth = req.headers.authorization?.replace("Bearer ", "")
@@ -23,7 +23,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     // Todos los mayoristas aprobados
     const mayoristas = await mayoristaService.listMayoristas(
       { estado: "aprobado" },
-      { select: ["id", "nombre", "email", "telefono", "ciudad", "provincia", "rubros", "zonas", "descripcion", "visibilidad"] }
+      { select: ["id", "nombre", "email", "telefono", "ciudad", "provincia", "rubros", "zonas", "descripcion", "visibilidad", "logo_url"] }
     )
 
     // Solicitudes del comercio
@@ -31,10 +31,42 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     const solicitudMap: Record<string, any> = {}
     solicitudes.forEach((s: any) => { solicitudMap[s.mayorista_id] = s })
 
-    const resultado = mayoristas.map((m: any) => ({
-      ...m,
-      solicitud: solicitudMap[m.id] || null,
-    }))
+    // Cargar vendedores necesarios (los que están asignados en alguna solicitud)
+    const vendedorIds = solicitudes
+      .filter((s: any) => s.vendedor_id)
+      .map((s: any) => s.vendedor_id)
+
+    const vendedorMap: Record<string, any> = {}
+    if (vendedorIds.length > 0) {
+      const vendedores = await mayoristaService.listVendedors({ activo: true })
+      vendedores
+        .filter((v: any) => vendedorIds.includes(v.id))
+        .forEach((v: any) => { vendedorMap[v.id] = v })
+    }
+
+    const resultado = mayoristas.map((m: any) => {
+      const solicitud = solicitudMap[m.id] || null
+      const vendedor = solicitud?.vendedor_id ? vendedorMap[solicitud.vendedor_id] || null : null
+
+      return {
+        ...m,
+        solicitud,
+        // Datos de contacto resueltos: vendedor si hay, sino el mayorista
+        contacto: vendedor
+          ? {
+              nombre: `${vendedor.nombre} ${vendedor.apellido}`,
+              celular: vendedor.celular || null,
+              email: vendedor.email || null,
+              es_vendedor: true,
+            }
+          : {
+              nombre: m.nombre,
+              celular: m.telefono || null,
+              email: m.email || null,
+              es_vendedor: false,
+            },
+      }
+    })
 
     return res.json({ mayoristas: resultado })
   } catch (e: any) {
