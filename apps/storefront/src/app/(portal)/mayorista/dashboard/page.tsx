@@ -273,6 +273,9 @@ export default function DashboardPage() {
           <NavCard href="/mayorista/vendedores" icon="🧑‍💼" title="Vendedores / Viajantes"
             description="Gestioná tu equipo y asignalos a cada comercio"
             disabled={mayorista.estado !== "aprobado"} />
+          <NavCard href="/mayorista/mapa" icon="🗺️" title="Mapa de campo"
+            description="Visualizá tus comercios y la ubicación en tiempo real de tus vendedores"
+            disabled={mayorista.estado !== "aprobado"} />
           <NavCard href="/mayorista/perfil" icon="👤" title="Mi perfil"
             description="Actualizá los datos de tu empresa" />
         </div>

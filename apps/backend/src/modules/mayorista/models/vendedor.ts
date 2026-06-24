@@ -8,6 +8,10 @@ const Vendedor = model.define("vendedor", {
   email: model.text().nullable(),
   celular: model.text().nullable(),
   activo: model.boolean().default(true),
+  password_hash: model.text().nullable(),
+  lat: model.number().nullable(),
+  lng: model.number().nullable(),
+  ultima_ubicacion: model.dateTime().nullable(),
 })
 
 export default Vendedor

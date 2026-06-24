@@ -6,6 +6,7 @@ const Orden = model.define("orden", {
   comercio_id: model.text(),
   mayorista_id: model.text(),
   estado: model.text().default("pendiente"),      // pendiente|confirmado|enviado|entregado|cancelado
+  vendedor_id: model.text().nullable(),
   notas: model.text().nullable(),
   total_neto: model.number().default(0),
   total_iva: model.number().default(0),

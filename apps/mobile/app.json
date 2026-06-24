@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Nexo B2B",
+    "slug": "nexob2b-comercio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "nexob2b",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nexob2b.comercio"
+    },
+    "android": {
+      "package": "com.nexob2b.comercio",
+      "adaptiveIcon": {
+        "backgroundColor": "#2563EB",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Nexo B2B necesita tu ubicación para informar tu posición al mayorista.",
+          "locationWhenInUsePermission": "Nexo B2B necesita tu ubicación para informar tu posición al mayorista."
+        }
+      ]
+    ],
+    "experiments": {},
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f497576e-9275-4e83-8070-62a8acbc7a0b"
+      }
+    },
+    "owner": "napy77"
+  }
+}
