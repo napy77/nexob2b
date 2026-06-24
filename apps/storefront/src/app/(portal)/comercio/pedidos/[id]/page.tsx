@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
 const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
   pendiente:  { label: "Pendiente",  color: "#92400e", bg: "#fef3c7", emoji: "⏳" },
@@ -56,7 +57,7 @@ export default function PedidoDetallePage() {
 
     try {
       const res = await fetch(`${BACKEND_URL}/store/ordenes/${params.id}`, {
-        headers: { "Authorization": `Bearer ${token}` },
+        headers: { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -81,7 +82,7 @@ export default function PedidoDetallePage() {
     try {
       const res = await fetch(`${BACKEND_URL}/store/ordenes/${params.id}/${endpoint}`, {
         method: "PUT",
-        headers: { "Authorization": `Bearer ${token}` },
+        headers: { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)

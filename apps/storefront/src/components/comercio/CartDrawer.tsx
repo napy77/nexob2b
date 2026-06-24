@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useCart } from "../../lib/comercio/cart"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
 export default function CartDrawer() {
   const router = useRouter()
@@ -29,6 +30,7 @@ export default function CartDrawer() {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
+          "x-publishable-api-key": PUB_KEY,
         },
         body: JSON.stringify({
           mayorista_id: items[0].mayorista_id,

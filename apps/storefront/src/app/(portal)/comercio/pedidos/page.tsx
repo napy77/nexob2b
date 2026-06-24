@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
+const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
 const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string }> = {
   pendiente:  { label: "Pendiente",  color: "#92400e", bg: "#fef3c7" },
@@ -37,7 +38,7 @@ export default function PedidosComercioPage() {
     if (!token) { router.replace("/comercio/login"); return }
 
     fetch(`${BACKEND_URL}/store/ordenes`, {
-      headers: { "Authorization": `Bearer ${token}` },
+      headers: { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
     })
       .then((r) => r.json())
       .then(async (data) => {
