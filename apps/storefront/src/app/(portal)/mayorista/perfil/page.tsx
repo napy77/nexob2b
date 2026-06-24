@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { mayoristasApi, RUBROS_DISPONIBLES } from "../../../../lib/mayorista/api"
+import { mayoristasApi, RUBROS_DISPONIBLES, fileToBase64 } from "../../../../lib/mayorista/api"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
@@ -22,6 +22,7 @@ type Mayorista = {
   visibilidad?: string
   descripcion?: string
   condicion_fiscal?: string
+  logo_url?: string
 }
 
 type TipoImpositivo = { id: string; nombre: string; descripcion?: string }
@@ -80,6 +81,8 @@ export default function PerfilPage() {
     nombre: "", telefono: "", direccion: "", ciudad: "", provincia: "",
     rubros: [] as string[], visibilidad: "sin_precio", descripcion: "", condicion_fiscal: "",
   })
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoBase64, setLogoBase64] = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/store/taxonomia`, { headers: { "x-publishable-api-key": PUB_KEY } })
@@ -106,6 +109,7 @@ export default function PerfilPage() {
           descripcion: m.descripcion || "",
           condicion_fiscal: m.condicion_fiscal || "",
         })
+        if (m.logo_url) setLogoPreview(`${BACKEND_URL}${m.logo_url}`)
       })
       .catch(() => { localStorage.removeItem("mayorista_token"); router.replace("/mayorista/login") })
       .finally(() => setLoading(false))
@@ -118,14 +122,25 @@ export default function PerfilPage() {
     }))
   }
 
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const b64 = await fileToBase64(file)
+    setLogoBase64(b64)
+    setLogoPreview(b64)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.rubros.length === 0) { setError("Seleccioná al menos un rubro."); return }
     setError(""); setSaving(true); setSuccess(false)
     try {
       const token = localStorage.getItem("mayorista_token")!
-      await mayoristasApi.updateMe(token, form)
+      const payload: Record<string, any> = { ...form }
+      if (logoBase64) payload.logo_base64 = logoBase64
+      await mayoristasApi.updateMe(token, payload)
       setSuccess(true)
+      setLogoBase64(null)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err: any) {
       setError(err.message)
@@ -165,6 +180,31 @@ export default function PerfilPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Logo */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <h2 className="font-semibold text-gray-800 mb-1">Logo de la empresa</h2>
+            <p className="text-sm text-gray-400 mb-4">Aparece en tus Órdenes de Venta y documentos</p>
+            <div className="flex items-center gap-5">
+              <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+                {logoPreview
+                  ? <img src={logoPreview} alt="Logo" className="w-full h-full object-contain" />
+                  : <span className="text-3xl">🏢</span>
+                }
+              </div>
+              <div>
+                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 text-sm font-medium rounded-xl border border-blue-200 hover:bg-blue-100 transition-colors">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {logoPreview ? "Cambiar logo" : "Subir logo"}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                </label>
+                <p className="text-xs text-gray-400 mt-2">PNG, JPG o WEBP · Máx. 2MB</p>
+                {logoBase64 && <p className="text-xs text-green-600 mt-1">✓ Listo para guardar</p>}
+              </div>
+            </div>
+          </div>
+
           {/* Datos básicos */}
           <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
             <h2 className="font-semibold text-gray-800 mb-2">Datos de la empresa</h2>

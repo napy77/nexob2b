@@ -5,6 +5,8 @@ const OrdenItem = model.define("orden_item", {
   orden_id: model.text(),
   producto_id: model.text(),
   nombre: model.text(),                 // snapshot al momento del pedido
+  sku: model.text().nullable(),         // snapshot
+  ean: model.text().nullable(),         // snapshot
   precio_unitario: model.number(),      // precio neto snapshot
   alicuota_iva: model.number().default(21),
   cantidad: model.number(),

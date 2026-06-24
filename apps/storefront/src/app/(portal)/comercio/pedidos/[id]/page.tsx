@@ -14,6 +14,13 @@ const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string; e
   cancelado:  { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2", emoji: "✖️" },
 }
 
+const TIPO_DOC_LABEL: Record<string, string> = {
+  remito: "Remito",
+  factura: "Factura",
+  recibo: "Recibo",
+  otro: "Otro",
+}
+
 type OrdenItem = {
   id: string
   nombre: string
@@ -39,6 +46,14 @@ type Orden = {
   items: OrdenItem[]
 }
 
+type Documento = {
+  id: string
+  nombre: string
+  tipo: string
+  url: string
+  created_at: string
+}
+
 export default function PedidoDetallePage() {
   const router = useRouter()
   const params = useParams()
@@ -47,23 +62,27 @@ export default function PedidoDetallePage() {
 
   const [orden, setOrden] = useState<Orden | null>(null)
   const [mayoristaNombre, setMayoristaNombre] = useState("")
+  const [documentos, setDocumentos] = useState<Documento[]>([])
   const [loading, setLoading] = useState(true)
   const [accionando, setAccionando] = useState(false)
   const [error, setError] = useState("")
 
-  const cargar = async () => {
-    const token = localStorage.getItem("comercio_token")
-    if (!token) { router.replace("/comercio/login"); return }
+  const token = () => localStorage.getItem("comercio_token") || ""
 
+  const cargar = async () => {
+    const t = token()
+    if (!t) { router.replace("/comercio/login"); return }
     try {
       const res = await fetch(`${BACKEND_URL}/store/ordenes/${params.id}`, {
-        headers: { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
+        headers: { "Authorization": `Bearer ${t}`, "x-publishable-api-key": PUB_KEY },
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setOrden(data.orden)
 
-      const mr = await fetch(`${BACKEND_URL}/store/mayoristas/${data.orden.mayorista_id}`)
+      const mr = await fetch(`${BACKEND_URL}/store/mayoristas/${data.orden.mayorista_id}`, {
+        headers: { "x-publishable-api-key": PUB_KEY },
+      })
       const md = await mr.json()
       setMayoristaNombre(md.mayorista?.nombre || "")
     } catch (e: any) {
@@ -73,16 +92,29 @@ export default function PedidoDetallePage() {
     }
   }
 
-  useEffect(() => { cargar() }, [params.id])
+  const cargarDocumentos = async () => {
+    const t = token()
+    try {
+      const res = await fetch(`${BACKEND_URL}/store/ordenes/${params.id}/documentos`, {
+        headers: { "Authorization": `Bearer ${t}`, "x-publishable-api-key": PUB_KEY },
+      })
+      const data = await res.json()
+      setDocumentos(data.documentos || [])
+    } catch {}
+  }
+
+  useEffect(() => {
+    cargar()
+    cargarDocumentos()
+  }, [params.id])
 
   const accion = async (endpoint: string) => {
-    const token = localStorage.getItem("comercio_token")!
-    setAccionando(true)
-    setError("")
+    const t = token()
+    setAccionando(true); setError("")
     try {
       const res = await fetch(`${BACKEND_URL}/store/ordenes/${params.id}/${endpoint}`, {
         method: "PUT",
-        headers: { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
+        headers: { "Authorization": `Bearer ${t}`, "x-publishable-api-key": PUB_KEY },
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -178,6 +210,36 @@ export default function PedidoDetallePage() {
               <span>Total</span><span>${orden.total.toLocaleString("es-AR")}</span>
             </div>
           </div>
+        </div>
+
+        {/* ===== DOCUMENTOS DEL MAYORISTA ===== */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h3 className="font-semibold text-gray-900 text-sm mb-3">📎 Documentos adjuntos</h3>
+          {documentos.length === 0 ? (
+            <p className="text-xs text-gray-400">El mayorista aún no adjuntó documentos (remito, factura, recibo).</p>
+          ) : (
+            <div className="space-y-2">
+              {documentos.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-lg flex-shrink-0">
+                      {doc.tipo === "factura" ? "🧾" : doc.tipo === "remito" ? "📋" : doc.tipo === "recibo" ? "💳" : "📄"}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{doc.nombre}</p>
+                      <p className="text-xs text-gray-400">
+                        {TIPO_DOC_LABEL[doc.tipo] || doc.tipo} · {new Date(doc.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
+                      </p>
+                    </div>
+                  </div>
+                  <a href={`${BACKEND_URL}${doc.url}`} target="_blank" rel="noreferrer"
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors flex-shrink-0 ml-2">
+                    Ver / Descargar
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Acciones del comercio */}

@@ -58,7 +58,14 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     total_neto += neto
     total_iva += iva
     return {
-      ...item,
+      producto_id: item.producto_id,
+      nombre: item.nombre,
+      sku: item.sku || null,
+      ean: item.ean || null,
+      precio_unitario: item.precio_unitario,
+      alicuota_iva: item.alicuota_iva || 21,
+      cantidad: item.cantidad,
+      unidad: item.unidad,
       subtotal_neto: neto,
       subtotal_iva: iva,
       subtotal: neto + iva,

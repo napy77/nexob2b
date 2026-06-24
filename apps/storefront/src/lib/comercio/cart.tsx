@@ -5,6 +5,8 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 export type CartItem = {
   producto_id: string
   nombre: string
+  sku?: string | null
+  ean?: string | null
   precio_unitario: number   // neto
   alicuota_iva: number
   cantidad: number

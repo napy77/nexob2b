@@ -16,6 +16,7 @@ const Mayorista = model.define("mayorista", {
   visibilidad: model.enum(["publico", "con_precio", "sin_precio"]).default("sin_precio"),
   descripcion: model.text().nullable(),
   condicion_fiscal: model.text().nullable(),
+  logo_url: model.text().nullable(),
 })
 
 export default Mayorista
