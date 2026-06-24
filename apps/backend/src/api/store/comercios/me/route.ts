@@ -57,8 +57,13 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (rubros !== undefined) updateData.rubros = rubros
   if (condicion_fiscal !== undefined) updateData.condicion_fiscal = condicion_fiscal
 
-  // Auto-geocodificar si hay datos de ubicación
-  if (direccion !== undefined || ciudad !== undefined || provincia !== undefined) {
+  // Si el frontend manda lat/lng directamente (desde mapa interactivo), usarlos
+  const { lat, lng } = req.body as any
+  if (lat !== undefined && lng !== undefined) {
+    updateData.lat = parseFloat(lat)
+    updateData.lng = parseFloat(lng)
+  } else if (direccion !== undefined || ciudad !== undefined || provincia !== undefined) {
+    // Auto-geocodificar si hay datos de ubicación pero no coordenadas explícitas
     const actual = await comercioService.retrieveComercio(payload.comercio_id)
     const dirFinal = (direccion ?? actual.direccion ?? "").trim()
     const ciuFinal = (ciudad ?? actual.ciudad ?? "").trim()
