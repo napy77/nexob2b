@@ -239,11 +239,22 @@ export default function MapaPage() {
       {/* Sidebar */}
       <div className="w-80 bg-white border-r flex flex-col overflow-hidden">
         <div className="p-4 border-b">
-          <div className="flex items-center justify-between mb-1">
-            <h1 className="text-lg font-bold text-gray-900">🗺️ Mapa de campo</h1>
-            <button onClick={cargarDatos} className="text-xs text-blue-600 hover:underline">Actualizar</button>
+          <div className="flex items-center gap-2 mb-1">
+            <button onClick={() => router.push("/mayorista/dashboard")} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-lg font-bold text-gray-900 flex-1">🗺️ Mapa de campo</h1>
+            <button onClick={cargarDatos} className="text-xs text-blue-600 hover:underline flex-shrink-0">Actualizar</button>
           </div>
-          <p className="text-xs text-gray-400">Auto-actualiza cada 5 min</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-400">Auto-actualiza cada 5 min</p>
+            <button onClick={() => router.push("/mayorista/rutas")}
+              className="text-xs bg-blue-600 text-white px-2 py-1 rounded-lg font-semibold hover:bg-blue-700">
+              🛣️ Ver rutas
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -281,7 +292,7 @@ export default function MapaPage() {
                     onClick={calcularRuta}
                     className="text-xs bg-blue-600 text-white px-2 py-1 rounded-lg font-semibold"
                   >
-                    Calcular ruta ({rutaPuntos.length})
+                    Trazar ({rutaPuntos.length})
                   </button>
                 )}
               </div>
@@ -308,7 +319,7 @@ export default function MapaPage() {
                             enRuta ? "bg-blue-600 text-white" : "bg-white border text-blue-600 border-blue-200"
                           }`}
                         >
-                          {enRuta ? "✓ En ruta" : "+ Ruta"}
+                          {enRuta ? "✓ Trazado" : "+ Trazar"}
                         </button>
                       )}
                     </div>
