@@ -46,7 +46,9 @@ export default function PerfilVendedorTab() {
   const handleActualizarUbicacion = async () => {
     setActualizando(true)
     try {
-      const Location = await import("expo-location")
+      let Location: any
+      try { Location = require("expo-location") } catch { Location = null }
+      if (!Location) { Alert.alert("GPS no disponible", "Módulo de ubicación no encontrado."); return }
       const { status } = await Location.requestForegroundPermissionsAsync()
       if (status !== "granted") {
         Alert.alert("Permiso denegado", "Habilitá la ubicación en la configuración del dispositivo.")
