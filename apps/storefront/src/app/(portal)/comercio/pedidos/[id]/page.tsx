@@ -79,12 +79,20 @@ export default function PedidoDetallePage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setOrden(data.orden)
-
-      const mr = await fetch(`${BACKEND_URL}/store/mayoristas/${data.orden.mayorista_id}`, {
-        headers: { "x-publishable-api-key": PUB_KEY },
-      })
-      const md = await mr.json()
-      setMayoristaNombre(md.mayorista?.nombre || "")
+      // nombre del mayorista viene en la orden o lo buscamos opcionalmente
+      if (data.orden.mayorista_nombre) {
+        setMayoristaNombre(data.orden.mayorista_nombre)
+      } else {
+        try {
+          const mr = await fetch(`${BACKEND_URL}/store/mayoristas/${data.orden.mayorista_id}`, {
+            headers: { "x-publishable-api-key": PUB_KEY },
+          })
+          if (mr.ok) {
+            const md = await mr.json()
+            setMayoristaNombre(md.mayorista?.nombre || "")
+          }
+        } catch {}
+      }
     } catch (e: any) {
       setError(e.message)
     } finally {

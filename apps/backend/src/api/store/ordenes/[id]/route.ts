@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ORDEN_MODULE } from "../../../../modules/orden"
+import { MAYORISTA_MODULE } from "../../../../modules/mayorista"
 import jwt from "jsonwebtoken"
 
 const verifyComercio = (req: MedusaRequest): { comercio_id: string } | null => {
@@ -22,5 +23,14 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const items = await svc.listOrdenItems({ orden_id: orden.id }, { order: { created_at: "ASC" } })
-  return res.json({ orden: { ...orden, items } })
+
+  // Enriquecer con nombre del mayorista
+  let mayorista_nombre = ""
+  try {
+    const mayoristaService: any = req.scope.resolve(MAYORISTA_MODULE)
+    const m = await mayoristaService.retrieveMayorista(orden.mayorista_id)
+    mayorista_nombre = m?.nombre || ""
+  } catch {}
+
+  return res.json({ orden: { ...orden, items, mayorista_nombre } })
 }
