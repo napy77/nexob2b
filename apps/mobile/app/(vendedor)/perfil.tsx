@@ -44,9 +44,24 @@ export default function PerfilVendedorTab() {
   useFocusEffect(useCallback(() => { cargar() }, [token]))
 
   const handleActualizarUbicacion = async () => {
-    // TODO: GPS requiere nuevo dev build con expo-location compilado
-    Alert.alert("No disponible", "GPS disponible en la próxima versión del build.")
-    return
+    setActualizando(true)
+    try {
+      const Location = await import("expo-location")
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== "granted") {
+        Alert.alert("Permiso denegado", "Habilitá la ubicación en la configuración del dispositivo.")
+        return
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      if (!token) return
+      await actualizarUbicacion(token, loc.coords.latitude, loc.coords.longitude)
+      Alert.alert("✓ Ubicación actualizada", `${loc.coords.latitude.toFixed(5)}, ${loc.coords.longitude.toFixed(5)}`)
+      cargar()
+    } catch (e: any) {
+      Alert.alert("Error", e?.message || "No se pudo actualizar la ubicación")
+    } finally {
+      setActualizando(false)
+    }
   }
 
   const handleLogout = () => {
