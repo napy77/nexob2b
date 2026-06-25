@@ -60,13 +60,16 @@ export default function PedidosTab() {
     setDetalle(null)
     setDocumentos([])
     try {
-      const [d, docs] = await Promise.all([
-        getOrden(token, id),
-        getDocumentosOrden(token, id),
-      ])
+      const d = await getOrden(token, id)
       setDetalle(d.orden || d)
-      setDocumentos(docs.documentos || [])
-    } catch {}
+      // documentos: ignorar si el endpoint falla (no crítico)
+      try {
+        const docs = await getDocumentosOrden(token, id)
+        setDocumentos(docs.documentos || [])
+      } catch { setDocumentos([]) }
+    } catch (e: any) {
+      Alert.alert("Error", e?.message || "No se pudo cargar la orden")
+    }
     finally { setLoadingDetalle(false) }
   }
 
