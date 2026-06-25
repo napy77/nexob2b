@@ -1,42 +1,10 @@
-import { useEffect, useRef } from "react"
 import { Tabs } from "expo-router"
-import { Text, AppState } from "react-native"
+import { Text } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { useAuth } from "../../lib/auth"
 import { useCart } from "../../lib/cart"
-import { actualizarUbicacion } from "../../lib/api"
 
-const GPS_INTERVAL_MS = 5 * 60 * 1000
-
+// TODO: GPS deshabilitado hasta nuevo dev build con expo-location compilado
 function GpsTracker() {
-  const { token } = useAuth()
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const sendLocation = async () => {
-    if (!token) return
-    try {
-      // Importación dinámica para no crashear si el módulo nativo no está disponible
-      const Location = await import("expo-location").catch(() => null)
-      if (!Location) return
-      const { status } = await Location.requestForegroundPermissionsAsync()
-      if (status !== "granted") return
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-      await actualizarUbicacion(token, loc.coords.latitude, loc.coords.longitude)
-    } catch {}
-  }
-
-  useEffect(() => {
-    sendLocation()
-    intervalRef.current = setInterval(sendLocation, GPS_INTERVAL_MS)
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") sendLocation()
-    })
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      sub.remove()
-    }
-  }, [token])
-
   return null
 }
 
