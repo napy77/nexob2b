@@ -118,6 +118,7 @@ export default function RutaDetallePage() {
   const [error, setError] = useState("")
   const [vistaReporte, setVistaReporte] = useState(false)
   const [reporte, setReporte] = useState<any>(null)
+  const [loadingReporte, setLoadingReporte] = useState(false)
 
   const token = () => localStorage.getItem("mayorista_token") || ""
   const headers = () => ({
@@ -139,13 +140,20 @@ export default function RutaDetallePage() {
   }, [params.id, router])
 
   const cargarReporte = async () => {
+    setLoadingReporte(true)
     try {
       const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/rutas/${params.id}/reporte`, { headers: headers() })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      const text = await res.text()
+      let data: any
+      try { data = JSON.parse(text) } catch { throw new Error(`Respuesta inválida: ${text.slice(0, 100)}`) }
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`)
       setReporte(data.reporte)
       setVistaReporte(true)
-    } catch (e: any) { setError(e.message) }
+    } catch (e: any) {
+      alert(`Error al cargar reporte: ${e.message}`)
+    } finally {
+      setLoadingReporte(false)
+    }
   }
 
   // Carga inicial y polling cada 30s si está en curso
@@ -449,9 +457,9 @@ export default function RutaDetallePage() {
               </button>
             )}
             {(ruta.estado === "completada" || ruta.estado === "en_curso") && (
-              <button onClick={cargarReporte}
-                className="bg-gray-900 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-700 transition-colors">
-                📊 Ver reporte
+              <button onClick={cargarReporte} disabled={loadingReporte}
+                className="bg-gray-900 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-700 transition-colors disabled:opacity-60">
+                {loadingReporte ? "Cargando..." : "📊 Ver reporte"}
               </button>
             )}
           </div>

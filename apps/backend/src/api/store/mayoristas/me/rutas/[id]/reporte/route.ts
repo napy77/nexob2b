@@ -30,15 +30,14 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   ])
 
   // Órdenes generadas por este vendedor en el día de la ruta
-  const ordenes = await ordenSvc.listOrdenes(
-    { vendedor_id: ruta.vendedor_id },
-    {}
-  ).catch(() => [] as any[])
-
-  const ordenesDelDia = ordenes.filter((o: any) => {
-    const fechaOrden = new Date(o.created_at).toISOString().slice(0, 10)
-    return fechaOrden === ruta.fecha
-  })
+  let ordenesDelDia: any[] = []
+  try {
+    const todasOrdenes = await ordenSvc.listOrdenes({ mayorista_id: ruta.mayorista_id }, {})
+    ordenesDelDia = todasOrdenes.filter((o: any) => {
+      const fechaOrden = new Date(o.created_at).toISOString().slice(0, 10)
+      return o.vendedor_id === ruta.vendedor_id && fechaOrden === ruta.fecha
+    })
+  } catch { ordenesDelDia = [] }
 
   const totalOrdenes = ordenesDelDia.length
   const totalMonto = ordenesDelDia.reduce((sum: number, o: any) => sum + (parseFloat(o.total) || 0), 0)
