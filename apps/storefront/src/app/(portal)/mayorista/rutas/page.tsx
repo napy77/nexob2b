@@ -52,15 +52,15 @@ export default function RutasPage() {
     if (!t) { router.replace("/mayorista/login"); return }
     setLoading(true)
     try {
-      const [rutasRes, vendRes, comRes] = await Promise.all([
+      const [rutasRes, vendRes, mapaRes] = await Promise.all([
         fetch(`${BACKEND_URL}/store/mayoristas/me/rutas`, { headers: headers() }),
         fetch(`${BACKEND_URL}/store/mayoristas/me/vendedores`, { headers: headers() }),
-        fetch(`${BACKEND_URL}/store/mayoristas/me/comercios`, { headers: headers() }),
+        fetch(`${BACKEND_URL}/store/mayoristas/me/mapa`, { headers: headers() }),
       ])
-      const [rd, vd, cd] = await Promise.all([rutasRes.json(), vendRes.json(), comRes.json()])
+      const [rd, vd, md] = await Promise.all([rutasRes.json(), vendRes.json(), mapaRes.json()])
       setRutas(rd.rutas || [])
       setVendedores(vd.vendedores || [])
-      setComercios(cd.comercios || [])
+      setComercios(md.comercios || [])
     } catch { setError("Error al cargar datos") }
     finally { setLoading(false) }
   }, [router])
