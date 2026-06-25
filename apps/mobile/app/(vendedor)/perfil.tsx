@@ -5,6 +5,7 @@ import {
 } from "react-native"
 import { useFocusEffect } from "expo-router"
 import { SafeAreaView } from "react-native-safe-area-context"
+import * as Location from "expo-location"
 import { useAuth } from "../../lib/auth"
 import { getMeVendedor, actualizarUbicacion, ApiError } from "../../lib/api"
 import { BACKEND_URL } from "../../lib/config"
@@ -46,9 +47,6 @@ export default function PerfilVendedorTab() {
   const handleActualizarUbicacion = async () => {
     setActualizando(true)
     try {
-      let Location: any
-      try { Location = require("expo-location") } catch { Location = null }
-      if (!Location) { Alert.alert("GPS no disponible", "Módulo de ubicación no encontrado."); return }
       const { status } = await Location.requestForegroundPermissionsAsync()
       if (status !== "granted") {
         Alert.alert("Permiso denegado", "Habilitá la ubicación en la configuración del dispositivo.")

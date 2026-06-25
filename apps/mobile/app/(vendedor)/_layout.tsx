@@ -2,31 +2,28 @@ import { useEffect, useRef } from "react"
 import { Tabs } from "expo-router"
 import { Text, AppState } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import * as Location from "expo-location"
 import { useAuth } from "../../lib/auth"
 import { useCart } from "../../lib/cart"
 import { actualizarUbicacion } from "../../lib/api"
 
 const GPS_INTERVAL_MS = 5 * 60 * 1000
 
-// require() en try-catch es la única forma segura en React Native
-function getLocationModule() {
-  try { return require("expo-location") } catch { return null }
-}
-
 function GpsTracker() {
   const { token } = useAuth()
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sendingRef = useRef(false)
 
   const sendLocation = async () => {
-    if (!token) return
+    if (!token || sendingRef.current) return
+    sendingRef.current = true
     try {
-      const Location = getLocationModule()
-      if (!Location) return
       const { status } = await Location.requestForegroundPermissionsAsync()
       if (status !== "granted") return
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
       await actualizarUbicacion(token, loc.coords.latitude, loc.coords.longitude)
     } catch {}
+    finally { sendingRef.current = false }
   }
 
   useEffect(() => {
