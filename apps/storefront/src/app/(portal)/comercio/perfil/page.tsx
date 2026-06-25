@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { comerciosApi, RUBROS_DISPONIBLES, PROVINCIAS_ARGENTINA, ApiError } from "../../../../lib/comercio/api"
+import { MapaPicker } from "./MapaPicker"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
@@ -16,110 +17,6 @@ const TIPOS_FALLBACK: TipoImpositivo[] = [
   { id: "exento", nombre: "Exento", descripcion: "Sin cobro de IVA" },
   { id: "cf", nombre: "Consumidor Final", descripcion: "Persona física sin CUIT empresa" },
 ]
-
-function MapaPicker({ lat, lng, direccion, ciudad, provincia, onChange }: {
-  lat: number | null; lng: number | null
-  direccion: string; ciudad: string; provincia: string
-  onChange: (data: { lat: number; lng: number; direccion?: string; ciudad?: string; provincia?: string }) => void
-}) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstance = useRef<any>(null)
-  const markerRef = useRef<any>(null)
-  const autocompleteRef = useRef<any>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [mapReady, setMapReady] = useState(false)
-
-  const initMap = useCallback(() => {
-    const google = (window as any).google
-    if (!google || !mapRef.current) return
-    const center = lat && lng ? { lat, lng } : { lat: -31.4, lng: -64.2 }
-    mapInstance.current = new google.maps.Map(mapRef.current, {
-      center, zoom: lat && lng ? 15 : 6,
-      mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
-    })
-    markerRef.current = new google.maps.Marker({
-      position: center, map: mapInstance.current,
-      draggable: true, title: "Arrastrá para ajustar", visible: !!(lat && lng),
-    })
-    markerRef.current.addListener("dragend", () => {
-      const pos = markerRef.current.getPosition()
-      onChange({ lat: pos.lat(), lng: pos.lng() })
-    })
-    if (inputRef.current) {
-      autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
-        componentRestrictions: { country: "ar" },
-        fields: ["geometry", "address_components"],
-      })
-      autocompleteRef.current.addListener("place_changed", () => {
-        const place = autocompleteRef.current.getPlace()
-        if (!place.geometry?.location) return
-        const newLat = place.geometry.location.lat()
-        const newLng = place.geometry.location.lng()
-        mapInstance.current.setCenter({ lat: newLat, lng: newLng })
-        mapInstance.current.setZoom(16)
-        markerRef.current.setPosition({ lat: newLat, lng: newLng })
-        markerRef.current.setVisible(true)
-        let street = "", num = "", ciu = "", prov = ""
-        for (const c of place.address_components || []) {
-          if (c.types.includes("route")) street = c.long_name
-          if (c.types.includes("street_number")) num = c.long_name
-          if (c.types.includes("locality")) ciu = c.long_name
-          if (c.types.includes("administrative_area_level_1")) prov = c.long_name
-        }
-        onChange({ lat: newLat, lng: newLng,
-          direccion: [street, num].filter(Boolean).join(" ") || undefined,
-          ciudad: ciu || undefined, provincia: prov || undefined,
-        })
-      })
-    }
-    setMapReady(true)
-  }, [])
-
-  useEffect(() => {
-    if (!MAPS_KEY) return
-    if ((window as any).google?.maps) { initMap(); return }
-    if (document.getElementById("gmaps-script")) { 
-      const wait = setInterval(() => { if ((window as any).google?.maps) { clearInterval(wait); initMap() } }, 200)
-      return
-    }
-    const s = document.createElement("script")
-    s.id = "gmaps-script"
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places`
-    s.async = true; s.onload = initMap
-    document.head.appendChild(s)
-  }, [initMap])
-
-  useEffect(() => {
-    if (!mapReady || !markerRef.current) return
-    if (lat && lng) {
-      markerRef.current.setPosition({ lat, lng })
-      markerRef.current.setVisible(true)
-      mapInstance.current?.setCenter({ lat, lng })
-      mapInstance.current?.setZoom(15)
-    }
-  }, [lat, lng, mapReady])
-
-  if (!MAPS_KEY) return null
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-3">
-      <div>
-        <h2 className="font-semibold text-gray-800">Ubicación en el mapa</h2>
-        <p className="text-xs text-gray-400 mt-0.5">Buscá tu dirección o arrastrá el pin para ajustar la posición exacta</p>
-      </div>
-      <div className="relative">
-        <input ref={inputRef} type="text" placeholder="Buscar dirección..."
-          defaultValue={[direccion, ciudad, provincia].filter(Boolean).join(", ")}
-          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10" />
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">📍</span>
-      </div>
-      <div ref={mapRef} className="w-full rounded-xl overflow-hidden border border-gray-100" style={{ height: 280 }} />
-      {lat && lng && (
-        <p className="text-xs text-gray-400">Coordenadas: {lat.toFixed(5)}, {lng.toFixed(5)} — podés arrastrar el pin para ajustar</p>
-      )}
-    </div>
-  )
-}
 
 export default function ComercioPerfilPage() {
   const router = useRouter()
