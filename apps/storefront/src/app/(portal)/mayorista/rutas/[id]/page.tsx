@@ -20,6 +20,89 @@ const ESTADO_RUTA: Record<string, { label: string; color: string; bg: string }> 
   cancelada:   { label: "Cancelada",   color: "#991b1b", bg: "#fee2e2" },
 }
 
+function ReporteMap({ paradas, track, mapsKey }: { paradas: any[]; track: any[]; mapsKey: string }) {
+  const mapRef = useRef<HTMLDivElement>(null)
+  const mapReady = useRef(false)
+
+  useEffect(() => {
+    if (!mapRef.current || !mapsKey || mapReady.current) return
+    if ((window as any).google?.maps) { buildMap(); return }
+    const id = "gmap-reporte"
+    if (!document.getElementById(id)) {
+      const s = document.createElement("script")
+      s.id = id
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${mapsKey}`
+      s.async = true
+      s.onload = buildMap
+      document.head.appendChild(s)
+    } else {
+      const wait = setInterval(() => { if ((window as any).google?.maps) { clearInterval(wait); buildMap() } }, 200)
+    }
+
+    function buildMap() {
+      if (!mapRef.current) return
+      mapReady.current = true
+      const google = (window as any).google
+      const paradasConGeo = paradas.filter(p => p.comercio_lat && p.comercio_lng)
+      const center = paradasConGeo[0]
+        ? { lat: parseFloat(paradasConGeo[0].comercio_lat), lng: parseFloat(paradasConGeo[0].comercio_lng) }
+        : { lat: -31.4, lng: -64.18 }
+
+      const map = new google.maps.Map(mapRef.current, {
+        center, zoom: 12, mapTypeControl: false, streetViewControl: false,
+        styles: [{ featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }],
+      })
+
+      // Markers de paradas
+      paradasConGeo.forEach((p: any) => {
+        const lat = parseFloat(p.comercio_lat), lng = parseFloat(p.comercio_lng)
+        const color = p.estado === "visitado" ? "#059669" : p.estado === "omitido" ? "#dc2626" : "#9ca3af"
+        new google.maps.Marker({
+          position: { lat, lng }, map,
+          label: { text: String(p.orden), color: "#fff", fontWeight: "bold", fontSize: "12px" },
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 16, fillColor: color, fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+          title: p.comercio_nombre,
+        })
+      })
+
+      // Ruta planificada (azul)
+      const rutaCoords = paradasConGeo.map((p: any) => ({ lat: parseFloat(p.comercio_lat), lng: parseFloat(p.comercio_lng) }))
+      if (rutaCoords.length > 1) {
+        new google.maps.Polyline({ path: rutaCoords, map, strokeColor: "#2563eb", strokeOpacity: 0.4, strokeWeight: 2, geodesic: true })
+      }
+
+      // Track real (verde)
+      if (track.length > 1) {
+        const trackCoords = track.map((t: any) => ({ lat: parseFloat(t.lat), lng: parseFloat(t.lng) }))
+        new google.maps.Polyline({ path: trackCoords, map, strokeColor: "#059669", strokeOpacity: 0.9, strokeWeight: 3, geodesic: true })
+        // Punto final del recorrido
+        const ultimo = trackCoords[trackCoords.length - 1]
+        new google.maps.Marker({
+          position: ultimo, map,
+          icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 5, fillColor: "#059669", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
+          title: "Fin del recorrido", zIndex: 10,
+        })
+      }
+
+      // Ajustar bounds
+      const allCoords = [...rutaCoords, ...track.map((t: any) => ({ lat: parseFloat(t.lat), lng: parseFloat(t.lng) }))]
+      if (allCoords.length > 0) {
+        const bounds = new google.maps.LatLngBounds()
+        allCoords.forEach(c => bounds.extend(c))
+        map.fitBounds(bounds)
+      }
+    }
+  }, [paradas, track, mapsKey])
+
+  if (!mapsKey) return null
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden print:h-64">
+      <div ref={mapRef} style={{ width: "100%", height: "340px" }} />
+    </div>
+  )
+}
+
 export default function RutaDetallePage() {
   const router = useRouter()
   const params = useParams()
@@ -213,24 +296,41 @@ export default function RutaDetallePage() {
     const r = reporte.resumen
     return (
       <div className="min-h-screen bg-gray-50">
-        <nav className="bg-white border-b border-gray-100 px-6 py-4">
-          <div className="max-w-3xl mx-auto flex items-center gap-3">
-            <button onClick={() => setVistaReporte(false)} className="text-gray-400 hover:text-gray-600">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+        <nav className="bg-white border-b border-gray-100 px-6 py-4 print:hidden">
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setVistaReporte(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <span className="font-bold text-gray-900">📊 Reporte: {ruta.nombre}</span>
+            </div>
+            <button onClick={() => window.print()}
+              className="bg-gray-900 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-700 transition-colors">
+              🖨️ Imprimir
             </button>
-            <span className="font-bold text-gray-900">📊 Reporte: {ruta.nombre}</span>
           </div>
         </nav>
-        <main className="max-w-3xl mx-auto px-6 py-8 space-y-4">
-          {/* Resumen */}
+
+        <main className="max-w-5xl mx-auto px-6 py-8 space-y-5">
+          {/* Encabezado impresión */}
+          <div className="hidden print:block mb-4">
+            <h1 className="text-xl font-black text-gray-900">Reporte de Ruta: {ruta.nombre}</h1>
+            <p className="text-sm text-gray-500">
+              Fecha: {new Date(ruta.fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              {ruta.hora_inicio && ` · Inicio: ${new Date(ruta.hora_inicio).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`}
+              {ruta.hora_fin && ` · Fin: ${new Date(ruta.hora_fin).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`}
+            </p>
+          </div>
+
+          {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: "Paradas visitadas", value: `${r.visitadas}/${r.total_paradas}`, color: "#059669" },
-              { label: "Omitidas", value: r.omitidas, color: "#dc2626" },
-              { label: "Órdenes generadas", value: r.total_ordenes, color: "#2563eb" },
-              { label: "Monto total", value: `$${r.total_monto.toLocaleString("es-AR")}`, color: "#7c3aed" },
+              { label: "Omitidas",          value: r.omitidas,                           color: "#dc2626" },
+              { label: "Órdenes generadas", value: r.total_ordenes,                     color: "#2563eb" },
+              { label: "Monto total",       value: `$${Number(r.total_monto).toLocaleString("es-AR")}`, color: "#7c3aed" },
             ].map(stat => (
               <div key={stat.label} className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
                 <p className="text-2xl font-black" style={{ color: stat.color }}>{stat.value}</p>
@@ -239,34 +339,58 @@ export default function RutaDetallePage() {
             ))}
           </div>
 
-          {r.duracion_minutos && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-4">
-              <p className="text-sm text-gray-500">Duración total</p>
-              <p className="text-xl font-bold text-gray-900">{Math.floor(r.duracion_minutos / 60)}h {r.duracion_minutos % 60}min</p>
+          {r.duracion_minutos != null && (
+            <div className="bg-white rounded-2xl border border-gray-100 px-5 py-3 flex items-center gap-3">
+              <span className="text-2xl">⏱️</span>
+              <div>
+                <p className="text-xs text-gray-500">Duración total de la ruta</p>
+                <p className="text-lg font-bold text-gray-900">
+                  {Math.floor(r.duracion_minutos / 60)}h {r.duracion_minutos % 60}min
+                </p>
+              </div>
             </div>
           )}
+
+          {/* Mapa del reporte */}
+          <ReporteMap paradas={reporte.paradas} track={reporte.track} mapsKey={MAPS_KEY} />
+
+          {/* Leyenda mapa */}
+          <div className="flex gap-4 text-xs text-gray-500 px-1">
+            <span className="flex items-center gap-1"><span className="w-4 h-1 bg-blue-500 inline-block rounded opacity-50" /> Ruta planificada</span>
+            <span className="flex items-center gap-1"><span className="w-4 h-1 bg-green-600 inline-block rounded" /> Recorrido real</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-600 rounded-full inline-block" /> Visitado</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-500 rounded-full inline-block" /> Omitido</span>
+          </div>
 
           {/* Detalle paradas */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
             <h3 className="font-semibold text-gray-900 mb-3 text-sm">Detalle de paradas</h3>
-            <div className="space-y-2">
+            <div className="space-y-0">
               {reporte.paradas.map((p: any) => {
                 const ep = ESTADO_PARADA[p.estado] || ESTADO_PARADA.pendiente
+                let durMin: number | null = null
+                if (p.hora_llegada && p.hora_salida) {
+                  durMin = Math.round((new Date(p.hora_salida).getTime() - new Date(p.hora_llegada).getTime()) / 60000)
+                }
                 return (
-                  <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                  <div key={p.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
                     <div className="flex items-center gap-3">
-                      <span className="w-7 h-7 bg-gray-100 text-gray-600 rounded-full text-xs font-bold flex items-center justify-center">{p.orden}</span>
+                      <span className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0"
+                        style={{ background: ep.bg, color: ep.color }}>{p.orden}</span>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{p.comercio_nombre}</p>
-                        {p.hora_llegada && (
-                          <p className="text-xs text-gray-400">
-                            Llegada: {new Date(p.hora_llegada).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
-                            {p.hora_salida && ` · Salida: ${new Date(p.hora_salida).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`}
-                          </p>
-                        )}
+                        <p className="text-sm font-semibold text-gray-900">{p.comercio_nombre}</p>
+                        <p className="text-xs text-gray-400">
+                          {p.comercio_direccion || ""}
+                          {p.hora_llegada && (
+                            <> · {new Date(p.hora_llegada).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                              {p.hora_salida && ` → ${new Date(p.hora_salida).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`}
+                              {durMin != null && ` (${durMin}min)`}
+                            </>
+                          )}
+                        </p>
                       </div>
                     </div>
-                    <span className="text-xs font-semibold px-2 py-1 rounded-full" style={{ color: ep.color, background: ep.bg }}>
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0" style={{ color: ep.color, background: ep.bg }}>
                       {ep.emoji} {ep.label}
                     </span>
                   </div>
@@ -278,14 +402,21 @@ export default function RutaDetallePage() {
           {/* Órdenes */}
           {reporte.ordenes.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <h3 className="font-semibold text-gray-900 mb-3 text-sm">Órdenes del día</h3>
-              <div className="space-y-2">
+              <h3 className="font-semibold text-gray-900 mb-3 text-sm">Órdenes generadas ({reporte.ordenes.length})</h3>
+              <div className="space-y-0">
                 {reporte.ordenes.map((o: any) => (
-                  <div key={o.id} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0 text-sm">
-                    <span className="font-medium text-gray-900">{o.numero}</span>
+                  <div key={o.id} className="flex justify-between items-center py-2.5 border-b border-gray-50 last:border-0 text-sm">
+                    <div>
+                      <span className="font-semibold text-gray-900">{o.numero}</span>
+                      {o.comercio_nombre && <span className="text-gray-400 ml-2">— {o.comercio_nombre}</span>}
+                    </div>
                     <span className="font-bold text-gray-900">${parseFloat(o.total).toLocaleString("es-AR")}</span>
                   </div>
                 ))}
+                <div className="flex justify-between items-center pt-3 text-sm font-black text-gray-900">
+                  <span>Total</span>
+                  <span>${Number(r.total_monto).toLocaleString("es-AR")}</span>
+                </div>
               </div>
             </div>
           )}
