@@ -90,6 +90,13 @@ export default function VendedorLayout() {
           }}
         />
         <Tabs.Screen
+          name="ruta"
+          options={{
+            title: "Mi Ruta",
+            tabBarIcon: () => <Text style={{ fontSize: 20 }}>🛣️</Text>,
+          }}
+        />
+        <Tabs.Screen
           name="perfil"
           options={{
             title: "Perfil",

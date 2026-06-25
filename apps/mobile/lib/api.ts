@@ -178,3 +178,45 @@ export async function actualizarUbicacion(token: string, lat: number, lng: numbe
     body: JSON.stringify({ lat, lng }),
   })
 }
+
+// ── Rutas (vendedor) ───────────────────────────────────────────────────────────
+
+export async function getRutaActiva(token: string) {
+  return req("/store/vendedores/me/ruta", { headers: authHeaders(token) })
+}
+
+export async function iniciarRuta(token: string, rutaId: string) {
+  return req(`/store/vendedores/me/ruta/${rutaId}/iniciar`, {
+    method: "PUT",
+    headers: authHeaders(token),
+  })
+}
+
+export async function finalizarRuta(token: string, rutaId: string) {
+  return req(`/store/vendedores/me/ruta/${rutaId}/finalizar`, {
+    method: "PUT",
+    headers: authHeaders(token),
+  })
+}
+
+export async function accionarParada(
+  token: string,
+  rutaId: string,
+  paradaId: string,
+  accion: "visitar" | "omitir",
+  notas?: string
+) {
+  return req(`/store/vendedores/me/ruta/${rutaId}/paradas/${paradaId}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ accion, notas }),
+  })
+}
+
+export async function enviarTrackRuta(token: string, rutaId: string, lat: number, lng: number) {
+  return req(`/store/vendedores/me/ruta/${rutaId}/track`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ lat, lng }),
+  })
+}
