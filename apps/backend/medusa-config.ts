@@ -42,5 +42,8 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/orden",
     },
+    {
+      resolve: "./src/modules/ruta",
+    },
   ]
 })
