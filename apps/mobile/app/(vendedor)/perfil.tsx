@@ -107,8 +107,8 @@ export default function PerfilVendedorTab() {
             <Text style={styles.cardTitle}>Mi ubicación</Text>
             {vendedor.lat && vendedor.lng ? (
               <>
-                <Fila label="Lat" valor={vendedor.lat.toFixed(5)} />
-                <Fila label="Lng" valor={vendedor.lng.toFixed(5)} />
+                <Fila label="Lat" valor={parseFloat(String(vendedor.lat)).toFixed(5)} />
+                <Fila label="Lng" valor={parseFloat(String(vendedor.lng)).toFixed(5)} />
                 {vendedor.ultima_ubicacion && (
                   <Fila
                     label="Última actualización"
