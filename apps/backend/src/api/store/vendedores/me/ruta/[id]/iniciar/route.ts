@@ -6,7 +6,7 @@ const verifyVendedor = (req: MedusaRequest): { vendedor_id: string } | null => {
   const auth = req.headers.authorization
   if (!auth?.startsWith("Bearer ")) return null
   try {
-    return jwt.verify(auth.split(" ")[1], process.env.JWT_SECRET!) as { vendedor_id: string }
+    return jwt.verify(auth.split(" ")[1], process.env.JWT_SECRET || "nexob2b_jwt_secret_2026") as { vendedor_id: string }
   } catch { return null }
 }
 

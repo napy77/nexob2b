@@ -30,7 +30,7 @@ const verifyToken = (req: MedusaRequest): { comercio_id: string } | null => {
   if (!auth?.startsWith("Bearer ")) return null
   try {
     const token = auth.split(" ")[1]
-    return jwt.verify(token, process.env.JWT_SECRET!) as { comercio_id: string }
+    return jwt.verify(token, process.env.JWT_SECRET || "nexob2b_jwt_secret_2026") as { comercio_id: string }
   } catch {
     return null
   }

@@ -36,7 +36,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       email: mayorista.email,
       actor_type: "mayorista",
     },
-    process.env.JWT_SECRET!,
+    process.env.JWT_SECRET || "nexob2b_jwt_secret_2026",
     { expiresIn: "7d" }
   )
 

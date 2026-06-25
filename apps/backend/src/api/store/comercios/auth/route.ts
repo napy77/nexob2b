@@ -29,7 +29,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const token = jwt.sign(
     { comercio_id: comercio.id },
-    process.env.JWT_SECRET!,
+    process.env.JWT_SECRET || "nexob2b_jwt_secret_2026",
     { expiresIn: "30d" }
   )
 
