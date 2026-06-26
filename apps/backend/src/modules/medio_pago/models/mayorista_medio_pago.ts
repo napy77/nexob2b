@@ -5,6 +5,7 @@ const MayoristaMedioPago = model.define("mayorista_medio_pago", {
   mayorista_id: model.text(),
   medio_pago_id: model.text(),
   habilitado: model.boolean().default(true),
+  porcentaje_costo: model.number().default(0),
 })
 
 export default MayoristaMedioPago

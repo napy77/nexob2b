@@ -34,6 +34,8 @@ type MedioPago = {
   porcentaje_costo: number
 }
 
+type PorcentajeLocal = Record<string, string>  // medio_id → valor string del input
+
 export default function MediosPagoMayoristaPage() {
   const router = useRouter()
   const [medios, setMedios] = useState<MedioPago[]>([])
@@ -41,6 +43,8 @@ export default function MediosPagoMayoristaPage() {
   const [toggling, setToggling] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [guardado, setGuardado] = useState(false)
+  const [porcentajes, setPorcentajes] = useState<PorcentajeLocal>({})
+  const [guardandoPct, setGuardandoPct] = useState<string | null>(null)
 
   const headers = () => {
     const token = localStorage.getItem("mayorista_token") || ""
@@ -58,7 +62,12 @@ export default function MediosPagoMayoristaPage() {
       const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/medios-pago`, { headers: headers() })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setMedios(data.medios_pago || [])
+      const lista = data.medios_pago || []
+      setMedios(lista)
+      // Inicializar porcentajes locales
+      const pct: PorcentajeLocal = {}
+      lista.forEach((m: MedioPago) => { pct[m.id] = String(m.porcentaje_costo ?? 0) })
+      setPorcentajes(pct)
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
   }
@@ -80,6 +89,24 @@ export default function MediosPagoMayoristaPage() {
       setTimeout(() => setGuardado(false), 2000)
     } catch (e: any) { setError(e.message) }
     finally { setToggling(null) }
+  }
+
+  const guardarPorcentaje = async (m: MedioPago) => {
+    const valor = parseFloat(porcentajes[m.id] || "0") || 0
+    if (valor === m.porcentaje_costo) return  // sin cambios
+    setGuardandoPct(m.id)
+    try {
+      const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/medios-pago`, {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify({ medio_pago_id: m.id, porcentaje_costo: valor }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+      setMedios(prev => prev.map(x => x.id === m.id ? { ...x, porcentaje_costo: valor } : x))
+      setGuardado(true)
+      setTimeout(() => setGuardado(false), 2000)
+    } catch (e: any) { setError(e.message) }
+    finally { setGuardandoPct(null) }
   }
 
   const habilitados = medios.filter(m => m.habilitado).length
@@ -161,11 +188,27 @@ export default function MediosPagoMayoristaPage() {
                     {m.descripcion && (
                       <p className="text-xs text-gray-400 mt-0.5">{m.descripcion}</p>
                     )}
-                    {Number(m.porcentaje_costo) > 0 && (
-                      <p className="text-xs text-orange-600 font-semibold mt-0.5">
-                        +{m.porcentaje_costo}% costo financiero para el comprador
-                      </p>
-                    )}
+                    {/* Input porcentaje de costo */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <label className="text-xs text-gray-500 whitespace-nowrap">% Costo financiero:</label>
+                      <div className="relative w-24">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={porcentajes[m.id] ?? "0"}
+                          onChange={e => setPorcentajes(p => ({ ...p, [m.id]: e.target.value }))}
+                          onBlur={() => guardarPorcentaje(m)}
+                          className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs pr-6 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          disabled={guardandoPct === m.id}
+                        />
+                        <span className="absolute right-2 top-1 text-xs text-gray-400">%</span>
+                      </div>
+                      {guardandoPct === m.id && (
+                        <span className="text-xs text-blue-400">Guardando...</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Toggle */}

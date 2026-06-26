@@ -29,12 +29,18 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   ])
 
   // Si el mayorista nunca configuró un medio → habilitado por defecto
-  const configMap = new Map(configurados.map((c: any) => [c.medio_pago_id, c.habilitado]))
+  const configMap = new Map(configurados.map((c: any) => [c.medio_pago_id, c]))
 
-  const medios = globales.map((m: any) => ({
-    ...m,
-    habilitado: configMap.has(m.id) ? configMap.get(m.id) : true,
-  }))
+  const medios = globales.map((m: any) => {
+    const config = configMap.get(m.id)
+    return {
+      ...m,
+      habilitado: config ? config.habilitado : true,
+      porcentaje_costo: config && config.porcentaje_costo != null
+        ? parseFloat(String(config.porcentaje_costo))
+        : parseFloat(String(m.porcentaje_costo)) || 0,
+    }
+  })
 
   return res.json({ medios_pago: medios })
 }
@@ -45,24 +51,28 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
   const payload = verifyMayorista(req)
   if (!payload) return res.status(401).json({ error: "No autorizado" })
 
-  const { medio_pago_id, habilitado } = req.body as any
+  const { medio_pago_id, habilitado, porcentaje_costo } = req.body as any
   if (!medio_pago_id) return res.status(400).json({ error: "medio_pago_id requerido" })
 
   const svc: any = req.scope.resolve(MEDIO_PAGO_MODULE)
 
-  // Buscar si ya existe el registro
   const existentes = await svc.listMayoristaMedioPagos({
     mayorista_id: payload.mayorista_id,
     medio_pago_id,
   })
 
+  const updateData: any = {}
+  if (habilitado !== undefined) updateData.habilitado = habilitado
+  if (porcentaje_costo !== undefined) updateData.porcentaje_costo = parseFloat(String(porcentaje_costo)) || 0
+
   if (existentes.length > 0) {
-    await svc.updateMayoristaMedioPagos({ id: existentes[0].id, habilitado })
+    await svc.updateMayoristaMedioPagos({ id: existentes[0].id, ...updateData })
   } else {
     await svc.createMayoristaMedioPagos({
       mayorista_id: payload.mayorista_id,
       medio_pago_id,
-      habilitado,
+      habilitado: habilitado ?? true,
+      porcentaje_costo: parseFloat(String(porcentaje_costo)) || 0,
     })
   }
 
