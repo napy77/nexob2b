@@ -16,6 +16,9 @@ type Orden = {
   total: number
   total_neto: number
   total_iva: number
+  medio_pago_nombre?: string | null
+  porcentaje_costo_mp?: number
+  costo_medio_pago?: number
   notas?: string
   created_at: string
   items: { nombre: string; cantidad: number; unidad: string; precio_unitario: number }[]
@@ -84,6 +87,14 @@ export default function PedidosVendedorTab() {
               <Text style={styles.subTxt}>Neto: ${o.total_neto.toLocaleString("es-AR")}</Text>
               <Text style={styles.subTxt}>IVA: ${o.total_iva.toLocaleString("es-AR")}</Text>
             </View>
+            {o.medio_pago_nombre ? (
+              <View style={styles.medioRow}>
+                <Text style={styles.medioLabel}>💳 {o.medio_pago_nombre}</Text>
+                {Number(o.costo_medio_pago) > 0 && (
+                  <Text style={styles.medioCosto}>+${Number(o.costo_medio_pago).toLocaleString("es-AR")} ({o.porcentaje_costo_mp}%)</Text>
+                )}
+              </View>
+            ) : null}
             {o.notas && <Text style={styles.notas}>📝 {o.notas}</Text>}
           </View>
         )}
@@ -137,6 +148,9 @@ const styles = StyleSheet.create({
   itemPrecio: { fontSize: 13, fontWeight: "700", color: "#111827", width: 80, textAlign: "right" },
   subtotales: { flexDirection: "row", gap: 16, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#f3f4f6" },
   subTxt: { fontSize: 12, color: "#6b7280" },
+  medioRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 6, backgroundColor: "#f0fdf4", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  medioLabel: { fontSize: 12, color: "#059669", fontWeight: "600" },
+  medioCosto: { fontSize: 12, color: "#d97706", fontWeight: "700" },
   notas: { fontSize: 13, color: "#6b7280", fontStyle: "italic", marginTop: 8 },
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyText: { color: "#9ca3af", fontSize: 15 },
