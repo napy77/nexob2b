@@ -30,11 +30,12 @@ type Medio = {
   orden: number
   integracion: string | null
   config: string | null
+  porcentaje_costo: number
 }
 
 const emptyForm = (): Partial<Medio> => ({
   nombre: "", tipo: "efectivo", descripcion: "", icono: "💵",
-  activo: true, orden: 0, integracion: "", config: "",
+  activo: true, orden: 0, integracion: "", config: "", porcentaje_costo: 0,
 })
 
 export default function MediosPagoPage() {
@@ -74,7 +75,7 @@ export default function MediosPagoPage() {
     if (m.config) {
       try { configParsed = JSON.stringify(JSON.parse(m.config), null, 2) } catch { configParsed = m.config }
     }
-    setForm({ ...m, config: configParsed, integracion: m.integracion || "" })
+    setForm({ ...m, config: configParsed, integracion: m.integracion || "", porcentaje_costo: m.porcentaje_costo ?? 0 })
     setShowConfig(!!m.integracion)
     setError("")
     setShowModal(true)
@@ -118,6 +119,7 @@ export default function MediosPagoPage() {
         orden: Number(form.orden) || 0,
         integracion: form.integracion || null,
         config: configValue,
+        porcentaje_costo: Number(form.porcentaje_costo) || 0,
       }
 
       const url = editando ? `${API}/${editando.id}` : API
@@ -162,6 +164,7 @@ export default function MediosPagoPage() {
                 <Table.HeaderCell>Medio de Pago</Table.HeaderCell>
                 <Table.HeaderCell>Tipo</Table.HeaderCell>
                 <Table.HeaderCell>Integración</Table.HeaderCell>
+                <Table.HeaderCell>% Costo</Table.HeaderCell>
                 <Table.HeaderCell>Orden</Table.HeaderCell>
                 <Table.HeaderCell>Estado</Table.HeaderCell>
                 <Table.HeaderCell>Acciones</Table.HeaderCell>
@@ -195,6 +198,11 @@ export default function MediosPagoPage() {
                     ) : (
                       <span className="text-xs text-ui-fg-muted">Manual</span>
                     )}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <span className="text-sm font-medium text-gray-700">
+                      {Number(m.porcentaje_costo) > 0 ? `${Number(m.porcentaje_costo)}%` : <span className="text-ui-fg-muted">—</span>}
+                    </span>
                   </Table.Cell>
                   <Table.Cell>
                     <span className="text-sm text-ui-fg-subtle">{m.orden}</span>
@@ -277,12 +285,23 @@ export default function MediosPagoPage() {
                   placeholder="Instrucciones o descripción para el comprador" />
               </div>
 
-              {/* Orden + Activo */}
-              <div className="flex gap-4 items-end">
+              {/* Orden + % Costo + Activo */}
+              <div className="flex gap-4 items-end flex-wrap">
                 <div className="w-28">
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Orden</label>
                   <input type="number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={form.orden ?? 0} onChange={e => setForm(f => ({ ...f, orden: Number(e.target.value) }))} />
+                </div>
+                <div className="w-36">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">% Costo financiero</label>
+                  <div className="relative">
+                    <input type="number" step="0.01" min="0" max="100"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={form.porcentaje_costo ?? 0}
+                      onChange={e => setForm(f => ({ ...f, porcentaje_costo: Number(e.target.value) }))} />
+                    <span className="absolute right-3 top-2 text-sm text-gray-400">%</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">0 = sin costo adicional</p>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer mb-2">
                   <input type="checkbox" className="w-4 h-4 accent-blue-600"

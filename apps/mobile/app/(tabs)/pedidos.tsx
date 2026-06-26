@@ -155,7 +155,7 @@ export default function PedidosTab() {
                 <View style={styles.totalesBox}>
                   <View style={styles.totalRow}>
                     <Text style={styles.totalLabel}>Subtotal neto</Text>
-                    <Text style={styles.totalVal}>${(detalle.subtotal_neto ?? detalle.total).toLocaleString("es-AR")}</Text>
+                    <Text style={styles.totalVal}>${(detalle.total_neto ?? detalle.total).toLocaleString("es-AR")}</Text>
                   </View>
                   {detalle.total_iva != null && (
                     <View style={styles.totalRow}>
@@ -163,6 +163,20 @@ export default function PedidosTab() {
                       <Text style={styles.totalVal}>${detalle.total_iva.toLocaleString("es-AR")}</Text>
                     </View>
                   )}
+                  {detalle.medio_pago_nombre ? (
+                    <View style={styles.totalRow}>
+                      <Text style={styles.totalLabel}>Medio de pago</Text>
+                      <Text style={[styles.totalVal, { fontWeight: "600" }]}>{detalle.medio_pago_nombre}</Text>
+                    </View>
+                  ) : null}
+                  {Number(detalle.costo_medio_pago) > 0 ? (
+                    <View style={[styles.totalRow, { backgroundColor: "#fff7ed", borderRadius: 8, paddingHorizontal: 8 }]}>
+                      <Text style={[styles.totalLabel, { color: "#c2410c" }]}>Costo método ({detalle.porcentaje_costo_mp}%)</Text>
+                      <Text style={[styles.totalVal, { color: "#c2410c", fontWeight: "700" }]}>
+                        +${Number(detalle.costo_medio_pago).toLocaleString("es-AR")}
+                      </Text>
+                    </View>
+                  ) : null}
                   <View style={[styles.totalRow, styles.totalBig]}>
                     <Text style={[styles.totalLabel, { fontWeight: "800", fontSize: 16 }]}>Total</Text>
                     <Text style={[styles.totalVal, { fontSize: 18, color: "#2563eb" }]}>${detalle.total.toLocaleString("es-AR")}</Text>

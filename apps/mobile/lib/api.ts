@@ -100,6 +100,7 @@ export async function crearOrden(
       unidad: string
     }[]
     notas?: string
+    medio_pago_id?: string
   }
 ) {
   return req("/store/ordenes", {

@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ORDEN_MODULE } from "../../../modules/orden"
 import { COMERCIO_MODULE } from "../../../modules/comercio"
+import { MEDIO_PAGO_MODULE } from "../../../modules/medio_pago"
 import jwt from "jsonwebtoken"
 
 const verifyComercio = (req: MedusaRequest): { comercio_id: string } | null => {
@@ -43,13 +44,13 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const body = req.body as any
-  const { mayorista_id, items, notas } = body
+  const { mayorista_id, items, notas, medio_pago_id } = body
 
   if (!mayorista_id || !items?.length) {
     return res.status(400).json({ error: "Faltan mayorista_id o items" })
   }
 
-  // Calcular totales
+  // Calcular totales de productos
   let total_neto = 0
   let total_iva = 0
   const itemsCalc = items.map((item: any) => {
@@ -71,7 +72,26 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       subtotal: neto + iva,
     }
   })
-  const total = total_neto + total_iva
+  const subtotal_con_iva = total_neto + total_iva
+
+  // Resolver medio de pago y calcular costo financiero
+  let medio_pago_nombre: string | null = null
+  let porcentaje_costo_mp = 0
+  let costo_medio_pago = 0
+
+  if (medio_pago_id) {
+    try {
+      const mpSvc: any = req.scope.resolve(MEDIO_PAGO_MODULE)
+      const mp = await mpSvc.retrieveMedioPago(medio_pago_id).catch(() => null)
+      if (mp) {
+        medio_pago_nombre = mp.nombre
+        porcentaje_costo_mp = parseFloat(String(mp.porcentaje_costo)) || 0
+        costo_medio_pago = Math.round(subtotal_con_iva * porcentaje_costo_mp) / 100
+      }
+    } catch {}
+  }
+
+  const total = subtotal_con_iva + costo_medio_pago
 
   const svc: any = req.scope.resolve(ORDEN_MODULE)
 
@@ -87,6 +107,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     total_neto,
     total_iva,
     total,
+    medio_pago_id: medio_pago_id || null,
+    medio_pago_nombre,
+    porcentaje_costo_mp,
+    costo_medio_pago,
   })
 
   // Crear items

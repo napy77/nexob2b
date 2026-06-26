@@ -1,7 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Alert, TextInput, ActivityIndicator, Image,
+  Alert, TextInput, ActivityIndicator, Image, ScrollView,
 } from "react-native"
 import { useRouter } from "expo-router"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -10,12 +10,47 @@ import { useCart } from "../../lib/cart"
 import { crearOrden, ApiError } from "../../lib/api"
 import { BACKEND_URL } from "../../lib/config"
 
+type MedioPago = {
+  id: string
+  nombre: string
+  tipo: string
+  icono: string | null
+  descripcion: string | null
+  porcentaje_costo: number
+}
+
 export default function CarritoTab() {
   const router = useRouter()
   const { token } = useAuth()
-  const { items, removeItem, updateCantidad, clearCart, totalNeto, totalIva, total, mayorista_nombre } = useCart()
+  const { items, removeItem, updateCantidad, clearCart,
+    totalNeto, totalIva, total, mayorista_nombre, mayorista_id } = useCart()
   const [notas, setNotas] = useState("")
   const [confirmando, setConfirmando] = useState(false)
+  const [mediosPago, setMediosPago] = useState<MedioPago[]>([])
+  const [medioPagoId, setMedioPagoId] = useState<string>("")
+  const [cargandoMedios, setCargandoMedios] = useState(false)
+
+  useEffect(() => {
+    if (!mayorista_id || !token || items.length === 0) return
+    setCargandoMedios(true)
+    fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/medios-pago`, {
+      headers: { "Authorization": `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(d => {
+        const medios = d.medios_pago || []
+        setMediosPago(medios)
+        if (medios.length > 0) setMedioPagoId(medios[0].id)
+      })
+      .catch(() => {})
+      .finally(() => setCargandoMedios(false))
+  }, [mayorista_id, token, items.length > 0])
+
+  const medioSeleccionado = mediosPago.find(m => m.id === medioPagoId)
+  const costoMedioPago = medioSeleccionado && medioSeleccionado.porcentaje_costo > 0
+    ? Math.round(total * medioSeleccionado.porcentaje_costo) / 100
+    : 0
+  const totalConMedio = total + costoMedioPago
 
   const handleConfirmar = async () => {
     if (!token || items.length === 0) return
@@ -23,6 +58,7 @@ export default function CarritoTab() {
     try {
       const data = await crearOrden(token, {
         mayorista_id: items[0].mayorista_id,
+        medio_pago_id: medioPagoId || undefined,
         items: items.map((i) => ({
           producto_id: i.producto_id,
           nombre: i.nombre,
@@ -100,17 +136,11 @@ export default function CarritoTab() {
               <Text style={styles.itemNombre} numberOfLines={2}>{item.nombre}</Text>
               <Text style={styles.itemPrecio}>${item.precio_unitario.toLocaleString("es-AR")} / {item.unidad}</Text>
               <View style={styles.cantRow}>
-                <TouchableOpacity
-                  style={styles.cantBtn}
-                  onPress={() => updateCantidad(item.producto_id, item.cantidad - 1)}
-                >
+                <TouchableOpacity style={styles.cantBtn} onPress={() => updateCantidad(item.producto_id, item.cantidad - 1)}>
                   <Text style={styles.cantBtnText}>−</Text>
                 </TouchableOpacity>
                 <Text style={styles.cantVal}>{item.cantidad}</Text>
-                <TouchableOpacity
-                  style={styles.cantBtn}
-                  onPress={() => updateCantidad(item.producto_id, item.cantidad + 1)}
-                >
+                <TouchableOpacity style={styles.cantBtn} onPress={() => updateCantidad(item.producto_id, item.cantidad + 1)}>
                   <Text style={styles.cantBtnText}>+</Text>
                 </TouchableOpacity>
                 <Text style={styles.itemSubtotal}>
@@ -136,6 +166,7 @@ export default function CarritoTab() {
               numberOfLines={3}
             />
 
+            {/* Totales productos */}
             <View style={styles.totalesBox}>
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Subtotal neto</Text>
@@ -145,11 +176,63 @@ export default function CarritoTab() {
                 <Text style={styles.totalLabel}>IVA estimado</Text>
                 <Text style={styles.totalVal}>${totalIva.toLocaleString("es-AR")}</Text>
               </View>
-              <View style={[styles.totalRow, { borderTopWidth: 1, borderTopColor: "#e5e7eb", paddingTop: 10, marginTop: 4 }]}>
+              <View style={[styles.totalRow, styles.subtotalBorder]}>
+                <Text style={styles.totalLabel}>Subtotal</Text>
+                <Text style={styles.totalVal}>${total.toLocaleString("es-AR")}</Text>
+              </View>
+            </View>
+
+            {/* Selector medio de pago */}
+            {cargandoMedios ? (
+              <ActivityIndicator color="#2563eb" style={{ marginVertical: 12 }} />
+            ) : mediosPago.length > 0 && (
+              <View style={styles.mediosBox}>
+                <Text style={styles.mediosTitulo}>Medio de pago</Text>
+                {mediosPago.map(m => {
+                  const costo = m.porcentaje_costo > 0
+                    ? Math.round(total * m.porcentaje_costo) / 100
+                    : 0
+                  const selected = medioPagoId === m.id
+                  return (
+                    <TouchableOpacity key={m.id} style={[styles.medioRow, selected && styles.medioSelected]}
+                      onPress={() => setMedioPagoId(m.id)}>
+                      <View style={styles.medioLeft}>
+                        <Text style={{ fontSize: 22 }}>{m.icono || "💳"}</Text>
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text style={[styles.medioNombre, selected && { color: "#1d4ed8" }]}>{m.nombre}</Text>
+                          {m.descripcion ? <Text style={styles.medioDesc}>{m.descripcion}</Text> : null}
+                        </View>
+                      </View>
+                      <Text style={m.porcentaje_costo > 0 ? styles.medioCosto : styles.medioSinCosto}>
+                        {m.porcentaje_costo > 0 ? `+${m.porcentaje_costo}%` : "Sin costo"}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+
+                {/* Costo del método */}
+                {costoMedioPago > 0 && (
+                  <View style={styles.costoRow}>
+                    <Text style={styles.costoLabel}>Costo {medioSeleccionado?.nombre}</Text>
+                    <Text style={styles.costoVal}>+${costoMedioPago.toLocaleString("es-AR")}</Text>
+                  </View>
+                )}
+
+                {/* Total final */}
+                <View style={styles.totalFinalRow}>
+                  <Text style={styles.totalFinalLabel}>Total a pagar</Text>
+                  <Text style={styles.totalFinalVal}>${totalConMedio.toLocaleString("es-AR")}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Si no hay medios, solo total */}
+            {mediosPago.length === 0 && !cargandoMedios && (
+              <View style={[styles.totalRow, { marginBottom: 16 }]}>
                 <Text style={[styles.totalLabel, { fontWeight: "800", fontSize: 16 }]}>Total</Text>
                 <Text style={[styles.totalVal, { fontSize: 20, color: "#2563eb" }]}>${total.toLocaleString("es-AR")}</Text>
               </View>
-            </View>
+            )}
 
             <TouchableOpacity
               style={[styles.btnConfirmar, confirmando && styles.btnDisabled]}
@@ -182,11 +265,7 @@ const styles = StyleSheet.create({
   },
   navTitle: { fontSize: 22, fontWeight: "800", color: "#111827" },
   navClear: { fontSize: 14, color: "#ef4444", fontWeight: "600" },
-  mayoristaBanner: {
-    backgroundColor: "#eff6ff",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
+  mayoristaBanner: { backgroundColor: "#eff6ff", paddingHorizontal: 16, paddingVertical: 8 },
   mayoristaLabel: { fontSize: 13, color: "#1d4ed8" },
   mayoristaNombre: { fontWeight: "700" },
   itemCard: {
@@ -202,8 +281,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   itemImgBox: {
-    width: 56,
-    height: 56,
+    width: 56, height: 56,
     borderRadius: 10,
     backgroundColor: "#f3f4f6",
     alignItems: "center",
@@ -216,8 +294,7 @@ const styles = StyleSheet.create({
   itemPrecio: { fontSize: 12, color: "#6b7280", marginTop: 2 },
   cantRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
   cantBtn: {
-    width: 28,
-    height: 28,
+    width: 28, height: 28,
     backgroundColor: "#f0f0f0",
     borderRadius: 8,
     alignItems: "center",
@@ -245,20 +322,72 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 14,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: "#000",
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
   },
   totalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  subtotalBorder: { borderTopWidth: 1, borderTopColor: "#e5e7eb", paddingTop: 8, marginTop: 4, marginBottom: 0 },
   totalLabel: { fontSize: 14, color: "#6b7280" },
   totalVal: { fontSize: 14, fontWeight: "700", color: "#111827" },
+  // medios de pago
+  mediosBox: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  mediosTitulo: { fontSize: 12, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  medioRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    backgroundColor: "#f9fafb",
+  },
+  medioSelected: { borderColor: "#3b82f6", backgroundColor: "#eff6ff" },
+  medioLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  medioNombre: { fontSize: 14, fontWeight: "600", color: "#111827" },
+  medioDesc: { fontSize: 11, color: "#9ca3af", marginTop: 1 },
+  medioCosto: { fontSize: 12, fontWeight: "700", color: "#d97706" },
+  medioSinCosto: { fontSize: 12, fontWeight: "700", color: "#16a34a" },
+  costoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    backgroundColor: "#fff7ed",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  costoLabel: { fontSize: 13, color: "#c2410c" },
+  costoVal: { fontSize: 13, fontWeight: "700", color: "#c2410c" },
+  totalFinalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+    paddingTop: 10,
+    marginTop: 4,
+  },
+  totalFinalLabel: { fontSize: 16, fontWeight: "800", color: "#111827" },
+  totalFinalVal: { fontSize: 20, fontWeight: "800", color: "#2563eb" },
   btnConfirmar: {
     backgroundColor: "#2563eb",
     borderRadius: 14,
     padding: 16,
     alignItems: "center",
+    marginBottom: 8,
   },
   btnDisabled: { opacity: 0.6 },
   btnConfirmarText: { color: "#fff", fontWeight: "800", fontSize: 16 },
