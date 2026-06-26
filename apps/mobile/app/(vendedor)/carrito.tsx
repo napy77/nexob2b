@@ -45,7 +45,7 @@ export default function CarritoVendedorTab() {
       })
       .catch(() => {})
       .finally(() => setCargandoMedios(false))
-  }, [token, items.length > 0])
+  }, [token, mayorista_id, items.length > 0])
 
   const medioSeleccionado = mediosPago.find(m => m.id === medioPagoId)
   const costoMedioPago = medioSeleccionado && medioSeleccionado.porcentaje_costo > 0

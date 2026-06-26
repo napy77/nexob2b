@@ -17,12 +17,14 @@ function RootGuard() {
     const inVendedor = segments[0] === "(vendedor)"
     const inTabs = segments[0] === "(tabs)"
 
+    const inCatalogo = segments[0] === "catalogo"
+
     if (!token) {
       if (!inAuth) router.replace("/(auth)/login")
     } else if (rol === "vendedor") {
       if (!inVendedor) router.replace("/(vendedor)/clientes")
     } else {
-      if (!inTabs) router.replace("/(tabs)/catalogo")
+      if (!inTabs && !inCatalogo) router.replace("/(tabs)/catalogo")
     }
   }, [token, rol, loading, segments])
 
