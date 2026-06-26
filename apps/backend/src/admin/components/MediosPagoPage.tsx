@@ -1,0 +1,334 @@
+import { useState, useEffect } from "react"
+import { Container, Heading, Button, Badge, Table, Text } from "@medusajs/ui"
+
+const BACKEND = "https://nexob2b.app"
+const TIPOS = [
+  { value: "efectivo",      label: "Efectivo" },
+  { value: "cheque",        label: "Cheque / eCheq" },
+  { value: "transferencia", label: "Transferencia" },
+  { value: "tarjeta",       label: "Tarjeta" },
+  { value: "online",        label: "Online / Plataforma" },
+]
+const INTEGRACIONES = [
+  { value: "",            label: "Sin integración (manual)" },
+  { value: "mercadopago", label: "Mercado Pago" },
+  { value: "talo",        label: "Talo" },
+  { value: "stripe",      label: "Stripe" },
+  { value: "payway",      label: "Payway" },
+  { value: "otra",        label: "Otra" },
+]
+const ICONOS_SUGERIDOS = ["💵","🚚","📝","📱","📦","💳","🏦","🔁","💰","🛒"]
+
+type Medio = {
+  id: string
+  nombre: string
+  tipo: string
+  descripcion: string | null
+  icono: string | null
+  activo: boolean
+  orden: number
+  integracion: string | null
+  config: string | null
+}
+
+const emptyForm = (): Partial<Medio> => ({
+  nombre: "", tipo: "efectivo", descripcion: "", icono: "💵",
+  activo: true, orden: 0, integracion: "", config: "",
+})
+
+export default function MediosPagoPage() {
+  const [medios, setMedios] = useState<Medio[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showModal, setShowModal] = useState(false)
+  const [editando, setEditando] = useState<Medio | null>(null)
+  const [form, setForm] = useState<Partial<Medio>>(emptyForm())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [showConfig, setShowConfig] = useState(false)
+
+  const cargar = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${BACKEND}/store/medios-pago`)
+      const data = await res.json()
+      setMedios(data.medios_pago || [])
+    } catch { setError("Error al cargar medios de pago") }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { cargar() }, [])
+
+  const abrirCrear = () => {
+    setEditando(null)
+    setForm({ ...emptyForm(), orden: (medios.length + 1) * 10 })
+    setShowConfig(false)
+    setError("")
+    setShowModal(true)
+  }
+
+  const abrirEditar = (m: Medio) => {
+    setEditando(m)
+    let configParsed = ""
+    if (m.config) {
+      try { configParsed = JSON.stringify(JSON.parse(m.config), null, 2) } catch { configParsed = m.config }
+    }
+    setForm({ ...m, config: configParsed, integracion: m.integracion || "" })
+    setShowConfig(!!m.integracion)
+    setError("")
+    setShowModal(true)
+  }
+
+  const toggleActivo = async (m: Medio) => {
+    try {
+      await fetch(`${BACKEND}/store/medios-pago/${m.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activo: !m.activo }),
+      })
+      await cargar()
+    } catch { setError("Error al actualizar") }
+  }
+
+  const eliminar = async (m: Medio) => {
+    if (!confirm(`¿Eliminar "${m.nombre}"?`)) return
+    try {
+      await fetch(`${BACKEND}/store/medios-pago/${m.id}`, { method: "DELETE" })
+      await cargar()
+    } catch { setError("Error al eliminar") }
+  }
+
+  const guardar = async () => {
+    if (!form.nombre?.trim()) { setError("El nombre es requerido"); return }
+    setSaving(true)
+    setError("")
+    try {
+      let configValue: any = undefined
+      if (form.config?.trim()) {
+        try { configValue = JSON.parse(form.config) } catch { setError("El JSON de configuración no es válido"); setSaving(false); return }
+      }
+
+      const body = {
+        nombre: form.nombre,
+        tipo: form.tipo,
+        descripcion: form.descripcion || null,
+        icono: form.icono || null,
+        activo: form.activo,
+        orden: Number(form.orden) || 0,
+        integracion: form.integracion || null,
+        config: configValue,
+      }
+
+      const url = editando ? `${BACKEND}/store/medios-pago/${editando.id}` : `${BACKEND}/store/medios-pago`
+      const method = editando ? "PUT" : "POST"
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Error") }
+      setShowModal(false)
+      await cargar()
+    } catch (e: any) { setError(e.message) }
+    finally { setSaving(false) }
+  }
+
+  const tipoLabel = (t: string) => TIPOS.find(x => x.value === t)?.label || t
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <Heading level="h1">Medios de Pago</Heading>
+          <Text className="text-ui-fg-subtle mt-1">
+            Gestioná los métodos de pago disponibles para tus mayoristas.
+          </Text>
+        </div>
+        <Button onClick={abrirCrear} size="small">+ Nuevo medio</Button>
+      </div>
+
+      {error && !showModal && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">{error}</div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-12 text-ui-fg-subtle">Cargando...</div>
+      ) : (
+        <Container className="p-0 overflow-hidden">
+          <Table>
+            <Table.Header>
+              <Table.Row>
+                <Table.HeaderCell>Medio de Pago</Table.HeaderCell>
+                <Table.HeaderCell>Tipo</Table.HeaderCell>
+                <Table.HeaderCell>Integración</Table.HeaderCell>
+                <Table.HeaderCell>Orden</Table.HeaderCell>
+                <Table.HeaderCell>Estado</Table.HeaderCell>
+                <Table.HeaderCell>Acciones</Table.HeaderCell>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              {medios.length === 0 && (
+                <Table.Row>
+                  <Table.Cell colSpan={6} className="text-center py-8 text-ui-fg-subtle">
+                    No hay medios de pago registrados
+                  </Table.Cell>
+                </Table.Row>
+              )}
+              {medios.map(m => (
+                <Table.Row key={m.id}>
+                  <Table.Cell>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{m.icono || "💳"}</span>
+                      <div>
+                        <p className="font-medium text-sm">{m.nombre}</p>
+                        {m.descripcion && <p className="text-xs text-ui-fg-subtle">{m.descripcion}</p>}
+                      </div>
+                    </div>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <span className="text-sm text-ui-fg-subtle">{tipoLabel(m.tipo)}</span>
+                  </Table.Cell>
+                  <Table.Cell>
+                    {m.integracion ? (
+                      <Badge color="blue" size="xsmall">{m.integracion}</Badge>
+                    ) : (
+                      <span className="text-xs text-ui-fg-muted">Manual</span>
+                    )}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <span className="text-sm text-ui-fg-subtle">{m.orden}</span>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <button
+                      onClick={() => toggleActivo(m)}
+                      className={`px-2 py-1 rounded-full text-xs font-semibold transition-colors ${
+                        m.activo
+                          ? "bg-green-100 text-green-700 hover:bg-green-200"
+                          : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      }`}
+                    >
+                      {m.activo ? "✓ Activo" : "Inactivo"}
+                    </button>
+                  </Table.Cell>
+                  <Table.Cell>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => abrirEditar(m)}
+                        className="text-xs text-blue-600 hover:underline">Editar</button>
+                      <span className="text-ui-fg-muted">·</span>
+                      <button onClick={() => eliminar(m)}
+                        className="text-xs text-red-500 hover:underline">Eliminar</button>
+                    </div>
+                  </Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table>
+        </Container>
+      )}
+
+      {/* Modal crear / editar */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900">{editando ? "Editar medio de pago" : "Nuevo medio de pago"}</h2>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{error}</div>}
+
+              {/* Nombre + Icono */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Nombre *</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={form.nombre || ""} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+                    placeholder="Ej: Mercado Pago" />
+                </div>
+                <div className="w-32">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Ícono (emoji)</label>
+                  <input className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={form.icono || ""} onChange={e => setForm(f => ({ ...f, icono: e.target.value }))}
+                    placeholder="💳" />
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {ICONOS_SUGERIDOS.map(ic => (
+                      <button key={ic} onClick={() => setForm(f => ({ ...f, icono: ic }))}
+                        className={`text-sm px-1 rounded hover:bg-gray-100 ${form.icono === ic ? "bg-blue-100" : ""}`}>{ic}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tipo */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Tipo</label>
+                <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={form.tipo || "efectivo"} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
+                  {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+
+              {/* Descripción */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Descripción (opcional)</label>
+                <input className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={form.descripcion || ""} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
+                  placeholder="Instrucciones o descripción para el comprador" />
+              </div>
+
+              {/* Orden + Activo */}
+              <div className="flex gap-4 items-end">
+                <div className="w-28">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Orden</label>
+                  <input type="number" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={form.orden ?? 0} onChange={e => setForm(f => ({ ...f, orden: Number(e.target.value) }))} />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer mb-2">
+                  <input type="checkbox" className="w-4 h-4 accent-blue-600"
+                    checked={form.activo !== false}
+                    onChange={e => setForm(f => ({ ...f, activo: e.target.checked }))} />
+                  <span className="text-sm font-medium text-gray-700">Activo</span>
+                </label>
+              </div>
+
+              {/* Integración */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Integración</label>
+                <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={form.integracion || ""}
+                  onChange={e => { setForm(f => ({ ...f, integracion: e.target.value })); setShowConfig(!!e.target.value) }}>
+                  {INTEGRACIONES.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
+                </select>
+              </div>
+
+              {/* Configuración (solo si hay integración) */}
+              {showConfig && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-500">Configuración (JSON)</label>
+                    <span className="text-xs text-gray-400">API keys, tokens, etc.</span>
+                  </div>
+                  <textarea
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                    rows={5}
+                    value={form.config || ""}
+                    onChange={e => setForm(f => ({ ...f, config: e.target.value }))}
+                    placeholder={`{\n  "access_token": "...",\n  "public_key": "..."\n}`}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">⚠️ Los datos se guardan encriptados en la base de datos.</p>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
+              <button onClick={() => setShowModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancelar</button>
+              <button onClick={guardar} disabled={saving}
+                className="px-5 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-60 transition-colors">
+                {saving ? "Guardando..." : editando ? "Guardar cambios" : "Crear medio de pago"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

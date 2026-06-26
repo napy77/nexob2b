@@ -45,5 +45,8 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/ruta",
     },
+    {
+      resolve: "./src/modules/medio_pago",
+    },
   ]
 })
