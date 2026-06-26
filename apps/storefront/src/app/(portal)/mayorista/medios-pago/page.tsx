@@ -31,6 +31,7 @@ type MedioPago = {
   habilitado: boolean
   orden: number
   integracion: string | null
+  porcentaje_costo: number
 }
 
 export default function MediosPagoMayoristaPage() {
@@ -159,6 +160,11 @@ export default function MediosPagoMayoristaPage() {
                     </div>
                     {m.descripcion && (
                       <p className="text-xs text-gray-400 mt-0.5">{m.descripcion}</p>
+                    )}
+                    {Number(m.porcentaje_costo) > 0 && (
+                      <p className="text-xs text-orange-600 font-semibold mt-0.5">
+                        +{m.porcentaje_costo}% costo financiero para el comprador
+                      </p>
                     )}
                   </div>
 
