@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ORDEN_MODULE } from "../../../../../modules/orden"
 import { SOLICITUD_MODULE } from "../../../../../modules/solicitud"
 import { COMERCIO_MODULE } from "../../../../../modules/comercio"
+import { MEDIO_PAGO_MODULE } from "../../../../../modules/medio_pago"
 import jwt from "jsonwebtoken"
 
 function verifyVendedor(req: MedusaRequest): { vendedor_id: string; mayorista_id: string } | null {
@@ -52,7 +53,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!payload) return res.status(401).json({ error: "No autorizado" })
 
   const body = req.body as any
-  const { comercio_id, items, notas } = body
+  const { comercio_id, items, notas, medio_pago_id } = body
 
   if (!comercio_id || !items?.length) {
     return res.status(400).json({ error: "Faltan comercio_id o items" })
@@ -94,6 +95,33 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   })
 
+  const subtotal_con_iva = total_neto + total_iva
+
+  // Resolver medio de pago y calcular costo financiero
+  let medio_pago_nombre: string | null = null
+  let porcentaje_costo_mp = 0
+  let costo_medio_pago = 0
+
+  if (medio_pago_id) {
+    try {
+      const mpSvc: any = req.scope.resolve(MEDIO_PAGO_MODULE)
+      const mp = await mpSvc.retrieveMedioPago(medio_pago_id).catch(() => null)
+      if (mp) {
+        medio_pago_nombre = mp.nombre
+        // Buscar si el mayorista tiene su propio porcentaje
+        const configMayorista = await mpSvc.listMayoristaMedioPagos({
+          mayorista_id: payload.mayorista_id,
+          medio_pago_id,
+        })
+        const pctMayorista = configMayorista[0]?.porcentaje_costo
+        porcentaje_costo_mp = pctMayorista != null && pctMayorista > 0
+          ? parseFloat(String(pctMayorista))
+          : parseFloat(String(mp.porcentaje_costo)) || 0
+        costo_medio_pago = Math.round(subtotal_con_iva * porcentaje_costo_mp) / 100
+      }
+    } catch {}
+  }
+
   const svc: any = req.scope.resolve(ORDEN_MODULE)
   const todasOrdenes = await svc.listOrdens({})
   const numero = `ORD-${String(todasOrdenes.length + 1).padStart(5, "0")}`
@@ -107,7 +135,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     notas: notas || null,
     total_neto,
     total_iva,
-    total: total_neto + total_iva,
+    total: subtotal_con_iva + costo_medio_pago,
+    medio_pago_id: medio_pago_id || null,
+    medio_pago_nombre,
+    porcentaje_costo_mp,
+    costo_medio_pago,
   })
 
   await Promise.all(itemsCalc.map((item: any) =>

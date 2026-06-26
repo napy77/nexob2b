@@ -163,6 +163,7 @@ export async function crearOrdenVendedor(
       unidad: string
     }[]
     notas?: string
+    medio_pago_id?: string
   }
 ) {
   return req("/store/vendedores/me/ordenes", {
