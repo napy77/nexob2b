@@ -26,20 +26,19 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       : Promise.resolve([]),
   ])
 
-  const globalMap = new Map(configMayorista.map((c: any) => [c.medio_pago_id, c]))
-  const contactoMap = new Map(configContacto.map((c: any) => [c.medio_pago_id, c.habilitado]))
+  const globalMap = new Map<string, any>(configMayorista.map((c: any) => [c.medio_pago_id, c]))
+  const contactoMap = new Map<string, boolean>(configContacto.map((c: any) => [c.medio_pago_id, c.habilitado as boolean]))
 
   const medios = globales
     .filter((m: any) => {
-      const configMay = globalMap.get(m.id)
-      const habGlobal = configMay ? configMay.habilitado : true
+      const configMay: any = globalMap.get(m.id)
+      const habGlobal: boolean = configMay ? configMay.habilitado : true
       if (!habGlobal) return false
-      const habContacto = contactoMap.has(m.id) ? contactoMap.get(m.id) : true
+      const habContacto: boolean = contactoMap.has(m.id) ? (contactoMap.get(m.id) as boolean) : true
       return habContacto
     })
     .map((m: any) => {
-      const configMay = globalMap.get(m.id)
-      // Usa porcentaje del mayorista si lo configuró, sino el global
+      const configMay: any = globalMap.get(m.id)
       const porcentaje = configMay && configMay.porcentaje_costo != null && configMay.porcentaje_costo > 0
         ? parseFloat(String(configMay.porcentaje_costo))
         : parseFloat(String(m.porcentaje_costo)) || 0

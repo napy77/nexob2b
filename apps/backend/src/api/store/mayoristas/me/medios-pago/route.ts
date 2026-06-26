@@ -29,10 +29,10 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   ])
 
   // Si el mayorista nunca configuró un medio → habilitado por defecto
-  const configMap = new Map(configurados.map((c: any) => [c.medio_pago_id, c]))
+  const configMap = new Map<string, any>(configurados.map((c: any) => [c.medio_pago_id, c]))
 
   const medios = globales.map((m: any) => {
-    const config = configMap.get(m.id)
+    const config: any = configMap.get(m.id)
     return {
       ...m,
       habilitado: config ? config.habilitado : true,
