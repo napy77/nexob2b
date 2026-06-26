@@ -279,6 +279,9 @@ export default function DashboardPage() {
           <NavCard href="/mayorista/rutas" icon="🛣️" title="Rutas de campo"
             description="Armá rutas de visita para tus vendedores y seguí el progreso en tiempo real"
             disabled={mayorista.estado !== "aprobado"} />
+          <NavCard href="/mayorista/medios-pago" icon="💳" title="Medios de Pago"
+            description="Habilitá o deshabilitá los métodos de pago que aceptás"
+            disabled={mayorista.estado !== "aprobado"} />
           <NavCard href="/mayorista/perfil" icon="👤" title="Mi perfil"
             description="Actualizá los datos de tu empresa" />
         </div>
