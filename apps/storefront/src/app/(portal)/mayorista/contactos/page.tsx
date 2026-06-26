@@ -51,8 +51,11 @@ export default function MayoristaContactosPage() {
   const [vendedores, setVendedores] = useState<Vendedor[]>([])
   const [loading, setLoading] = useState(true)
   const [accionando, setAccionando] = useState<string | null>(null)
-  const [asignando, setAsignando] = useState<string | null>(null)   // solicitudId en progreso de asignación
+  const [asignando, setAsignando] = useState<string | null>(null)
   const [error, setError] = useState("")
+  const [expandedMedios, setExpandedMedios] = useState<string | null>(null) // comercio_id expandido
+  const [mediosContacto, setMediosContacto] = useState<Record<string, any[]>>({}) // comercio_id → medios
+  const [togglingMedio, setTogglingMedio] = useState<string | null>(null) // medio_pago_id
 
   const token = () => localStorage.getItem("mayorista_token") || ""
 
@@ -118,6 +121,44 @@ export default function MayoristaContactosPage() {
     } finally {
       setAsignando(null)
     }
+  }
+
+  const cargarMediosContacto = async (comercioId: string) => {
+    if (mediosContacto[comercioId]) {
+      setExpandedMedios(expandedMedios === comercioId ? null : comercioId)
+      return
+    }
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/store/mayoristas/me/contactos/${comercioId}/medios-pago`,
+        { headers: headers(false) }
+      )
+      const data = await res.json()
+      setMediosContacto(prev => ({ ...prev, [comercioId]: data.medios_pago || [] }))
+      setExpandedMedios(comercioId)
+    } catch {}
+  }
+
+  const toggleMedioContacto = async (comercioId: string, medioPagoId: string, habilitadoActual: boolean) => {
+    setTogglingMedio(medioPagoId)
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/store/mayoristas/me/contactos/${comercioId}/medios-pago`,
+        {
+          method: "PUT",
+          headers: headers(),
+          body: JSON.stringify({ medio_pago_id: medioPagoId, habilitado: !habilitadoActual }),
+        }
+      )
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+      setMediosContacto(prev => ({
+        ...prev,
+        [comercioId]: prev[comercioId].map(m =>
+          m.id === medioPagoId ? { ...m, habilitado: !habilitadoActual } : m
+        ),
+      }))
+    } catch (e: any) { alert(e.message) }
+    finally { setTogglingMedio(null) }
   }
 
   const pendientes = contactos.filter((c) => c.estado === "pendiente").length
@@ -238,6 +279,55 @@ export default function MayoristaContactosPage() {
                             <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full flex-shrink-0">
                               🧑‍💼 asignado
                             </span>
+                          )}
+                        </div>
+                      )}
+                    {/* Panel medios de pago — solo aceptados */}
+                      {tab === "aceptado" && c.comercio && (
+                        <div className="mt-3">
+                          <button
+                            onClick={() => cargarMediosContacto(c.comercio_id)}
+                            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 font-medium"
+                          >
+                            <span>💳</span>
+                            <span>Medios de pago para este contacto</span>
+                            <span className="text-gray-400">{expandedMedios === c.comercio_id ? "▲" : "▼"}</span>
+                          </button>
+
+                          {expandedMedios === c.comercio_id && mediosContacto[c.comercio_id] && (
+                            <div className="mt-2 border border-gray-100 rounded-xl overflow-hidden">
+                              {mediosContacto[c.comercio_id].map((m: any) => {
+                                const deshabilitadoGlobal = !m.habilitado_global
+                                const isToggling = togglingMedio === m.id
+                                return (
+                                  <div key={m.id}
+                                    className={`flex items-center justify-between px-3 py-2 border-b border-gray-50 last:border-0 ${deshabilitadoGlobal ? "opacity-40 bg-gray-50" : "bg-white"}`}>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-base">{m.icono || "💳"}</span>
+                                      <div>
+                                        <p className="text-xs font-medium text-gray-800">{m.nombre}</p>
+                                        {deshabilitadoGlobal && (
+                                          <p className="text-xs text-gray-400">Deshabilitado globalmente</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <button
+                                      disabled={deshabilitadoGlobal || isToggling}
+                                      onClick={() => !deshabilitadoGlobal && toggleMedioContacto(c.comercio_id, m.id, m.habilitado)}
+                                      className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${
+                                        deshabilitadoGlobal
+                                          ? "bg-gray-200 cursor-not-allowed"
+                                          : m.habilitado
+                                            ? "bg-green-500 cursor-pointer"
+                                            : "bg-gray-200 cursor-pointer"
+                                      } ${isToggling ? "opacity-50" : ""}`}
+                                    >
+                                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${m.habilitado && !deshabilitadoGlobal ? "translate-x-4" : "translate-x-0"}`} />
+                                    </button>
+                                  </div>
+                                )
+                              })}
+                            </div>
                           )}
                         </div>
                       )}
