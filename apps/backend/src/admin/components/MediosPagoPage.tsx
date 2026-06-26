@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
 import { Container, Heading, Button, Badge, Table, Text } from "@medusajs/ui"
 
-const BACKEND = "https://nexob2b.app"
+const API = "/admin/medios-pago"
+const OPTS = { credentials: "include" as const }
 const TIPOS = [
   { value: "efectivo",      label: "Efectivo" },
   { value: "cheque",        label: "Cheque / eCheq" },
@@ -49,10 +50,11 @@ export default function MediosPagoPage() {
   const cargar = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${BACKEND}/store/medios-pago`)
+      const res = await fetch(API, OPTS)
       const data = await res.json()
+      if (!res.ok) throw new Error(data.message || data.error || `Error ${res.status}`)
       setMedios(data.medios_pago || [])
-    } catch { setError("Error al cargar medios de pago") }
+    } catch (e: any) { setError(`Error al cargar: ${e.message}`) }
     finally { setLoading(false) }
   }
 
@@ -80,8 +82,8 @@ export default function MediosPagoPage() {
 
   const toggleActivo = async (m: Medio) => {
     try {
-      await fetch(`${BACKEND}/store/medios-pago/${m.id}`, {
-        method: "PUT",
+      await fetch(`${API}/${m.id}`, {
+        ...OPTS, method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activo: !m.activo }),
       })
@@ -92,7 +94,7 @@ export default function MediosPagoPage() {
   const eliminar = async (m: Medio) => {
     if (!confirm(`¿Eliminar "${m.nombre}"?`)) return
     try {
-      await fetch(`${BACKEND}/store/medios-pago/${m.id}`, { method: "DELETE" })
+      await fetch(`${API}/${m.id}`, { ...OPTS, method: "DELETE" })
       await cargar()
     } catch { setError("Error al eliminar") }
   }
@@ -118,10 +120,10 @@ export default function MediosPagoPage() {
         config: configValue,
       }
 
-      const url = editando ? `${BACKEND}/store/medios-pago/${editando.id}` : `${BACKEND}/store/medios-pago`
+      const url = editando ? `${API}/${editando.id}` : API
       const method = editando ? "PUT" : "POST"
       const res = await fetch(url, {
-        method,
+        ...OPTS, method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
