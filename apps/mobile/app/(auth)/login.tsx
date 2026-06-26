@@ -26,10 +26,11 @@ export default function LoginScreen() {
       let data: any
       if (rol === "comercio") {
         data = await loginComercio(email.trim().toLowerCase(), password)
+        await login(data.token, rol)
       } else {
         data = await loginVendedor(email.trim().toLowerCase(), password)
+        await login(data.token, rol, data.vendedor?.mayorista_id)
       }
-      await login(data.token, rol)
     } catch (e: any) {
       Alert.alert("Error", e instanceof ApiError ? e.message : `Error de conexión: ${e?.message || String(e)}`)
     } finally {

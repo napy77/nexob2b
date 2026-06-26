@@ -20,16 +20,9 @@ type MedioPago = {
   porcentaje_costo: number
 }
 
-// Decodifica el payload del JWT sin verificar (solo para leer mayorista_id en cliente)
-function decodeJwt(token: string): any {
-  try {
-    return JSON.parse(atob(token.split(".")[1]))
-  } catch { return {} }
-}
-
 export default function CarritoVendedorTab() {
   const router = useRouter()
-  const { token } = useAuth()
+  const { token, mayorista_id } = useAuth()
   const { items, updateItem, removeItem, clearCart, totalNeto, totalIva, total } = useCart()
   const { comercioCliente, setComercioCliente } = useVendedor()
   const [notas, setNotas] = useState("")
@@ -39,9 +32,7 @@ export default function CarritoVendedorTab() {
   const [cargandoMedios, setCargandoMedios] = useState(false)
 
   useEffect(() => {
-    if (!token || items.length === 0) return
-    const { mayorista_id } = decodeJwt(token)
-    if (!mayorista_id) return
+    if (!token || items.length === 0 || !mayorista_id) return
     setCargandoMedios(true)
     fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/medios-pago`, {
       headers: { "Authorization": `Bearer ${token}` },
