@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { useAuth } from "../../lib/auth"
 import { useCart } from "../../lib/cart"
 import { crearOrden, ApiError } from "../../lib/api"
-import { BACKEND_URL } from "../../lib/config"
+import { BACKEND_URL, PUB_KEY } from "../../lib/config"
 
 type MedioPago = {
   id: string
@@ -34,7 +34,10 @@ export default function CarritoTab() {
     if (!mayorista_id || !token || items.length === 0) return
     setCargandoMedios(true)
     fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/medios-pago`, {
-      headers: { "Authorization": `Bearer ${token}` },
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "x-publishable-api-key": PUB_KEY,
+      },
     })
       .then(r => r.json())
       .then(d => {

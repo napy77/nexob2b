@@ -44,7 +44,7 @@ export default function CatalogoMayoristaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { token } = useAuth()
-  const { addItem, mayorista_id: cartMayoristaId, clearCart } = useCart()
+  const { addItem, items, mayorista_id: cartMayoristaId, clearCart } = useCart()
 
   const [mayorista, setMayorista] = useState<MayoristaInfo | null>(null)
   const [productos, setProductos] = useState<Producto[]>([])
@@ -84,10 +84,7 @@ export default function CatalogoMayoristaScreen() {
           {
             text: "Vaciar y agregar",
             style: "destructive",
-            onPress: () => {
-              clearCart()
-              doAgregar()
-            },
+            onPress: () => { clearCart(); doAgregar() },
           },
         ]
       )
@@ -112,7 +109,40 @@ export default function CatalogoMayoristaScreen() {
       mayorista_nombre: mayorista.nombre,
     })
     setSeleccionado(null)
-    Alert.alert("✓ Agregado", `${seleccionado.nombre} está en tu carrito`)
+  }
+
+  // Agrega directo desde la card (cantidad mínima), sin abrir modal
+  const agregarDirecto = (p: Producto) => {
+    if (!mayorista || p.precio == null) return
+    if (cartMayoristaId && cartMayoristaId !== mayorista.id) {
+      Alert.alert(
+        "Carrito de otro mayorista",
+        `Tu carrito tiene productos de otro mayorista. ¿Vaciarlo y agregar de ${mayorista.nombre}?`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Vaciar y agregar",
+            style: "destructive",
+            onPress: () => {
+              clearCart()
+              addItem({
+                producto_id: p.id, nombre: p.nombre, sku: p.sku ?? null, ean: p.ean ?? null,
+                precio_unitario: p.precio!, alicuota_iva: p.alicuota_iva ?? 21,
+                cantidad: p.compra_minima || 1, unidad: p.unidad,
+                imagen_url: p.imagen_url, mayorista_id: mayorista!.id, mayorista_nombre: mayorista!.nombre,
+              })
+            },
+          },
+        ]
+      )
+      return
+    }
+    addItem({
+      producto_id: p.id, nombre: p.nombre, sku: p.sku ?? null, ean: p.ean ?? null,
+      precio_unitario: p.precio, alicuota_iva: p.alicuota_iva ?? 21,
+      cantidad: p.compra_minima || 1, unidad: p.unidad,
+      imagen_url: p.imagen_url, mayorista_id: mayorista.id, mayorista_nombre: mayorista.nombre,
+    })
   }
 
   const filtrados = productos.filter(
@@ -123,27 +153,29 @@ export default function CatalogoMayoristaScreen() {
   )
 
   const renderItem = ({ item: p }: { item: Producto }) => (
-    <TouchableOpacity style={styles.prodCard} onPress={() => abrirDetalle(p)}>
-      <View style={styles.prodImgBox}>
-        {p.imagen_url
-          ? <Image source={{ uri: `${BACKEND_URL}${p.imagen_url}` }} style={styles.prodImg} resizeMode="cover" />
-          : <Text style={{ fontSize: 32 }}>📦</Text>
-        }
-      </View>
-      <View style={styles.prodInfo}>
-        <Text style={styles.prodNombre} numberOfLines={2}>{p.nombre}</Text>
-        {p.precio != null
-          ? <Text style={styles.prodPrecio}>${p.precio.toLocaleString("es-AR")} / {p.unidad}</Text>
-          : <Text style={styles.prodSinPrecio}>Precio bajo solicitud</Text>
-        }
-        <Text style={styles.prodMin}>Mín: {p.compra_minima} {p.unidad}{p.compra_minima !== 1 ? "s" : ""}</Text>
-      </View>
+    <View style={styles.prodCard}>
+      <TouchableOpacity onPress={() => abrirDetalle(p)} activeOpacity={0.7}>
+        <View style={styles.prodImgBox}>
+          {p.imagen_url
+            ? <Image source={{ uri: `${BACKEND_URL}${p.imagen_url}` }} style={styles.prodImg} resizeMode="cover" />
+            : <Text style={{ fontSize: 32 }}>📦</Text>
+          }
+        </View>
+        <View style={styles.prodInfo}>
+          <Text style={styles.prodNombre} numberOfLines={2}>{p.nombre}</Text>
+          {p.precio != null
+            ? <Text style={styles.prodPrecio}>${p.precio.toLocaleString("es-AR")} / {p.unidad}</Text>
+            : <Text style={styles.prodSinPrecio}>Precio bajo solicitud</Text>
+          }
+          <Text style={styles.prodMin}>Mín: {p.compra_minima} {p.unidad}{p.compra_minima !== 1 ? "s" : ""}</Text>
+        </View>
+      </TouchableOpacity>
       {acceso?.mostrarPrecio && p.precio != null && (
-        <TouchableOpacity style={styles.btnAgregar} onPress={() => abrirDetalle(p)}>
+        <TouchableOpacity style={styles.btnAgregar} onPress={() => agregarDirecto(p)}>
           <Text style={styles.btnAgregarText}>+</Text>
         </TouchableOpacity>
       )}
-    </TouchableOpacity>
+    </View>
   )
 
   return (
@@ -154,7 +186,14 @@ export default function CatalogoMayoristaScreen() {
           <Text style={styles.backIcon}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.navTitle} numberOfLines={1}>{mayorista?.nombre || "Catálogo"}</Text>
-        <View style={{ width: 36 }} />
+        <TouchableOpacity style={styles.cartBtn} onPress={() => router.push("/(tabs)/carrito")}>
+          <Text style={styles.cartIcon}>🛒</Text>
+          {cartMayoristaId && items.length > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{items.reduce((s, i) => s + i.cantidad, 0)}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchBox}>
@@ -327,6 +366,14 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   backIcon: { fontSize: 28, color: "#2563eb", fontWeight: "300" },
+  cartBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  cartIcon: { fontSize: 22 },
+  cartBadge: {
+    position: "absolute", top: 0, right: 0,
+    backgroundColor: "#2563eb", borderRadius: 8,
+    minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
+  },
+  cartBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
   navTitle: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "700", color: "#111827" },
   searchBox: { backgroundColor: "#fff", padding: 10 },
   search: {
