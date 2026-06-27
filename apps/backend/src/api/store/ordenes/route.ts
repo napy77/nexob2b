@@ -85,7 +85,12 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       const mp = await mpSvc.retrieveMedioPago(medio_pago_id).catch(() => null)
       if (mp) {
         medio_pago_nombre = mp.nombre
-        porcentaje_costo_mp = parseFloat(String(mp.porcentaje_costo)) || 0
+        // Buscar si el mayorista tiene su propio porcentaje
+        const configMayorista = await mpSvc.listMayoristaMedioPagos({ mayorista_id, medio_pago_id })
+        const pctMayorista = configMayorista[0]?.porcentaje_costo
+        porcentaje_costo_mp = pctMayorista != null && pctMayorista > 0
+          ? parseFloat(String(pctMayorista))
+          : parseFloat(String(mp.porcentaje_costo)) || 0
         costo_medio_pago = Math.round(subtotal_con_iva * porcentaje_costo_mp) / 100
       }
     } catch {}
