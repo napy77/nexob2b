@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ORDEN_MODULE } from "../../../modules/orden"
 import { COMERCIO_MODULE } from "../../../modules/comercio"
 import { MEDIO_PAGO_MODULE } from "../../../modules/medio_pago"
+import { TRANSPORTE_MODULE } from "../../../modules/transporte"
 import jwt from "jsonwebtoken"
 
 const verifyComercio = (req: MedusaRequest): { comercio_id: string } | null => {
@@ -44,7 +45,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const body = req.body as any
-  const { mayorista_id, items, notas, medio_pago_id } = body
+  const { mayorista_id, items, notas, medio_pago_id, transporte_id } = body
 
   if (!mayorista_id || !items?.length) {
     return res.status(400).json({ error: "Faltan mayorista_id o items" })
@@ -74,11 +75,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   })
   const subtotal_con_iva = total_neto + total_iva
 
-  // Resolver medio de pago y calcular costo financiero
+  // Resolver medio de pago
   let medio_pago_nombre: string | null = null
   let porcentaje_costo_mp = 0
   let costo_medio_pago = 0
-
   if (medio_pago_id) {
     try {
       const mpSvc: any = req.scope.resolve(MEDIO_PAGO_MODULE)
@@ -91,7 +91,28 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     } catch {}
   }
 
-  const total = subtotal_con_iva + costo_medio_pago
+  // Resolver transporte
+  let transporte_nombre: string | null = null
+  let porcentaje_costo_transporte = 0
+  let costo_transporte = 0
+  if (transporte_id) {
+    try {
+      const trSvc: any = req.scope.resolve(TRANSPORTE_MODULE)
+      const tr = await trSvc.retrieveTransporte(transporte_id).catch(() => null)
+      if (tr) {
+        transporte_nombre = tr.nombre
+        // Buscar si el mayorista tiene su propio porcentaje
+        const configMayorista = await trSvc.listMayoristaTransportes({ mayorista_id, transporte_id })
+        const pctMayorista = configMayorista[0]?.porcentaje_costo
+        porcentaje_costo_transporte = pctMayorista != null && pctMayorista > 0
+          ? parseFloat(String(pctMayorista))
+          : parseFloat(String(tr.porcentaje_costo)) || 0
+        costo_transporte = Math.round(subtotal_con_iva * porcentaje_costo_transporte) / 100
+      }
+    } catch {}
+  }
+
+  const total = subtotal_con_iva + costo_medio_pago + costo_transporte
 
   const svc: any = req.scope.resolve(ORDEN_MODULE)
 
@@ -111,6 +132,10 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     medio_pago_nombre,
     porcentaje_costo_mp,
     costo_medio_pago,
+    transporte_id: transporte_id || null,
+    transporte_nombre,
+    porcentaje_costo_transporte,
+    costo_transporte,
   })
 
   // Crear items

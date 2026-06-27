@@ -15,6 +15,10 @@ const Orden = model.define("orden", {
   medio_pago_nombre: model.text().nullable(),
   porcentaje_costo_mp: model.number().default(0),
   costo_medio_pago: model.number().default(0),
+  transporte_id: model.text().nullable(),
+  transporte_nombre: model.text().nullable(),
+  porcentaje_costo_transporte: model.number().default(0),
+  costo_transporte: model.number().default(0),
 })
 
 export default Orden
