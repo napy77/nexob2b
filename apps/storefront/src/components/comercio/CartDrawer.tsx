@@ -16,6 +16,15 @@ type MedioPago = {
   porcentaje_costo: number
 }
 
+type Transporte = {
+  id: string
+  nombre: string
+  tipo: string
+  icono: string | null
+  descripcion: string | null
+  porcentaje_costo: number
+}
+
 export default function CartDrawer() {
   const router = useRouter()
   const { items, mayorista_nombre, mayorista_id, removeItem, updateCantidad, clearCart,
@@ -25,20 +34,30 @@ export default function CartDrawer() {
   const [error, setError] = useState("")
   const [mediosPago, setMediosPago] = useState<MedioPago[]>([])
   const [medioPagoId, setMedioPagoId] = useState<string>("")
+  const [transportes, setTransportes] = useState<Transporte[]>([])
+  const [transporteId, setTransporteId] = useState<string>("")
 
-  // Cargar medios de pago cuando se abre el carrito y hay mayorista
+  // Cargar medios de pago y transportes cuando se abre el carrito y hay mayorista
   useEffect(() => {
     if (!open || !mayorista_id) return
     const token = localStorage.getItem("comercio_token") || ""
-    fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/medios-pago`, {
-      headers: { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
-    })
+    const headers: HeadersInit = { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY }
+
+    fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/medios-pago`, { headers })
       .then(r => r.json())
       .then(d => {
         const medios = d.medios_pago || []
         setMediosPago(medios)
-        // Seleccionar el primero por defecto si hay medios
         if (medios.length > 0 && !medioPagoId) setMedioPagoId(medios[0].id)
+      })
+      .catch(() => {})
+
+    fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/transportes`, { headers })
+      .then(r => r.json())
+      .then(d => {
+        const trList = d.transportes || []
+        setTransportes(trList)
+        if (trList.length > 0 && !transporteId) setTransporteId(trList[0].id)
       })
       .catch(() => {})
   }, [open, mayorista_id])
@@ -47,7 +66,13 @@ export default function CartDrawer() {
   const costoMedioPago = medioSeleccionado && medioSeleccionado.porcentaje_costo > 0
     ? Math.round(total * medioSeleccionado.porcentaje_costo) / 100
     : 0
-  const totalConMedio = total + costoMedioPago
+
+  const transporteSeleccionado = transportes.find(t => t.id === transporteId)
+  const costoTransporte = transporteSeleccionado && transporteSeleccionado.porcentaje_costo > 0
+    ? Math.round(total * transporteSeleccionado.porcentaje_costo) / 100
+    : 0
+
+  const totalFinal = total + costoMedioPago + costoTransporte
 
   if (!open) return null
 
@@ -70,6 +95,7 @@ export default function CartDrawer() {
           mayorista_id: items[0].mayorista_id,
           notas: notas.trim() || null,
           medio_pago_id: medioPagoId || null,
+          transporte_id: transporteId || null,
           items: items.map((i) => ({
             producto_id: i.producto_id,
             nombre: i.nombre,
@@ -88,6 +114,7 @@ export default function CartDrawer() {
       setOpen(false)
       setNotas("")
       setMedioPagoId("")
+      setTransporteId("")
       router.push(`/comercio/pedidos/${data.orden.id}?nuevo=1`)
     } catch (err: any) {
       setError(err.message)
@@ -212,30 +239,70 @@ export default function CartDrawer() {
                     )
                   })}
                 </div>
-
-                {/* Costo del método seleccionado */}
                 {costoMedioPago > 0 && (
                   <div className="flex justify-between text-sm text-orange-700 bg-orange-50 rounded-lg px-3 py-2">
                     <span>Costo {medioSeleccionado?.nombre}</span>
                     <span className="font-semibold">+${costoMedioPago.toLocaleString("es-AR")}</span>
                   </div>
                 )}
+              </div>
+            )}
 
-                {/* Total final */}
-                <div className="flex justify-between font-black text-gray-900 text-base pt-1 border-t border-gray-200">
-                  <span>Total a pagar</span>
-                  <span>${totalConMedio.toLocaleString("es-AR")}</span>
+            {/* Selector de transporte */}
+            {transportes.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Transporte</p>
+                <div className="space-y-1.5">
+                  {transportes.map(t => {
+                    const costo = t.porcentaje_costo > 0
+                      ? Math.round(total * t.porcentaje_costo) / 100
+                      : 0
+                    const selected = transporteId === t.id
+                    return (
+                      <button key={t.id} onClick={() => setTransporteId(t.id)}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-left transition-all ${
+                          selected
+                            ? "border-green-500 bg-green-50"
+                            : "border-gray-100 bg-gray-50 hover:border-gray-200"
+                        }`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{t.icono || "🚚"}</span>
+                          <div>
+                            <p className={`text-sm font-medium ${selected ? "text-green-700" : "text-gray-800"}`}>
+                              {t.nombre}
+                            </p>
+                            {t.descripcion && (
+                              <p className="text-xs text-gray-400">{t.descripcion}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0 ml-2">
+                          {t.porcentaje_costo > 0 ? (
+                            <span className="text-xs text-orange-600 font-semibold">
+                              +{t.porcentaje_costo}% = +${costo.toLocaleString("es-AR")}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-green-600 font-semibold">Sin costo</span>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
+                {costoTransporte > 0 && (
+                  <div className="flex justify-between text-sm text-orange-700 bg-orange-50 rounded-lg px-3 py-2">
+                    <span>Costo {transporteSeleccionado?.nombre}</span>
+                    <span className="font-semibold">+${costoTransporte.toLocaleString("es-AR")}</span>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Sin medios configurados — solo muestra el total */}
-            {mediosPago.length === 0 && (
-              <div className="flex justify-between font-black text-gray-900 text-base pt-1 border-t border-gray-200">
-                <span>Total</span>
-                <span>${total.toLocaleString("es-AR")}</span>
-              </div>
-            )}
+            {/* Total final */}
+            <div className="flex justify-between font-black text-gray-900 text-base pt-1 border-t border-gray-200">
+              <span>Total a pagar</span>
+              <span>${totalFinal.toLocaleString("es-AR")}</span>
+            </div>
 
             <textarea value={notas} onChange={(e) => setNotas(e.target.value)}
               placeholder="Notas para el mayorista (opcional)..."
