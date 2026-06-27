@@ -282,6 +282,9 @@ export default function DashboardPage() {
           <NavCard href="/mayorista/medios-pago" icon="💳" title="Medios de Pago"
             description="Habilitá o deshabilitá los métodos de pago que aceptás"
             disabled={mayorista.estado !== "aprobado"} />
+          <NavCard href="/mayorista/transportes" icon="🚚" title="Transportes"
+            description="Configurá las opciones de envío que ofrecés a tus clientes"
+            disabled={mayorista.estado !== "aprobado"} />
           <NavCard href="/mayorista/perfil" icon="👤" title="Mi perfil"
             description="Actualizá los datos de tu empresa" />
         </div>
