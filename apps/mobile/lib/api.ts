@@ -101,6 +101,7 @@ export async function crearOrden(
     }[]
     notas?: string
     medio_pago_id?: string
+    transporte_id?: string
   }
 ) {
   return req("/store/ordenes", {
