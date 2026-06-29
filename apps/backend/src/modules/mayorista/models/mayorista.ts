@@ -17,6 +17,8 @@ const Mayorista = model.define("mayorista", {
   descripcion: model.text().nullable(),
   condicion_fiscal: model.text().nullable(),
   logo_url: model.text().nullable(),
+  lat: model.number().nullable(),
+  lng: model.number().nullable(),
 })
 
 export default Mayorista

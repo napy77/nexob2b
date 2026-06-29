@@ -68,8 +68,18 @@ export const comerciosApi = {
     return handleResponse(res)
   },
 
-  getMayoristas: async (token: string) => {
-    const res = await fetch(`${BACKEND_URL}/store/mayoristas/lista`, {
+  getMayoristas: async (
+    token: string,
+    filtros?: { lat?: number | null; lng?: number | null; radio_km?: number; rubros?: string[]; busqueda?: string }
+  ) => {
+    const params = new URLSearchParams()
+    if (filtros?.lat != null) params.set("lat", String(filtros.lat))
+    if (filtros?.lng != null) params.set("lng", String(filtros.lng))
+    if (filtros?.radio_km != null) params.set("radio_km", String(filtros.radio_km))
+    if (filtros?.rubros?.length) filtros.rubros.forEach((r) => params.append("rubros", r))
+    if (filtros?.busqueda) params.set("busqueda", filtros.busqueda)
+    const qs = params.toString() ? `?${params.toString()}` : ""
+    const res = await fetch(`${BACKEND_URL}/store/mayoristas/lista${qs}`, {
       headers: { ...baseHeaders(), Authorization: `Bearer ${token}` },
     })
     return handleResponse(res)

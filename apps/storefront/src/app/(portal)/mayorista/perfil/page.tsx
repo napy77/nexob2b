@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { mayoristasApi, RUBROS_DISPONIBLES, fileToBase64 } from "../../../../lib/mayorista/api"
+import { MapaPicker } from "../../comercio/perfil/MapaPicker"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
@@ -23,6 +24,8 @@ type Mayorista = {
   descripcion?: string
   condicion_fiscal?: string
   logo_url?: string
+  lat?: number | null
+  lng?: number | null
 }
 
 type TipoImpositivo = { id: string; nombre: string; descripcion?: string }
@@ -80,6 +83,7 @@ export default function PerfilPage() {
   const [form, setForm] = useState({
     nombre: "", telefono: "", direccion: "", ciudad: "", provincia: "",
     rubros: [] as string[], visibilidad: "sin_precio", descripcion: "", condicion_fiscal: "",
+    lat: null as number | null, lng: null as number | null,
   })
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [logoBase64, setLogoBase64] = useState<string | null>(null)
@@ -108,6 +112,8 @@ export default function PerfilPage() {
           visibilidad: m.visibilidad || "sin_precio",
           descripcion: m.descripcion || "",
           condicion_fiscal: m.condicion_fiscal || "",
+          lat: m.lat ?? null,
+          lng: m.lng ?? null,
         })
         if (m.logo_url) setLogoPreview(`${BACKEND_URL}${m.logo_url}`)
       })
@@ -136,7 +142,7 @@ export default function PerfilPage() {
     setError(""); setSaving(true); setSuccess(false)
     try {
       const token = localStorage.getItem("mayorista_token")!
-      const payload: Record<string, any> = { ...form }
+      const payload: Record<string, any> = { ...form, lat: form.lat, lng: form.lng }
       if (logoBase64) payload.logo_base64 = logoBase64
       await mayoristasApi.updateMe(token, payload)
       setSuccess(true)
@@ -315,6 +321,25 @@ export default function PerfilPage() {
               Los comercios con relación <strong>aceptada</strong> siempre ven precios y pueden contactarte, sin importar este ajuste.
             </p>
           </div>
+
+          {/* Ubicación en mapa */}
+          <MapaPicker
+            lat={form.lat}
+            lng={form.lng}
+            direccion={form.direccion}
+            ciudad={form.ciudad}
+            provincia={form.provincia}
+            onChange={(data) => {
+              setForm((f) => ({
+                ...f,
+                lat: data.lat,
+                lng: data.lng,
+                ...(data.direccion ? { direccion: data.direccion } : {}),
+                ...(data.ciudad ? { ciudad: data.ciudad } : {}),
+                ...(data.provincia ? { provincia: data.provincia } : {}),
+              }))
+            }}
+          />
 
           {/* Rubros */}
           <div className="bg-white rounded-2xl border border-gray-100 p-6">

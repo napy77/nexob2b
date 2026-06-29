@@ -35,7 +35,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const mayoristaService: MayoristaModuleService = req.scope.resolve(MAYORISTA_MODULE)
 
-  const { nombre, telefono, direccion, ciudad, provincia, rubros, zonas, visibilidad, descripcion, condicion_fiscal, logo_base64 } = req.body as any
+  const { nombre, telefono, direccion, ciudad, provincia, rubros, zonas, visibilidad, descripcion, condicion_fiscal, logo_base64, lat, lng } = req.body as any
 
   const updateData: Record<string, any> = { id: payload.mayorista_id }
   if (nombre !== undefined) updateData.nombre = nombre
@@ -48,6 +48,8 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (visibilidad !== undefined) updateData.visibilidad = visibilidad
   if (descripcion !== undefined) updateData.descripcion = descripcion
   if (condicion_fiscal !== undefined) updateData.condicion_fiscal = condicion_fiscal
+  if (lat !== undefined) updateData.lat = lat
+  if (lng !== undefined) updateData.lng = lng
 
   // Guardar logo si viene en base64
   if (logo_base64) {
