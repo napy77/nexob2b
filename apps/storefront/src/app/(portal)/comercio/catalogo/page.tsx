@@ -18,8 +18,8 @@ type Acceso = {
 type Mayorista = {
   id: string
   nombre: string
-  telefono?: string | null      // ya viene resuelto: vendedor o mayorista
-  email?: string | null         // idem
+  telefono?: string | null
+  email?: string | null
   contacto_nombre?: string | null
   es_vendedor?: boolean
   ciudad?: string
@@ -39,6 +39,7 @@ type Producto = {
   stock?: number
   imagen_url?: string
   rubro?: string
+  subrubro?: string
   pasillo?: string
   sku?: string
   ean?: string
@@ -52,8 +53,15 @@ export default function CatalogoProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+
+  // Filtros
   const [busqueda, setBusqueda] = useState("")
-  const [rubroFiltro, setRubroFiltro] = useState("")
+  const [mayoristaFiltro, setMayoristaFiltro] = useState<string | null>(null)
+  const [rubroActivo, setRubroActivo] = useState<string | null>(null)
+  const [subrubroActivo, setSubrubroActivo] = useState<string | null>(null)
+  const [pasilloActivo, setPasilloActivo] = useState<string | null>(null)
+
+  // Modal
   const [seleccionado, setSeleccionado] = useState<Producto | null>(null)
   const [cantidadModal, setCantidadModal] = useState(1)
   const [solicitando, setSolicitando] = useState<string | null>(null)
@@ -86,29 +94,57 @@ export default function CatalogoProductosPage() {
       cargar()
     } catch (err: any) {
       if (!err.message.includes("Ya existe")) alert(err.message)
-      else cargar() // Ya existe, recargar para actualizar estado
+      else cargar()
     } finally {
       setSolicitando(null)
     }
   }
 
-  const rubros = [...new Set(productos.map((p) => p.rubro).filter(Boolean))] as string[]
+  // Opciones derivadas del conjunto completo de productos
+  const mayoristas = [...new Map(productos.map((p) => [p.mayorista.id, p.mayorista])).values()]
+  const productosFiltradosPorMayorista = mayoristaFiltro
+    ? productos.filter((p) => p.mayorista.id === mayoristaFiltro)
+    : productos
 
-  const filtrados = productos.filter((p) => {
-    const matchBusqueda = !busqueda ||
-      p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.mayorista?.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.rubro?.toLowerCase().includes(busqueda.toLowerCase())
-    const matchRubro = !rubroFiltro || p.rubro === rubroFiltro
-    return matchBusqueda && matchRubro
+  const rubros = [...new Set(productosFiltradosPorMayorista.map((p) => p.rubro).filter(Boolean))] as string[]
+  const subrubros = rubroActivo
+    ? [...new Set(productosFiltradosPorMayorista.filter((p) => p.rubro === rubroActivo).map((p) => p.subrubro).filter(Boolean))] as string[]
+    : []
+  const pasillos = [...new Set(productosFiltradosPorMayorista.map((p) => p.pasillo).filter(Boolean))] as string[]
+
+  // Filtrado completo
+  const filtrados = productosFiltradosPorMayorista.filter((p) => {
+    if (busqueda) {
+      const q = busqueda.toLowerCase()
+      if (!p.nombre.toLowerCase().includes(q) &&
+          !p.mayorista?.nombre.toLowerCase().includes(q) &&
+          !p.rubro?.toLowerCase().includes(q) &&
+          !p.subrubro?.toLowerCase().includes(q) &&
+          !p.pasillo?.toLowerCase().includes(q)) return false
+    }
+    if (rubroActivo && p.rubro !== rubroActivo) return false
+    if (subrubroActivo && p.subrubro !== subrubroActivo) return false
+    if (pasilloActivo && p.pasillo !== pasilloActivo) return false
+    return true
   })
 
-  const pasillos = filtrados.reduce((acc, p) => {
+  // Agrupar por pasillo
+  const grupos = filtrados.reduce((acc, p) => {
     const key = p.pasillo || "General"
     if (!acc[key]) acc[key] = []
     acc[key].push(p)
     return acc
   }, {} as Record<string, Producto[]>)
+
+  const hayFiltros = !!(busqueda || mayoristaFiltro || rubroActivo || subrubroActivo || pasilloActivo)
+
+  const limpiarFiltros = () => {
+    setBusqueda("")
+    setMayoristaFiltro(null)
+    setRubroActivo(null)
+    setSubrubroActivo(null)
+    setPasilloActivo(null)
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -134,42 +170,122 @@ export default function CatalogoProductosPage() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-6 py-6">
-        <div className="flex gap-3 mb-6 flex-wrap">
-          <input
-            type="search"
-            placeholder="Buscar producto o mayorista..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="flex-1 min-w-48 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select value={rubroFiltro} onChange={(e) => setRubroFiltro(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="">Todos los rubros</option>
-            {rubros.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
+      <main className="max-w-6xl mx-auto px-6 py-6 space-y-4">
+
+        {/* Buscador */}
+        <div className="relative">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input type="search" placeholder="Buscar producto, mayorista, rubro..."
+            value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6">{error}</div>}
+        {/* Filtro por mayorista */}
+        {mayoristas.length > 1 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-medium text-gray-400">Mayorista:</span>
+            {mayoristas.map((m) => (
+              <button key={m.id} onClick={() => {
+                setMayoristaFiltro(mayoristaFiltro === m.id ? null : m.id)
+                setRubroActivo(null); setSubrubroActivo(null); setPasilloActivo(null)
+              }}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                  mayoristaFiltro === m.id
+                    ? "bg-gray-800 text-white border-gray-800"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                }`}>
+                {m.nombre}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Filtro por rubro */}
+        {rubros.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-medium text-gray-400">Rubro:</span>
+            {rubros.map((r) => (
+              <button key={r} onClick={() => {
+                setRubroActivo(rubroActivo === r ? null : r)
+                setSubrubroActivo(null)
+              }}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                  rubroActivo === r
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+                }`}>
+                {r}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Filtro por subrubro */}
+        {subrubros.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-medium text-gray-400">Subrubro:</span>
+            {subrubros.map((s) => (
+              <button key={s} onClick={() => setSubrubroActivo(subrubroActivo === s ? null : s)}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                  subrubroActivo === s
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300"
+                }`}>
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Filtro por pasillo */}
+        {pasillos.length > 1 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-medium text-gray-400">Pasillo:</span>
+            {pasillos.map((p) => (
+              <button key={p} onClick={() => setPasilloActivo(pasilloActivo === p ? null : p)}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                  pasilloActivo === p
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
+                }`}>
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Resultados + limpiar */}
+        {hayFiltros && (
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">{filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}</span>
+            <button onClick={limpiarFiltros} className="text-xs text-blue-600 hover:text-blue-800 underline">
+              Limpiar filtros
+            </button>
+          </div>
+        )}
+
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>}
 
         {filtrados.length === 0 && !error ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
             <div className="text-4xl mb-4">🛒</div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">No hay productos disponibles</h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Sin productos</h3>
             <p className="text-sm text-gray-500">
-              {busqueda || rubroFiltro
-                ? "Probá con otros filtros."
-                : "Todavía no hay productos disponibles en la plataforma."}
+              {hayFiltros ? "Probá con otros filtros." : "Todavía no hay productos disponibles en la plataforma."}
             </p>
+            {hayFiltros && (
+              <button onClick={limpiarFiltros} className="mt-4 text-sm text-blue-600 underline">Limpiar filtros</button>
+            )}
           </div>
         ) : (
           <div className="space-y-8">
-            {Object.entries(pasillos).map(([pasillo, items]) => (
-              <div key={pasillo}>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{pasillo}</h2>
+            {Object.entries(grupos).map(([grupo, items]) => (
+              <div key={grupo}>
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{grupo}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {items.map((p) => (
-                    // div en lugar de button para evitar button>button (HTML inválido)
                     <div key={p.id}
                       className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer"
                       onClick={() => abrirDetalle(p)}>
@@ -181,6 +297,9 @@ export default function CatalogoProductosPage() {
                       </div>
                       <div className="p-3">
                         <p className="text-xs text-blue-600 font-medium mb-0.5">{p.mayorista?.nombre}</p>
+                        {(p.rubro || p.subrubro) && (
+                          <p className="text-xs text-gray-400 mb-0.5">{[p.rubro, p.subrubro].filter(Boolean).join(" › ")}</p>
+                        )}
                         <h3 className="font-semibold text-gray-900 text-sm leading-tight">{p.nombre}</h3>
                         <div className="mt-1">
                           {p.precio != null ? (
@@ -231,8 +350,7 @@ export default function CatalogoProductosPage() {
                                 mayorista_nombre: p.mayorista.nombre,
                               })
                             }}
-                            className="mt-2 w-full bg-blue-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
-                          >
+                            className="mt-2 w-full bg-blue-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-blue-700 transition-colors">
                             + Agregar
                           </button>
                         )}
@@ -256,7 +374,7 @@ export default function CatalogoProductosPage() {
               </div>
             )}
             <div className="p-6">
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start justify-between mb-1">
                 <div>
                   <p className="text-sm text-blue-600 font-medium">{seleccionado.mayorista?.nombre}</p>
                   <h2 className="text-xl font-bold text-gray-900">{seleccionado.nombre}</h2>
@@ -267,6 +385,14 @@ export default function CatalogoProductosPage() {
                   </svg>
                 </button>
               </div>
+
+              {(seleccionado.rubro || seleccionado.subrubro || seleccionado.pasillo) && (
+                <div className="flex gap-1.5 flex-wrap mb-3">
+                  {seleccionado.rubro && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{seleccionado.rubro}</span>}
+                  {seleccionado.subrubro && <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{seleccionado.subrubro}</span>}
+                  {seleccionado.pasillo && <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">🏪 {seleccionado.pasillo}</span>}
+                </div>
+              )}
 
               {seleccionado.descripcion && <p className="text-sm text-gray-600 mb-4">{seleccionado.descripcion}</p>}
 
@@ -306,12 +432,6 @@ export default function CatalogoProductosPage() {
                     <p className="font-bold text-gray-900">{seleccionado.stock}</p>
                   </div>
                 )}
-                {seleccionado.rubro && (
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-gray-400 text-xs">Rubro</p>
-                    <p className="font-semibold text-gray-900">{seleccionado.rubro}</p>
-                  </div>
-                )}
               </div>
 
               {(seleccionado.sku || seleccionado.ean) && (
@@ -321,32 +441,21 @@ export default function CatalogoProductosPage() {
                 </div>
               )}
 
-              {/* Agregar al carrito — solo si tiene precio y puede contactar */}
               {seleccionado.acceso.mostrarPrecio && seleccionado.precio != null && (
                 <div className="border-t border-gray-100 pt-4 mb-2">
                   <p className="text-xs font-medium text-gray-500 mb-2">Cantidad a pedir</p>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
-                      <button
-                        onClick={() => setCantidadModal((q) => Math.max(seleccionado.compra_minima || 1, q - 1))}
-                        className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors text-lg font-medium">
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        min={seleccionado.compra_minima || 1}
-                        value={cantidadModal}
+                      <button onClick={() => setCantidadModal((q) => Math.max(seleccionado.compra_minima || 1, q - 1))}
+                        className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-100 text-lg font-medium">−</button>
+                      <input type="number" min={seleccionado.compra_minima || 1} value={cantidadModal}
                         onChange={(e) => {
                           const v = parseInt(e.target.value) || (seleccionado.compra_minima || 1)
                           setCantidadModal(Math.max(seleccionado.compra_minima || 1, v))
                         }}
-                        className="w-14 text-center text-sm font-semibold border-x border-gray-200 h-9 focus:outline-none"
-                      />
-                      <button
-                        onClick={() => setCantidadModal((q) => q + 1)}
-                        className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors text-lg font-medium">
-                        +
-                      </button>
+                        className="w-14 text-center text-sm font-semibold border-x border-gray-200 h-9 focus:outline-none" />
+                      <button onClick={() => setCantidadModal((q) => q + 1)}
+                        className="w-9 h-9 flex items-center justify-center text-gray-500 hover:bg-gray-100 text-lg font-medium">+</button>
                     </div>
                     <span className="text-xs text-gray-400">{seleccionado.unidad}{cantidadModal !== 1 ? "s" : ""}</span>
                     {cantidadModal > 1 && (
@@ -389,7 +498,6 @@ export default function CatalogoProductosPage() {
               <div className="border-t border-gray-100 pt-4 space-y-2">
                 {seleccionado.acceso.puedeContactar ? (
                   <>
-                    {/* Indicar con quién van a hablar */}
                     {seleccionado.mayorista?.es_vendedor && seleccionado.mayorista?.contacto_nombre && (
                       <div className="flex items-center gap-2 text-xs text-blue-700 bg-blue-50 rounded-xl px-3 py-2">
                         <span>🧑‍💼</span>
@@ -419,25 +527,17 @@ export default function CatalogoProductosPage() {
                     )}
                   </>
                 ) : seleccionado.acceso.solicitud?.estado === "pendiente" ? (
-                  <>
-                    <button disabled
-                      className="w-full bg-gray-200 text-gray-400 px-4 py-3 rounded-xl text-sm font-medium cursor-not-allowed">
-                      Solicitar alta para contactar
-                    </button>
-                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-xl px-4 py-3 text-sm text-center">
-                      ⏳ Solicitud pendiente — el mayorista revisará tu pedido
-                    </div>
-                  </>
+                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-xl px-4 py-3 text-sm text-center">
+                    ⏳ Solicitud pendiente
+                  </div>
                 ) : seleccionado.acceso.solicitud?.estado === "rechazado" ? (
                   <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm text-center">
                     Solicitud rechazada
                   </div>
                 ) : (
-                  <button
-                    onClick={() => handleSolicitar(seleccionado.mayorista.id)}
+                  <button onClick={() => handleSolicitar(seleccionado.mayorista.id)}
                     disabled={solicitando === seleccionado.mayorista.id}
-                    className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
-                  >
+                    className="w-full bg-blue-600 text-white px-4 py-3 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60">
                     {solicitando === seleccionado.mayorista.id ? "Solicitando..." : "Solicitar alta para contactar"}
                   </button>
                 )}

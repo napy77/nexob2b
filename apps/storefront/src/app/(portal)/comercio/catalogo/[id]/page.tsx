@@ -36,6 +36,7 @@ type Producto = {
   stock?: number
   imagen_url?: string
   rubro?: string
+  subrubro?: string
   pasillo?: string
   sku?: string
   ean?: string
@@ -50,7 +51,14 @@ export default function CatalogoMayoristaPage() {
   const [acceso, setAcceso] = useState<Acceso | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+
+  // Filtros
   const [busqueda, setBusqueda] = useState("")
+  const [rubroActivo, setRubroActivo] = useState<string | null>(null)
+  const [subrubroActivo, setSubrubroActivo] = useState<string | null>(null)
+  const [pasilloActivo, setPasilloActivo] = useState<string | null>(null)
+
+  // Modal
   const [seleccionado, setSeleccionado] = useState<Producto | null>(null)
   const [cantidadModal, setCantidadModal] = useState(1)
   const [solicitando, setSolicitando] = useState(false)
@@ -67,9 +75,7 @@ export default function CatalogoMayoristaPage() {
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
           localStorage.removeItem("comercio_token"); router.replace("/comercio/login")
-        } else {
-          setError(err.message)
-        }
+        } else setError(err.message)
       })
       .finally(() => setLoading(false))
   }
@@ -87,17 +93,14 @@ export default function CatalogoMayoristaPage() {
     try {
       await comerciosApi.solicitarAlta(token, mayoristaId)
       cargar()
-    } catch (err: any) {
-      alert(err.message)
-    } finally {
-      setSolicitando(false)
-    }
+    } catch (err: any) { alert(err.message) }
+    finally { setSolicitando(false) }
   }
 
   const handleAgregarAlCarrito = () => {
     if (!seleccionado || !mayorista || seleccionado.precio == null) return
     if (cartMayoristaId && cartMayoristaId !== mayorista.id) {
-      if (!confirm(`Tu carrito tiene productos de otro mayorista. ¿Querés vaciarlo y agregar de ${mayorista.nombre}?`)) return
+      if (!confirm(`Tu carrito tiene productos de otro mayorista. ¿Vaciarlo y agregar de ${mayorista.nombre}?`)) return
     }
     addItem({
       producto_id: seleccionado.id,
@@ -115,19 +118,36 @@ export default function CatalogoMayoristaPage() {
     setSeleccionado(null)
   }
 
-  const filtrados = productos.filter((p) =>
-    !busqueda ||
-    p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.rubro?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.pasillo?.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  // Opciones de filtros derivadas de productos
+  const rubros = [...new Set(productos.map((p) => p.rubro).filter(Boolean))] as string[]
+  const subrubros = rubroActivo
+    ? [...new Set(productos.filter((p) => p.rubro === rubroActivo).map((p) => p.subrubro).filter(Boolean))] as string[]
+    : []
+  const pasillos = [...new Set(productos.map((p) => p.pasillo).filter(Boolean))] as string[]
 
-  const pasillos = filtrados.reduce((acc, p) => {
-    const key = p.pasillo || "General"
-    if (!acc[key]) acc[key] = []
-    acc[key].push(p)
-    return acc
-  }, {} as Record<string, Producto[]>)
+  // Filtrado
+  const filtrados = productos.filter((p) => {
+    if (busqueda && !p.nombre.toLowerCase().includes(busqueda.toLowerCase()) &&
+        !p.rubro?.toLowerCase().includes(busqueda.toLowerCase()) &&
+        !p.subrubro?.toLowerCase().includes(busqueda.toLowerCase()) &&
+        !p.pasillo?.toLowerCase().includes(busqueda.toLowerCase())) return false
+    if (rubroActivo && p.rubro !== rubroActivo) return false
+    if (subrubroActivo && p.subrubro !== subrubroActivo) return false
+    if (pasilloActivo && p.pasillo !== pasilloActivo) return false
+    return true
+  })
+
+  // Agrupar por pasillo (si no hay filtro de pasillo activo)
+  const grupos = pasilloActivo
+    ? { [pasilloActivo]: filtrados }
+    : filtrados.reduce((acc, p) => {
+        const key = p.pasillo || "General"
+        if (!acc[key]) acc[key] = []
+        acc[key].push(p)
+        return acc
+      }, {} as Record<string, Producto[]>)
+
+  const hayFiltros = !!(rubroActivo || subrubroActivo || pasilloActivo || busqueda)
 
   if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -151,9 +171,11 @@ export default function CatalogoMayoristaPage() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-6 py-6">
+      <main className="max-w-6xl mx-auto px-6 py-6 space-y-4">
+
+        {/* Banner mayorista + acciones */}
         {mayorista && acceso && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-6 flex items-center justify-between flex-wrap gap-3">
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between flex-wrap gap-3">
             <div>
               <p className="font-semibold text-gray-900">{mayorista.nombre}</p>
               <p className="text-sm text-gray-500">{[mayorista.ciudad, mayorista.provincia].filter(Boolean).join(", ")}</p>
@@ -162,7 +184,7 @@ export default function CatalogoMayoristaPage() {
               {acceso.puedeContactar ? (
                 <>
                   {mayorista.telefono && (
-                    <a href={`https://wa.me/${mayorista.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(`Hola! Soy cliente de Nexo B2B y quiero hacer un pedido.`)}`}
+                    <a href={`https://wa.me/${mayorista.telefono.replace(/\D/g, "")}?text=${encodeURIComponent("Hola! Soy cliente de Nexo B2B y quiero hacer un pedido.")}`}
                       target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-green-600 transition-colors">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -177,13 +199,9 @@ export default function CatalogoMayoristaPage() {
                   </a>
                 </>
               ) : acceso.solicitud?.estado === "pendiente" ? (
-                <span className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-xl text-sm font-medium border border-yellow-200">
-                  Solicitud pendiente
-                </span>
+                <span className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-xl text-sm font-medium border border-yellow-200">⏳ Solicitud pendiente</span>
               ) : acceso.solicitud?.estado === "rechazado" ? (
-                <span className="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-sm font-medium border border-red-200">
-                  Solicitud rechazada
-                </span>
+                <span className="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-sm font-medium border border-red-200">Solicitud rechazada</span>
               ) : (
                 <button onClick={handleSolicitar} disabled={solicitando}
                   className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-60">
@@ -194,9 +212,9 @@ export default function CatalogoMayoristaPage() {
           </div>
         )}
 
-        {/* Banner informativo según visibilidad */}
+        {/* Banner visibilidad */}
         {acceso && !acceso.aceptado && acceso.visibilidad !== "publico" && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700 mb-6 flex items-center gap-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700 flex items-center gap-2">
             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -206,25 +224,97 @@ export default function CatalogoMayoristaPage() {
           </div>
         )}
 
-        <div className="mb-6">
-          <input type="search" placeholder="Buscar en el catálogo..." value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        {/* Buscador */}
+        <div className="relative">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input type="search" placeholder="Buscar en el catálogo..."
+            value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6">{error}</div>}
+        {/* Filtros — Rubros */}
+        {rubros.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-medium text-gray-400">Rubro:</span>
+            {rubros.map((r) => (
+              <button key={r} onClick={() => {
+                setRubroActivo(rubroActivo === r ? null : r)
+                setSubrubroActivo(null)
+              }}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                  rubroActivo === r
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+                }`}>
+                {r}
+              </button>
+            ))}
+          </div>
+        )}
 
+        {/* Filtros — Subrubros (solo si hay rubro activo y tiene subrubros) */}
+        {subrubros.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-medium text-gray-400">Subrubro:</span>
+            {subrubros.map((s) => (
+              <button key={s} onClick={() => setSubrubroActivo(subrubroActivo === s ? null : s)}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                  subrubroActivo === s
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300"
+                }`}>
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Filtros — Pasillos */}
+        {pasillos.length > 1 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-medium text-gray-400">Pasillo:</span>
+            {pasillos.map((p) => (
+              <button key={p} onClick={() => setPasilloActivo(pasilloActivo === p ? null : p)}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                  pasilloActivo === p
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
+                }`}>
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Limpiar filtros */}
+        {hayFiltros && (
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">{filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}</span>
+            <button onClick={() => { setRubroActivo(null); setSubrubroActivo(null); setPasilloActivo(null); setBusqueda("") }}
+              className="text-xs text-blue-600 hover:text-blue-800 underline">
+              Limpiar filtros
+            </button>
+          </div>
+        )}
+
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>}
+
+        {/* Grilla de productos */}
         {filtrados.length === 0 && !error ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
             <div className="text-4xl mb-4">📦</div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Sin productos</h3>
-            <p className="text-sm text-gray-500">Este mayorista todavía no cargó productos.</p>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Sin resultados</h3>
+            <p className="text-sm text-gray-500">Probá con otros filtros.</p>
           </div>
         ) : (
           <div className="space-y-8">
-            {Object.entries(pasillos).map(([pasillo, items]) => (
-              <div key={pasillo}>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{pasillo}</h2>
+            {Object.entries(grupos).map(([grupo, items]) => (
+              <div key={grupo}>
+                {Object.keys(grupos).length > 1 && (
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{grupo}</h2>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {items.map((p) => (
                     <div key={p.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all">
@@ -236,11 +326,18 @@ export default function CatalogoMayoristaPage() {
                           }
                         </div>
                         <div className="p-3 pb-2">
+                          {(p.rubro || p.subrubro) && (
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              {[p.rubro, p.subrubro].filter(Boolean).join(" › ")}
+                            </p>
+                          )}
                           <h3 className="font-semibold text-gray-900 text-sm leading-tight">{p.nombre}</h3>
                           <div className="flex items-baseline gap-1 mt-1">
                             {p.precio != null ? (
                               <>
-                                <span className="text-base font-bold text-gray-900">${p.precio.toLocaleString("es-AR")}</span>
+                                <span className="text-base font-bold text-gray-900">
+                                  ${(p.precio * (1 + (p.alicuota_iva ?? 21) / 100)).toLocaleString("es-AR")}
+                                </span>
                                 <span className="text-xs text-gray-400">/ {p.unidad}</span>
                               </>
                             ) : (
@@ -252,8 +349,7 @@ export default function CatalogoMayoristaPage() {
                       </button>
                       {acceso?.mostrarPrecio && p.precio != null && (
                         <div className="px-3 pb-3">
-                          <button
-                            onClick={() => abrirDetalle(p)}
+                          <button onClick={() => abrirDetalle(p)}
                             className="w-full bg-blue-600 text-white text-xs font-semibold py-2 rounded-xl hover:bg-blue-700 transition-colors">
                             + Agregar
                           </button>
@@ -278,7 +374,7 @@ export default function CatalogoMayoristaPage() {
               </div>
             )}
             <div className="p-6">
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start justify-between mb-1">
                 <h2 className="text-xl font-bold text-gray-900">{seleccionado.nombre}</h2>
                 <button onClick={() => setSeleccionado(null)} className="text-gray-400 hover:text-gray-600 p-1">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -286,14 +382,24 @@ export default function CatalogoMayoristaPage() {
                   </svg>
                 </button>
               </div>
+              {(seleccionado.rubro || seleccionado.subrubro || seleccionado.pasillo) && (
+                <div className="flex gap-1.5 flex-wrap mb-3">
+                  {seleccionado.rubro && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{seleccionado.rubro}</span>}
+                  {seleccionado.subrubro && <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{seleccionado.subrubro}</span>}
+                  {seleccionado.pasillo && <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">🏪 {seleccionado.pasillo}</span>}
+                </div>
+              )}
               {seleccionado.descripcion && <p className="text-sm text-gray-600 mb-4">{seleccionado.descripcion}</p>}
+
               <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
                 <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-gray-400 text-xs">Precio</p>
+                  <p className="text-gray-400 text-xs">Precio c/IVA</p>
                   {seleccionado.precio != null ? (
                     <>
-                      <p className="font-bold text-gray-900 text-lg">${seleccionado.precio.toLocaleString("es-AR")}</p>
-                      <p className="text-gray-400 text-xs">/ {seleccionado.unidad}</p>
+                      <p className="font-bold text-gray-900 text-lg">
+                        ${(seleccionado.precio * (1 + (seleccionado.alicuota_iva ?? 21) / 100)).toLocaleString("es-AR")}
+                      </p>
+                      <p className="text-gray-400 text-xs">Neto: ${seleccionado.precio.toLocaleString("es-AR")} · IVA {seleccionado.alicuota_iva ?? 21}%</p>
                     </>
                   ) : (
                     <p className="text-sm text-gray-400 italic mt-1">Bajo solicitud</p>
@@ -310,13 +416,8 @@ export default function CatalogoMayoristaPage() {
                     <p className="font-bold text-gray-900">{seleccionado.stock}</p>
                   </div>
                 )}
-                {seleccionado.rubro && (
-                  <div className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-gray-400 text-xs">Rubro</p>
-                    <p className="font-semibold text-gray-900">{seleccionado.rubro}</p>
-                  </div>
-                )}
               </div>
+
               {(seleccionado.sku || seleccionado.ean) && (
                 <div className="flex gap-3 text-xs text-gray-400 mb-4">
                   {seleccionado.sku && <span>SKU: {seleccionado.sku}</span>}
@@ -324,39 +425,29 @@ export default function CatalogoMayoristaPage() {
                 </div>
               )}
 
-              {/* Selector de cantidad y botón carrito */}
               {acceso?.mostrarPrecio && seleccionado.precio != null && (
                 <div className="border-t border-gray-100 pt-4 mb-2">
                   <p className="text-xs font-medium text-gray-500 mb-2">Cantidad a pedir</p>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
-                      <button
-                        onClick={() => setCantidadModal((q) => Math.max(seleccionado.compra_minima || 1, q - 1))}
-                        className="px-3 py-2 text-gray-600 hover:bg-gray-50 transition-colors font-bold">
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        min={seleccionado.compra_minima || 1}
-                        value={cantidadModal}
+                      <button onClick={() => setCantidadModal((q) => Math.max(seleccionado.compra_minima || 1, q - 1))}
+                        className="px-3 py-2 text-gray-600 hover:bg-gray-50 transition-colors font-bold">−</button>
+                      <input type="number" min={seleccionado.compra_minima || 1} value={cantidadModal}
                         onChange={(e) => setCantidadModal(Math.max(seleccionado.compra_minima || 1, parseInt(e.target.value) || 1))}
-                        className="w-14 text-center text-sm font-semibold border-x border-gray-200 py-2 focus:outline-none"
-                      />
-                      <button
-                        onClick={() => setCantidadModal((q) => q + 1)}
-                        className="px-3 py-2 text-gray-600 hover:bg-gray-50 transition-colors font-bold">
-                        +
-                      </button>
+                        className="w-14 text-center text-sm font-semibold border-x border-gray-200 py-2 focus:outline-none" />
+                      <button onClick={() => setCantidadModal((q) => q + 1)}
+                        className="px-3 py-2 text-gray-600 hover:bg-gray-50 transition-colors font-bold">+</button>
                     </div>
                     <span className="text-xs text-gray-400">{seleccionado.unidad}s</span>
                     {cantidadModal > 1 && (
-                      <span className="text-sm text-gray-600">
-                        Total: <strong className="text-gray-900">${(seleccionado.precio * cantidadModal).toLocaleString("es-AR")}</strong>
+                      <span className="text-sm text-gray-600 ml-auto">
+                        Total: <strong className="text-gray-900">
+                          ${(seleccionado.precio * (1 + (seleccionado.alicuota_iva ?? 21) / 100) * cantidadModal).toLocaleString("es-AR")}
+                        </strong>
                       </span>
                     )}
                   </div>
-                  <button
-                    onClick={handleAgregarAlCarrito}
+                  <button onClick={handleAgregarAlCarrito}
                     className="mt-3 w-full bg-blue-600 text-white py-3 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
                     Agregar al carrito · {cantidadModal} {seleccionado.unidad}{cantidadModal !== 1 ? "s" : ""}
                   </button>
@@ -367,7 +458,7 @@ export default function CatalogoMayoristaPage() {
                 {acceso?.puedeContactar ? (
                   <>
                     {mayorista.telefono && (
-                      <a href={`https://wa.me/${mayorista.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(`Hola! Vi *${seleccionado.nombre}* en Nexo B2B y quiero pedirlo. ¿Podés darme info?`)}`}
+                      <a href={`https://wa.me/${mayorista.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(`Hola! Vi *${seleccionado.nombre}* en Nexo B2B y quiero pedirlo.`)}`}
                         target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-3 bg-green-500 text-white px-4 py-3 rounded-xl text-sm font-medium hover:bg-green-600 transition-colors">
                         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -387,7 +478,7 @@ export default function CatalogoMayoristaPage() {
                   </div>
                 ) : acceso?.solicitud ? (
                   <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm text-center">
-                    Solicitud rechazada — contactá al mayorista directamente
+                    Solicitud rechazada
                   </div>
                 ) : (
                   <button onClick={() => { setSeleccionado(null); handleSolicitar() }}
