@@ -19,6 +19,9 @@ type Orden = {
   medio_pago_nombre?: string | null
   porcentaje_costo_mp?: number
   costo_medio_pago?: number
+  transporte_nombre?: string | null
+  porcentaje_costo_transporte?: number
+  costo_transporte?: number
   notas?: string
   created_at: string
   items: { nombre: string; cantidad: number; unidad: string; precio_unitario: number }[]
@@ -92,6 +95,14 @@ export default function PedidosVendedorTab() {
                 <Text style={styles.medioLabel}>💳 {o.medio_pago_nombre}</Text>
                 {Number(o.costo_medio_pago) > 0 && (
                   <Text style={styles.medioCosto}>+${Number(o.costo_medio_pago).toLocaleString("es-AR")} ({o.porcentaje_costo_mp}%)</Text>
+                )}
+              </View>
+            ) : null}
+            {o.transporte_nombre ? (
+              <View style={styles.medioRow}>
+                <Text style={styles.medioLabel}>🚚 {o.transporte_nombre}</Text>
+                {Number(o.costo_transporte) > 0 && (
+                  <Text style={styles.medioCosto}>+${Number(o.costo_transporte).toLocaleString("es-AR")} ({o.porcentaje_costo_transporte}%)</Text>
                 )}
               </View>
             ) : null}

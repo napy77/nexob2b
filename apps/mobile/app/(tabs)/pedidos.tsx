@@ -177,6 +177,20 @@ export default function PedidosTab() {
                       </Text>
                     </View>
                   ) : null}
+                  {detalle.transporte_nombre ? (
+                    <View style={styles.totalRow}>
+                      <Text style={styles.totalLabel}>Transporte</Text>
+                      <Text style={[styles.totalVal, { fontWeight: "600" }]}>{detalle.transporte_nombre}</Text>
+                    </View>
+                  ) : null}
+                  {Number(detalle.costo_transporte) > 0 ? (
+                    <View style={[styles.totalRow, { backgroundColor: "#fff7ed", borderRadius: 8, paddingHorizontal: 8 }]}>
+                      <Text style={[styles.totalLabel, { color: "#c2410c" }]}>Costo transporte ({detalle.porcentaje_costo_transporte}%)</Text>
+                      <Text style={[styles.totalVal, { color: "#c2410c", fontWeight: "700" }]}>
+                        +${Number(detalle.costo_transporte).toLocaleString("es-AR")}
+                      </Text>
+                    </View>
+                  ) : null}
                   <View style={[styles.totalRow, styles.totalBig]}>
                     <Text style={[styles.totalLabel, { fontWeight: "800", fontSize: 16 }]}>Total</Text>
                     <Text style={[styles.totalVal, { fontSize: 18, color: "#2563eb" }]}>${detalle.total.toLocaleString("es-AR")}</Text>
