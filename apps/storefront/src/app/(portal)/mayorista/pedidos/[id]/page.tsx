@@ -62,6 +62,10 @@ type Orden = {
   medio_pago_nombre?: string | null
   porcentaje_costo_mp?: number
   costo_medio_pago?: number
+  transporte_id?: string | null
+  transporte_nombre?: string | null
+  porcentaje_costo_transporte?: number
+  costo_transporte?: number
   created_at: string
   items: OrdenItem[]
   comercio?: {
@@ -329,7 +333,18 @@ export default function PedidoDetalleMayoristaPage() {
             {Number(orden.costo_medio_pago) > 0 && (
               <div className="flex justify-between text-orange-700">
                 <span>Costo método de pago ({orden.porcentaje_costo_mp}%)</span>
-                <span className="font-semibold">${Number(orden.costo_medio_pago).toLocaleString("es-AR")}</span>
+                <span className="font-semibold">+${Number(orden.costo_medio_pago).toLocaleString("es-AR")}</span>
+              </div>
+            )}
+            {orden.transporte_nombre && (
+              <div className="flex justify-between text-gray-600">
+                <span>Transporte</span><span className="font-medium">{orden.transporte_nombre}</span>
+              </div>
+            )}
+            {Number(orden.costo_transporte) > 0 && (
+              <div className="flex justify-between text-orange-700">
+                <span>Costo transporte ({orden.porcentaje_costo_transporte}%)</span>
+                <span className="font-semibold">+${Number(orden.costo_transporte).toLocaleString("es-AR")}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-base border-t pt-1 mt-1">
@@ -468,7 +483,18 @@ export default function PedidoDetalleMayoristaPage() {
               {Number(orden.costo_medio_pago) > 0 && (
                 <div className="flex justify-between text-orange-700">
                   <span>Costo método de pago ({orden.porcentaje_costo_mp}%)</span>
-                  <span className="font-semibold">${Number(orden.costo_medio_pago).toLocaleString("es-AR")}</span>
+                  <span className="font-semibold">+${Number(orden.costo_medio_pago).toLocaleString("es-AR")}</span>
+                </div>
+              )}
+              {orden.transporte_nombre && (
+                <div className="flex justify-between text-gray-500">
+                  <span>Transporte</span><span className="font-medium">{orden.transporte_nombre}</span>
+                </div>
+              )}
+              {Number(orden.costo_transporte) > 0 && (
+                <div className="flex justify-between text-orange-700">
+                  <span>Costo transporte ({orden.porcentaje_costo_transporte}%)</span>
+                  <span className="font-semibold">+${Number(orden.costo_transporte).toLocaleString("es-AR")}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-gray-900 text-base border-t border-gray-100 pt-1 mt-1">
