@@ -1,17 +1,11 @@
 /**
- * Solicita permisos de push, obtiene el Expo push token
+ * Solicita permisos de push, obtiene el FCM token nativo
  * y lo registra en el backend según el rol del usuario.
  */
 import { useEffect } from "react"
 import * as Notifications from "expo-notifications"
 import { Platform } from "react-native"
-import Constants from "expo-constants"
 import { registrarPushTokenComercio, registrarPushTokenVendedor } from "./api"
-
-// projectId explícito para que funcione tanto en build local como EAS
-const PROJECT_ID =
-  (Constants.expoConfig?.extra?.eas?.projectId as string | undefined) ??
-  "f497576e-9275-4e83-8070-62a8acbc7a0b"
 
 // Configurar cómo se muestran las notificaciones cuando la app está en primer plano
 Notifications.setNotificationHandler({
@@ -50,12 +44,12 @@ export function usePushToken(token: string | null, rol: "comercio" | "vendedor" 
           })
         }
 
-        const { data: pushToken } = await Notifications.getExpoPushTokenAsync({
-          projectId: PROJECT_ID,
-        })
+        // Obtener token FCM nativo (no Expo token)
+        const deviceToken = await Notifications.getDevicePushTokenAsync()
+        const pushToken = deviceToken.data as string
         if (!pushToken || cancelado) return
 
-        console.log("[push] Token obtenido:", pushToken)
+        console.log("[push] FCM token obtenido:", pushToken.slice(0, 30) + "...")
 
         if (rol === "comercio") {
           await registrarPushTokenComercio(token, pushToken)
