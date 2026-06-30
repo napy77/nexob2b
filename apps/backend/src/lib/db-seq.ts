@@ -6,7 +6,7 @@ import pg from "pg"
 
 let _pool: pg.Pool | null = null
 
-function getPool(): pg.Pool {
+export function getPool(): pg.Pool {
   if (!_pool) {
     const url = process.env.DATABASE_URL
     if (!url) throw new Error("DATABASE_URL no definida")

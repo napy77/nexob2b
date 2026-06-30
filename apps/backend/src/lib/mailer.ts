@@ -1,15 +1,28 @@
 import nodemailer from "nodemailer"
+import { getManyConfig } from "./config-store"
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "zimbra.nubilus.com.ar",
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: false, // STARTTLS
-  auth: {
-    user: process.env.SMTP_USER || "info@nexob2b.app",
-    pass: process.env.SMTP_PASS || "",
-  },
-  tls: { rejectUnauthorized: false },
-})
+// Crea un transporter con la config de la DB (fallback a .env)
+async function createTransporter() {
+  let cfg: Record<string, string> = {}
+  try {
+    cfg = await getManyConfig(["smtp_host", "smtp_port", "smtp_user", "smtp_pass"])
+  } catch {
+    // Si la DB no está disponible aún, usamos env vars
+  }
+
+  const host = cfg.smtp_host || process.env.SMTP_HOST || "zimbra.nubilus.com.ar"
+  const port = parseInt(cfg.smtp_port || process.env.SMTP_PORT || "587")
+  const user = cfg.smtp_user || process.env.SMTP_USER || "info@nexob2b.app"
+  const pass = cfg.smtp_pass || process.env.SMTP_PASS || ""
+
+  return { transporter: nodemailer.createTransport({
+    host,
+    port,
+    secure: false,
+    auth: { user, pass },
+    tls: { rejectUnauthorized: false },
+  }), from: `"Nexo B2B" <${user}>` }
+}
 
 export interface MailOptions {
   to: string
@@ -19,14 +32,9 @@ export interface MailOptions {
 
 export async function sendMail(opts: MailOptions): Promise<void> {
   try {
-    await transporter.sendMail({
-      from: `"Nexo B2B" <${process.env.SMTP_USER || "info@nexob2b.app"}>`,
-      to: opts.to,
-      subject: opts.subject,
-      html: opts.html,
-    })
+    const { transporter, from } = await createTransporter()
+    await transporter.sendMail({ from, to: opts.to, subject: opts.subject, html: opts.html })
   } catch (err) {
-    // Loguear pero nunca romper el flujo principal
     console.error("[mailer] Error enviando email:", err)
   }
 }
