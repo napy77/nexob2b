@@ -4,6 +4,7 @@ import { COMERCIO_MODULE } from "../../../modules/comercio"
 import { MEDIO_PAGO_MODULE } from "../../../modules/medio_pago"
 import { TRANSPORTE_MODULE } from "../../../modules/transporte"
 import jwt from "jsonwebtoken"
+import { nextOrdenNumero } from "../../../lib/db-seq"
 
 const verifyComercio = (req: MedusaRequest): { comercio_id: string } | null => {
   const auth = req.headers.authorization
@@ -121,9 +122,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
   const svc: any = req.scope.resolve(ORDEN_MODULE)
 
-  // Número de orden legible: contar todas y sumar 1
-  const todasOrdenes = await svc.listOrdens({})
-  const numero = `ORD-${String(todasOrdenes.length + 1).padStart(5, "0")}`
+  const numero = await nextOrdenNumero()
   const orden = await svc.createOrdens({
     numero,
     comercio_id: payload.comercio_id,
