@@ -12,6 +12,7 @@ const Vendedor = model.define("vendedor", {
   lat: model.number().nullable(),
   lng: model.number().nullable(),
   ultima_ubicacion: model.dateTime().nullable(),
+  push_token: model.text().nullable(),
 })
 
 export default Vendedor

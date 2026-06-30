@@ -6,6 +6,8 @@ import { MEDIO_PAGO_MODULE } from "../../../../../modules/medio_pago"
 import { TRANSPORTE_MODULE } from "../../../../../modules/transporte"
 import jwt from "jsonwebtoken"
 import { nextOrdenNumero } from "../../../../../lib/db-seq"
+import { notificarNuevaOrden } from "../../../../../lib/notifications"
+import { MAYORISTA_MODULE } from "../../../../../modules/mayorista"
 
 function verifyVendedor(req: MedusaRequest): { vendedor_id: string; mayorista_id: string } | null {
   const auth = req.headers.authorization
@@ -175,5 +177,38 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   ))
 
   const itemsCreados = await svc.listOrdenItems({ orden_id: orden.id })
+  const totalFinal = subtotal_con_iva + costo_medio_pago + costo_transporte
+
+  // Notificar al mayorista — sin bloquear
+  try {
+    const comercioSvc: any = req.scope.resolve(COMERCIO_MODULE)
+    const mayoristaModSvc: any = req.scope.resolve(MAYORISTA_MODULE)
+    const [comercio, mayorista] = await Promise.all([
+      comercioSvc.retrieveComercio(comercio_id).catch(() => null),
+      mayoristaModSvc.retrieveMayorista(payload.mayorista_id).catch(() => null),
+    ])
+    if (mayorista) {
+      notificarNuevaOrden({
+        mayorista_email: mayorista.email,
+        mayorista_nombre: mayorista.nombre,
+        mayorista_push_token: mayorista.push_token,
+        numero,
+        comercio_nombre: comercio?.nombre || "Un comercio",
+        items: itemsCalc.map((i: any) => ({
+          nombre: i.nombre,
+          cantidad: i.cantidad,
+          unidad: i.unidad,
+          precio_unitario: i.precio_unitario,
+        })),
+        total: totalFinal,
+        notas: notas || undefined,
+        medio_pago_nombre: medio_pago_nombre || undefined,
+        transporte_nombre: transporte_nombre || undefined,
+      }).catch((e: any) => console.error("[notif] nueva orden vendedor:", e))
+    }
+  } catch (e) {
+    console.error("[notif] error preparando notificación vendedor:", e)
+  }
+
   return res.status(201).json({ orden: { ...orden, items: itemsCreados } })
 }

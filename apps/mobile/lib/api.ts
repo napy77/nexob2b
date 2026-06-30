@@ -63,6 +63,22 @@ export async function getMe(token: string) {
   return req("/store/comercios/me", { headers: authHeaders(token) })
 }
 
+export async function registrarPushTokenComercio(token: string, pushToken: string) {
+  return req("/store/comercios/me/push-token", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ push_token: pushToken }),
+  })
+}
+
+export async function registrarPushTokenVendedor(token: string, pushToken: string) {
+  return req("/store/vendedores/me/push-token", {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ push_token: pushToken }),
+  })
+}
+
 // ── Mayoristas ────────────────────────────────────────────────────────────────
 
 export async function getMayoristas(token: string) {

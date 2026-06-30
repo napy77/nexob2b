@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { usePushToken } from "./usePushToken"
 
 type Rol = "comercio" | "vendedor"
 
@@ -49,6 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRol(null)
     setMayoristaId(null)
   }
+
+  // Registrar push token automáticamente cuando el usuario está logueado
+  usePushToken(token, rol)
 
   return (
     <AuthContext.Provider value={{ token, rol, mayorista_id, loading, login, logout }}>

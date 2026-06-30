@@ -15,6 +15,7 @@ const Comercio = model.define("comercio", {
   estado: model.enum(["pendiente", "aprobado", "suspendido"]).default("pendiente"),
   lat: model.number().nullable(),
   lng: model.number().nullable(),
+  push_token: model.text().nullable(),
 })
 
 export default Comercio

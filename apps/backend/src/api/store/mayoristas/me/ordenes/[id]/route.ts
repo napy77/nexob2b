@@ -1,7 +1,9 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ORDEN_MODULE } from "../../../../../../modules/orden"
 import { COMERCIO_MODULE } from "../../../../../../modules/comercio"
+import { MAYORISTA_MODULE } from "../../../../../../modules/mayorista"
 import jwt from "jsonwebtoken"
+import { notificarCambioEstado } from "../../../../../../lib/notifications"
 
 const verifyMayorista = (req: MedusaRequest): { mayorista_id: string } | null => {
   const auth = req.headers.authorization
@@ -59,5 +61,34 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const updated = await svc.updateOrdens({ id: orden.id, estado })
+
+  // Notificar al comercio (y vendedor si hay) — sin bloquear la respuesta
+  try {
+    const comercioSvc: any = req.scope.resolve(COMERCIO_MODULE)
+    const mayoristaModSvc: any = req.scope.resolve(MAYORISTA_MODULE)
+    const [comercio, mayorista] = await Promise.all([
+      comercioSvc.retrieveComercio(orden.comercio_id).catch(() => null),
+      mayoristaModSvc.retrieveMayorista(orden.mayorista_id).catch(() => null),
+    ])
+    let vendedorPushToken: string | null = null
+    if (orden.vendedor_id) {
+      const vendedor = await mayoristaModSvc.retrieveVendedor(orden.vendedor_id).catch(() => null)
+      vendedorPushToken = vendedor?.push_token || null
+    }
+    if (comercio) {
+      notificarCambioEstado({
+        comercio_email: comercio.email,
+        comercio_push_token: comercio.push_token,
+        vendedor_push_token: vendedorPushToken,
+        numero: orden.numero,
+        estado,
+        mayorista_nombre: mayorista?.nombre || "El mayorista",
+        total: orden.total,
+      }).catch((e: any) => console.error("[notif] cambio estado:", e))
+    }
+  } catch (e) {
+    console.error("[notif] error preparando notificación:", e)
+  }
+
   return res.json({ orden: updated })
 }
