@@ -5,7 +5,13 @@
 import { useEffect } from "react"
 import * as Notifications from "expo-notifications"
 import { Platform } from "react-native"
+import Constants from "expo-constants"
 import { registrarPushTokenComercio, registrarPushTokenVendedor } from "./api"
+
+// projectId explícito para que funcione tanto en build local como EAS
+const PROJECT_ID =
+  (Constants.expoConfig?.extra?.eas?.projectId as string | undefined) ??
+  "f497576e-9275-4e83-8070-62a8acbc7a0b"
 
 // Configurar cómo se muestran las notificaciones cuando la app está en primer plano
 Notifications.setNotificationHandler({
@@ -44,8 +50,12 @@ export function usePushToken(token: string | null, rol: "comercio" | "vendedor" 
           })
         }
 
-        const { data: pushToken } = await Notifications.getExpoPushTokenAsync()
+        const { data: pushToken } = await Notifications.getExpoPushTokenAsync({
+          projectId: PROJECT_ID,
+        })
         if (!pushToken || cancelado) return
+
+        console.log("[push] Token obtenido:", pushToken)
 
         if (rol === "comercio") {
           await registrarPushTokenComercio(token, pushToken)
