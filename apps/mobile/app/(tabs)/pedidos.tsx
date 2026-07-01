@@ -45,6 +45,10 @@ type Orden = {
   porcentaje_costo_transporte?: number
   costo_transporte?: number
   items: OrdenItem[]
+  // Mercado Pago
+  mp_preference_id?: string | null
+  mp_pago_id?: string | null
+  mp_estado_pago?: string | null
 }
 
 const ESTADO: Record<string, { label: string; color: string; bg: string }> = {
@@ -64,6 +68,7 @@ export default function PedidosTab() {
   const [documentos, setDocumentos] = useState<any[]>([])
   const [loadingDetalle, setLoadingDetalle] = useState(false)
   const [accionando, setAccionando] = useState(false)
+  const [pagarLoading, setPagarLoading] = useState(false)
 
   // Cantidades editables para modo devuelto
   const [cantidades, setCantidades] = useState<Record<string, number>>({})
@@ -135,6 +140,25 @@ export default function PedidosTab() {
         },
       },
     ])
+  }
+
+  const pagarConMP = async () => {
+    if (!detalle || !token) return
+    setPagarLoading(true)
+    try {
+      const res = await fetch(`${BACKEND_URL}/store/ordenes/${detalle.id}/pagar`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      // Abre el browser del dispositivo con la URL de MP
+      await Linking.openURL(data.url_pago)
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "No se pudo iniciar el pago")
+    } finally {
+      setPagarLoading(false)
+    }
   }
 
   const reenviarPedido = async () => {
@@ -370,6 +394,38 @@ export default function PedidosTab() {
               </View>
             )}
 
+            {/* Estado de pago MP */}
+            {detalle.mp_estado_pago && (
+              <View style={{
+                flexDirection: "row", alignItems: "center", gap: 8,
+                backgroundColor: detalle.mp_estado_pago === "aprobado" ? "#f0fdf4" :
+                  detalle.mp_estado_pago === "rechazado" ? "#fef2f2" : "#fefce8",
+                borderRadius: 12, padding: 12, marginBottom: 12,
+                borderWidth: 1,
+                borderColor: detalle.mp_estado_pago === "aprobado" ? "#86efac" :
+                  detalle.mp_estado_pago === "rechazado" ? "#fca5a5" : "#fde68a",
+              }}>
+                <Text style={{ fontSize: 18 }}>
+                  {detalle.mp_estado_pago === "aprobado" ? "✅" :
+                   detalle.mp_estado_pago === "rechazado" ? "❌" :
+                   detalle.mp_estado_pago === "en_proceso" ? "🔄" : "⏳"}
+                </Text>
+                <Text style={{
+                  fontSize: 13, fontWeight: "700",
+                  color: detalle.mp_estado_pago === "aprobado" ? "#15803d" :
+                    detalle.mp_estado_pago === "rechazado" ? "#b91c1c" : "#92400e",
+                }}>
+                  Pago MP: {{
+                    aprobado: "Aprobado",
+                    rechazado: "Rechazado",
+                    en_proceso: "En proceso",
+                    cancelado: "Cancelado",
+                    pendiente: "Pendiente",
+                  }[detalle.mp_estado_pago] || detalle.mp_estado_pago}
+                </Text>
+              </View>
+            )}
+
             {/* Acciones */}
             {esDevuelto && (
               <View style={{ gap: 10, marginTop: 8 }}>
@@ -391,14 +447,26 @@ export default function PedidosTab() {
             )}
 
             {detalle.estado === "pendiente" && (
-              <TouchableOpacity
-                style={[styles.btnDanger, { marginTop: 8 }]}
-                onPress={cancelarPedido}
-                disabled={accionando}>
-                <Text style={styles.btnDangerText}>
-                  {accionando ? "Procesando..." : "Cancelar pedido"}
-                </Text>
-              </TouchableOpacity>
+              <View style={{ gap: 10, marginTop: 8 }}>
+                {detalle.mp_estado_pago !== "aprobado" && (
+                  <TouchableOpacity
+                    style={[styles.btnPrimary, { backgroundColor: "#009ee3" }]}
+                    onPress={pagarConMP}
+                    disabled={pagarLoading}>
+                    <Text style={styles.btnPrimaryText}>
+                      {pagarLoading ? "Abriendo Mercado Pago..." : "💳 Pagar con Mercado Pago"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.btnDanger}
+                  onPress={cancelarPedido}
+                  disabled={accionando}>
+                  <Text style={styles.btnDangerText}>
+                    {accionando ? "Procesando..." : "Cancelar pedido"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </ScrollView>
         )}

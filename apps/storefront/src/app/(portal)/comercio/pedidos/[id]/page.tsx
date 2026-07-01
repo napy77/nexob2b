@@ -57,6 +57,10 @@ type Orden = {
   costo_transporte?: number
   created_at: string
   items: OrdenItem[]
+  // Mercado Pago
+  mp_preference_id?: string | null
+  mp_pago_id?: string | null
+  mp_estado_pago?: string | null
 }
 
 type Documento = {
@@ -79,6 +83,9 @@ export default function PedidoDetallePage() {
   const [loading, setLoading] = useState(true)
   const [accionando, setAccionando] = useState(false)
   const [error, setError] = useState("")
+  const [pagarLoading, setPagarLoading] = useState(false)
+
+  const pagoResult = searchParams.get("pago") // "ok" | "pendiente" | "error" | null
 
   // Estado para editar cantidades en modo "devuelto"
   const [cantidades, setCantidades] = useState<Record<string, number>>({})
@@ -199,6 +206,25 @@ export default function PedidoDetallePage() {
     }
   }
 
+  const pagarConMP = async () => {
+    const t = token()
+    setPagarLoading(true)
+    setError("")
+    try {
+      const res = await fetch(`${BACKEND_URL}/store/ordenes/${params.id}/pagar`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${t}`, "x-publishable-api-key": PUB_KEY },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      // Redirigir al checkout de MP
+      window.location.href = data.url_pago
+    } catch (e: any) {
+      setError(e.message)
+      setPagarLoading(false)
+    }
+  }
+
   if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <p className="text-gray-400 text-sm">Cargando pedido...</p>
@@ -238,6 +264,23 @@ export default function PedidoDetallePage() {
           </div>
         )}
 
+        {/* Resultado de pago MP */}
+        {pagoResult === "ok" && (
+          <div className="bg-green-50 border border-green-200 text-green-800 rounded-2xl px-5 py-4 text-sm font-medium">
+            💳 ¡Pago procesado exitosamente con Mercado Pago!
+          </div>
+        )}
+        {pagoResult === "pendiente" && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-2xl px-5 py-4 text-sm font-medium">
+            ⏳ Tu pago está en proceso. Te avisaremos cuando se confirme.
+          </div>
+        )}
+        {pagoResult === "error" && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-5 py-4 text-sm font-medium">
+            ❌ El pago no pudo completarse. Podés intentarlo nuevamente.
+          </div>
+        )}
+
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>
         )}
@@ -259,6 +302,25 @@ export default function PedidoDetallePage() {
             <p>Mayorista: <span className="font-medium text-gray-700">{mayoristaNombre}</span></p>
             <p>Fecha: {new Date(orden.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
             {orden.notas && <p>Notas: <span className="italic">{orden.notas}</span></p>}
+            {orden.mp_estado_pago && (
+              <p>Pago MP:&nbsp;
+                <span className={`font-semibold ${
+                  orden.mp_estado_pago === "aprobado" ? "text-green-600" :
+                  orden.mp_estado_pago === "rechazado" ? "text-red-600" :
+                  orden.mp_estado_pago === "en_proceso" ? "text-blue-600" :
+                  "text-yellow-700"
+                }`}>
+                  {{
+                    aprobado: "✅ Aprobado",
+                    rechazado: "❌ Rechazado",
+                    en_proceso: "🔄 En proceso",
+                    cancelado: "✖ Cancelado",
+                    reembolsado: "↩ Reembolsado",
+                    pendiente: "⏳ Pendiente",
+                  }[orden.mp_estado_pago] || orden.mp_estado_pago}
+                </span>
+              </p>
+            )}
           </div>
         </div>
 
@@ -406,13 +468,24 @@ export default function PedidoDetallePage() {
             </button>
           )}
 
-          {/* Estado pendiente: cancelar */}
+          {/* Estado pendiente: pagar con MP + cancelar */}
           {orden.estado === "pendiente" && (
-            <button onClick={() => { if (confirm("¿Cancelar este pedido?")) accion("cancelar") }}
-              disabled={accionando}
-              className="w-full bg-red-50 text-red-600 border border-red-200 py-3 rounded-xl font-semibold hover:bg-red-100 transition-colors disabled:opacity-60 text-sm">
-              {accionando ? "Procesando..." : "Cancelar pedido"}
-            </button>
+            <>
+              {orden.mp_estado_pago !== "aprobado" && (
+                <button
+                  onClick={pagarConMP}
+                  disabled={pagarLoading}
+                  className="w-full py-3 rounded-xl font-semibold text-sm text-white transition-colors disabled:opacity-60"
+                  style={{ background: pagarLoading ? "#9ca3af" : "#009ee3" }}>
+                  {pagarLoading ? "Redirigiendo a Mercado Pago..." : "💳 Pagar con Mercado Pago"}
+                </button>
+              )}
+              <button onClick={() => { if (confirm("¿Cancelar este pedido?")) accion("cancelar") }}
+                disabled={accionando}
+                className="w-full bg-red-50 text-red-600 border border-red-200 py-3 rounded-xl font-semibold hover:bg-red-100 transition-colors disabled:opacity-60 text-sm">
+                {accionando ? "Procesando..." : "Cancelar pedido"}
+              </button>
+            </>
           )}
         </div>
       </main>

@@ -22,6 +22,9 @@ const Orden = model.define("orden", {
   mensaje_mayorista: model.text().nullable(),
   codigo_descuento_id: model.text().nullable(),
   monto_descuento: model.number().default(0),
+  mp_preference_id: model.text().nullable(),
+  mp_pago_id: model.text().nullable(),
+  mp_estado_pago: model.text().nullable(),
 })
 
 export default Orden
