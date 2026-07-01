@@ -288,6 +288,9 @@ export default function DashboardPage() {
           <NavCard href="/mayorista/listas-precio" icon="🏷️" title="Listas de precios"
             description="Creá precios personalizados y descuentos por comercio"
             disabled={mayorista.estado !== "aprobado"} />
+          <NavCard href="/mayorista/codigos-descuento" icon="🎟️" title="Códigos de descuento"
+            description="Generá códigos que tus comercios aplican en el carrito"
+            disabled={mayorista.estado !== "aprobado"} />
           <NavCard href="/mayorista/estadisticas" icon="📊" title="Estadísticas"
             description="Ventas del mes, productos top, comercios y vendedores"
             disabled={mayorista.estado !== "aprobado"} />

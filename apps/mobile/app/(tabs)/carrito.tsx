@@ -47,6 +47,14 @@ export default function CarritoTab() {
   const [transporteId, setTransporteId] = useState<string>("")
   const [cargando, setCargando] = useState(false)
 
+  // Código de descuento
+  const [codigoInput, setCodigoInput] = useState("")
+  const [codigoDescuentoId, setCodigoDescuentoId] = useState<string | null>(null)
+  const [montoDescuento, setMontoDescuento] = useState(0)
+  const [validandoCodigo, setValidandoCodigo] = useState(false)
+  const [codigoError, setCodigoError] = useState("")
+  const [codigoOk, setCodigoOk] = useState("")
+
   const mayorista_nombre = mayoristas.find((m) => m.id === activeMayoristaId)?.nombre || ""
 
   // Totales del carrito activo
@@ -99,7 +107,38 @@ export default function CarritoTab() {
     ? Math.round(total * transporteSeleccionado.porcentaje_costo) / 100
     : 0
 
-  const totalFinal = total + costoMedioPago + costoTransporte
+  const totalFinal = total + costoMedioPago + costoTransporte - montoDescuento
+
+  const resetCodigo = () => {
+    setCodigoInput(""); setCodigoDescuentoId(null); setMontoDescuento(0); setCodigoError(""); setCodigoOk("")
+  }
+
+  const validarCodigo = async () => {
+    if (!codigoInput.trim() || !activeMayoristaId || !token) return
+    setValidandoCodigo(true)
+    setCodigoError("")
+    try {
+      const res = await fetch(
+        `${BACKEND_URL}/store/mayoristas/${activeMayoristaId}/codigos-descuento/validar`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
+          body: JSON.stringify({ codigo: codigoInput.trim(), total: totalFinal }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setCodigoDescuentoId(data.codigo_descuento_id)
+      setMontoDescuento(data.monto_descuento)
+      setCodigoOk(`−$${data.monto_descuento.toLocaleString("es-AR")}`)
+    } catch (e: any) {
+      setCodigoError(e.message)
+      setCodigoDescuentoId(null)
+      setMontoDescuento(0)
+    } finally {
+      setValidandoCodigo(false)
+    }
+  }
 
   const pasosVisibles: Paso[] = transportes.length > 0
     ? ["carrito", "transporte", "pago"]
@@ -116,6 +155,7 @@ export default function CarritoTab() {
         mayorista_id: activeMayoristaId,
         medio_pago_id: medioPagoId || undefined,
         transporte_id: transporteId || undefined,
+        codigo_descuento_id: codigoDescuentoId || undefined,
         items: activeItems.map((i) => ({
           producto_id: i.producto_id,
           nombre: i.nombre,
@@ -130,6 +170,7 @@ export default function CarritoTab() {
       })
       clearCart(activeMayoristaId)
       setPaso("carrito")
+      resetCodigo()
       Alert.alert(
         "✅ Pedido enviado",
         `Tu pedido ${data.orden?.numero || ""} fue enviado al mayorista.`,
@@ -399,6 +440,44 @@ export default function CarritoTab() {
           multiline
           numberOfLines={3}
         />
+
+        {/* Código de descuento */}
+        <Text style={{ fontSize: 13, fontWeight: "600", color: "#374151", marginTop: 16, marginBottom: 6 }}>
+          ¿Tenés un código de descuento?
+        </Text>
+        {codigoDescuentoId ? (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#f0fdf4", borderWidth: 1, borderColor: "#86efac", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ color: "#16a34a", fontWeight: "700" }}>✓ {codigoInput.toUpperCase()}</Text>
+              <Text style={{ color: "#15803d", fontSize: 12 }}>{codigoOk}</Text>
+            </View>
+            <TouchableOpacity onPress={resetCodigo}>
+              <Text style={{ color: "#9ca3af", fontSize: 12 }}>Quitar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TextInput
+              value={codigoInput}
+              onChangeText={(t) => { setCodigoInput(t.toUpperCase()); setCodigoError("") }}
+              placeholder="CÓDIGO"
+              placeholderTextColor="#9ca3af"
+              autoCapitalize="characters"
+              style={{ flex: 1, borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "monospace", backgroundColor: "#fff" }}
+            />
+            <TouchableOpacity
+              onPress={validarCodigo}
+              disabled={!codigoInput.trim() || validandoCodigo}
+              style={{ backgroundColor: "#1f2937", borderRadius: 12, paddingHorizontal: 16, justifyContent: "center", opacity: !codigoInput.trim() || validandoCodigo ? 0.4 : 1 }}>
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>
+                {validandoCodigo ? "..." : "Aplicar"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {codigoError ? (
+          <Text style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{codigoError}</Text>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footerFijo}>
@@ -417,6 +496,12 @@ export default function CarritoTab() {
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Costo financiero ({medioSeleccionado?.nombre})</Text>
               <Text style={styles.totalVal}>+${costoMedioPago.toLocaleString("es-AR")}</Text>
+            </View>
+          )}
+          {montoDescuento > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, { color: "#16a34a" }]}>Descuento ({codigoInput.toUpperCase()})</Text>
+              <Text style={[styles.totalVal, { color: "#16a34a" }]}>−${montoDescuento.toLocaleString("es-AR")}</Text>
             </View>
           )}
           <View style={[styles.totalRow, styles.subtotalBorder]}>

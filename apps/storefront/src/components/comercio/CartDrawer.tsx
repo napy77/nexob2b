@@ -44,6 +44,14 @@ export default function CartDrawer() {
   const [transportes, setTransportes] = useState<Transporte[]>([])
   const [transporteId, setTransporteId] = useState<string>("")
 
+  // Código de descuento
+  const [codigoInput, setCodigoInput] = useState("")
+  const [codigoDescuentoId, setCodigoDescuentoId] = useState<string | null>(null)
+  const [montoDescuento, setMontoDescuento] = useState(0)
+  const [validandoCodigo, setValidandoCodigo] = useState(false)
+  const [codigoError, setCodigoError] = useState("")
+  const [codigoOk, setCodigoOk] = useState("")
+
   const mayorista_nombre = mayoristas.find((m) => m.id === openMayoristaId)?.nombre || ""
 
   // Totales del carrito activo
@@ -79,11 +87,45 @@ export default function CartDrawer() {
   }, [open, openMayoristaId])
 
   // Al cambiar de carrito (tab), volver al paso 1
+  const resetCodigo = () => {
+    setCodigoInput(""); setCodigoDescuentoId(null); setMontoDescuento(0); setCodigoError(""); setCodigoOk("")
+  }
+
   const switchMayorista = (id: string) => {
     setOpenMayoristaId(id)
     setPaso("carrito")
     setError("")
     setNotas("")
+    resetCodigo()
+  }
+
+  const validarCodigo = async () => {
+    if (!codigoInput.trim() || !openMayoristaId) return
+    setValidandoCodigo(true)
+    setCodigoError("")
+    setCodigoOk("")
+    try {
+      const token = localStorage.getItem("comercio_token") || ""
+      const res = await fetch(
+        `${BACKEND_URL}/store/mayoristas/${openMayoristaId}/codigos-descuento/validar`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
+          body: JSON.stringify({ codigo: codigoInput.trim(), total: totalFinal }),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setCodigoDescuentoId(data.codigo_descuento_id)
+      setMontoDescuento(data.monto_descuento)
+      setCodigoOk(`¡Descuento aplicado! −$${data.monto_descuento.toLocaleString("es-AR")}`)
+    } catch (e: any) {
+      setCodigoError(e.message)
+      setCodigoDescuentoId(null)
+      setMontoDescuento(0)
+    } finally {
+      setValidandoCodigo(false)
+    }
   }
 
   const cerrar = () => {
@@ -102,7 +144,7 @@ export default function CartDrawer() {
     ? Math.round(total * transporteSeleccionado.porcentaje_costo) / 100
     : 0
 
-  const totalFinal = total + costoMedioPago + costoTransporte
+  const totalFinal = total + costoMedioPago + costoTransporte - montoDescuento
 
   const pasosVisibles: Paso[] = transportes.length > 0
     ? ["carrito", "transporte", "pago"]
@@ -133,6 +175,7 @@ export default function CartDrawer() {
           notas: notas.trim() || null,
           medio_pago_id: medioPagoId || null,
           transporte_id: transporteId || null,
+          codigo_descuento_id: codigoDescuentoId || null,
           items: activeItems.map((i) => ({
             producto_id: i.producto_id,
             nombre: i.nombre,
@@ -152,6 +195,7 @@ export default function CartDrawer() {
       setNotas("")
       setMedioPagoId("")
       setTransporteId("")
+      resetCodigo()
       router.push(`/comercio/pedidos/${data.orden.id}?nuevo=1`)
     } catch (err: any) {
       setError(err.message)
@@ -402,6 +446,40 @@ export default function CartDrawer() {
                 })
               )}
 
+              {/* Campo código de descuento */}
+              <div className="mt-3">
+                <p className="text-xs font-medium text-gray-600 mb-1.5">¿Tenés un código de descuento?</p>
+                {codigoDescuentoId ? (
+                  <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">✓</span>
+                      <span className="font-mono text-sm font-semibold text-green-700">{codigoInput.toUpperCase()}</span>
+                      <span className="text-xs text-green-600">{codigoOk}</span>
+                    </div>
+                    <button onClick={resetCodigo} className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                      Quitar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={codigoInput}
+                      onChange={(e) => { setCodigoInput(e.target.value.toUpperCase()); setCodigoError("") }}
+                      placeholder="CÓDIGO"
+                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 uppercase"
+                    />
+                    <button
+                      onClick={validarCodigo}
+                      disabled={!codigoInput.trim() || validandoCodigo}
+                      className="px-4 py-2 bg-gray-800 text-white rounded-xl text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-40">
+                      {validandoCodigo ? "..." : "Aplicar"}
+                    </button>
+                  </div>
+                )}
+                {codigoError && <p className="text-xs text-red-600 mt-1">{codigoError}</p>}
+              </div>
+
               <textarea value={notas} onChange={(e) => setNotas(e.target.value)}
                 placeholder="Notas para el mayorista (opcional)..."
                 rows={2}
@@ -426,6 +504,12 @@ export default function CartDrawer() {
                   <div className="flex justify-between text-gray-500">
                     <span>Costo financiero ({medioSeleccionado?.nombre})</span>
                     <span>+${costoMedioPago.toLocaleString("es-AR")}</span>
+                  </div>
+                )}
+                {montoDescuento > 0 && (
+                  <div className="flex justify-between text-green-700 font-medium">
+                    <span>Descuento ({codigoInput.toUpperCase()})</span>
+                    <span>−${montoDescuento.toLocaleString("es-AR")}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-black text-gray-900 text-base pt-1 border-t border-gray-200">

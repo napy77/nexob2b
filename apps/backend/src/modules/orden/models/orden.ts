@@ -20,6 +20,8 @@ const Orden = model.define("orden", {
   porcentaje_costo_transporte: model.number().default(0),
   costo_transporte: model.number().default(0),
   mensaje_mayorista: model.text().nullable(),
+  codigo_descuento_id: model.text().nullable(),
+  monto_descuento: model.number().default(0),
 })
 
 export default Orden

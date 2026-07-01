@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken"
 import { nextOrdenNumero } from "../../../lib/db-seq"
 import { notificarNuevaOrden } from "../../../lib/notifications"
 import { MAYORISTA_MODULE } from "../../../modules/mayorista"
+import { getPool } from "../../../lib/db-seq"
 
 const verifyComercio = (req: MedusaRequest): { comercio_id: string } | null => {
   const auth = req.headers.authorization
@@ -48,7 +49,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const body = req.body as any
-  const { mayorista_id, items, notas, medio_pago_id, transporte_id } = body
+  const { mayorista_id, items, notas, medio_pago_id, transporte_id, codigo_descuento_id } = body
 
   if (!mayorista_id || !items?.length) {
     return res.status(400).json({ error: "Faltan mayorista_id o items" })
@@ -120,7 +121,36 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     } catch {}
   }
 
-  const total = subtotal_con_iva + costo_medio_pago + costo_transporte
+  // Resolver código de descuento
+  let monto_descuento = 0
+  let codigo_id_validado: string | null = null
+  if (codigo_descuento_id) {
+    const pool = getPool()
+    const { rows } = await pool.query(
+      `SELECT * FROM codigo_descuento WHERE id = $1 AND mayorista_id = $2 AND activo = true`,
+      [codigo_descuento_id, mayorista_id]
+    )
+    const cd = rows[0]
+    if (cd) {
+      const vencido = cd.fecha_vencimiento && new Date(cd.fecha_vencimiento) < new Date()
+      const agotado = cd.uso_maximo !== null && cd.usos_actuales >= cd.uso_maximo
+      if (!vencido && !agotado) {
+        const valor = parseFloat(cd.valor)
+        const base = subtotal_con_iva + costo_medio_pago + costo_transporte
+        monto_descuento = cd.tipo === "porcentaje"
+          ? Math.round(base * valor / 100 * 100) / 100
+          : Math.min(valor, base)
+        codigo_id_validado = cd.id
+        // Incrementar usos atómicamente
+        await pool.query(
+          `UPDATE codigo_descuento SET usos_actuales = usos_actuales + 1 WHERE id = $1`,
+          [cd.id]
+        )
+      }
+    }
+  }
+
+  const total = subtotal_con_iva + costo_medio_pago + costo_transporte - monto_descuento
 
   const svc: any = req.scope.resolve(ORDEN_MODULE)
 
@@ -142,6 +172,8 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     transporte_nombre,
     porcentaje_costo_transporte,
     costo_transporte,
+    codigo_descuento_id: codigo_id_validado,
+    monto_descuento,
   })
 
   // Crear items
