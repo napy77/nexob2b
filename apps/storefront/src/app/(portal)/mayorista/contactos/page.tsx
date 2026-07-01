@@ -291,10 +291,11 @@ export default function MayoristaContactosPage() {
                         <div className="mt-3 flex items-center gap-2">
                           <span className="text-xs text-gray-500 flex-shrink-0">Vendedor asignado:</span>
                           {vendedores.length === 0 ? (
-                            <a href="/mayorista/vendedores"
+                            <button
+                              onClick={() => router.push("/mayorista/vendedores")}
                               className="text-xs text-blue-600 hover:underline">
                               + Agregar vendedores
-                            </a>
+                            </button>
                           ) : (
                             <select
                               value={c.vendedor_id || ""}
@@ -325,10 +326,11 @@ export default function MayoristaContactosPage() {
                         <div className="mt-3 flex items-center gap-2">
                           <span className="text-xs text-gray-500 flex-shrink-0">Lista de precios:</span>
                           {listas.length === 0 ? (
-                            <a href="/mayorista/listas-precio"
+                            <button
+                              onClick={() => router.push("/mayorista/listas-precio")}
                               className="text-xs text-blue-600 hover:underline">
                               + Crear lista de precios
-                            </a>
+                            </button>
                           ) : (
                             <select
                               value={c.lista_precio_id || ""}
