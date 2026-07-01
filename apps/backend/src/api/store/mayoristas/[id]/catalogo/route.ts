@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { PRODUCTO_MODULE } from "../../../../../modules/producto"
 import { MAYORISTA_MODULE } from "../../../../../modules/mayorista"
 import { SOLICITUD_MODULE } from "../../../../../modules/solicitud"
+import { getPool } from "../../../../../lib/db-seq"
 import jwt from "jsonwebtoken"
 
 // GET /store/mayoristas/:id/catalogo
@@ -46,16 +47,46 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     )
 
     // Aplicar reglas de visibilidad
-    // - publico: todos ven precios y pueden contactar
-    // - con_precio: todos ven precios, contacto solo si aceptado
-    // - sin_precio: precios ocultos hasta ser aceptado
     const mostrarPrecio = visibilidad === "publico" || visibilidad === "con_precio" || aceptado
     const puedeContactar = visibilidad === "publico" || aceptado
 
-    const productosResponse = productos.map((p: any) => ({
-      ...p,
-      precio: mostrarPrecio ? p.precio : null,
-    }))
+    // ── Lista de precios ─────────────────────────────────────────────
+    let listaDescuento = 0
+    const preciosFijos = new Map<string, number>() // producto_id → precio_fijo
+
+    if (aceptado && solicitud?.lista_precio_id) {
+      const pool = getPool()
+      const { rows: [lista] } = await pool.query(
+        `SELECT descuento_porcentaje FROM lista_precio WHERE id = $1`,
+        [solicitud.lista_precio_id]
+      )
+      if (lista) {
+        listaDescuento = parseFloat(lista.descuento_porcentaje) || 0
+        const { rows: items } = await pool.query(
+          `SELECT producto_id, precio_fijo FROM lista_precio_item WHERE lista_id = $1`,
+          [solicitud.lista_precio_id]
+        )
+        for (const item of items) {
+          preciosFijos.set(item.producto_id, parseFloat(item.precio_fijo))
+        }
+      }
+    }
+
+    // ── Calcular precio final por producto ───────────────────────────
+    const productosResponse = productos.map((p: any) => {
+      if (!mostrarPrecio) return { ...p, precio: null }
+
+      let precio = p.precio
+      if (precio != null) {
+        if (preciosFijos.has(p.id)) {
+          // Precio fijo tiene prioridad sobre el descuento global
+          precio = preciosFijos.get(p.id)!
+        } else if (listaDescuento > 0) {
+          precio = Math.round(precio * (1 - listaDescuento / 100) * 100) / 100
+        }
+      }
+      return { ...p, precio, precio_lista: precio !== p.precio ? precio : undefined }
+    })
 
     return res.json({
       mayorista,
@@ -66,6 +97,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
         mostrarPrecio,
         puedeContactar,
         solicitud,
+        lista_precio_id: solicitud?.lista_precio_id || null,
+        descuento_porcentaje: listaDescuento,
       },
     })
   } catch (e: any) {
