@@ -23,6 +23,7 @@ type Orden = {
   porcentaje_costo_transporte?: number
   costo_transporte?: number
   notas?: string
+  mensaje_mayorista?: string | null
   created_at: string
   items: { nombre: string; cantidad: number; unidad: string; precio_unitario: number }[]
 }
@@ -30,10 +31,12 @@ type Orden = {
 const ESTADO_COLOR: Record<string, string> = {
   pendiente: "#92400e", confirmado: "#1d4ed8",
   enviado: "#7c3aed", entregado: "#15803d", cancelado: "#991b1b",
+  devuelto: "#9a3412",
 }
 const ESTADO_BG: Record<string, string> = {
   pendiente: "#fef3c7", confirmado: "#eff6ff",
   enviado: "#f5f3ff", entregado: "#f0fdf4", cancelado: "#fef2f2",
+  devuelto: "#ffedd5",
 }
 
 export default function PedidosVendedorTab() {
@@ -107,6 +110,13 @@ export default function PedidosVendedorTab() {
               </View>
             ) : null}
             {o.notas && <Text style={styles.notas}>📝 {o.notas}</Text>}
+            {o.mensaje_mayorista && (
+              <View style={styles.devueltoBanner}>
+                <Text style={styles.devueltoTitle}>↩️ Pedido devuelto por el mayorista</Text>
+                <Text style={styles.devueltoMsg}>"{o.mensaje_mayorista}"</Text>
+                <Text style={styles.devueltoHint}>El comercio debe modificarlo y reenviarlo.</Text>
+              </View>
+            )}
           </View>
         )}
       </TouchableOpacity>
@@ -163,6 +173,10 @@ const styles = StyleSheet.create({
   medioLabel: { fontSize: 12, color: "#059669", fontWeight: "600" },
   medioCosto: { fontSize: 12, color: "#d97706", fontWeight: "700" },
   notas: { fontSize: 13, color: "#6b7280", fontStyle: "italic", marginTop: 8 },
+  devueltoBanner: { backgroundColor: "#fff7ed", borderWidth: 1, borderColor: "#fed7aa", borderRadius: 10, padding: 12, marginTop: 10 },
+  devueltoTitle: { fontSize: 13, fontWeight: "800", color: "#9a3412", marginBottom: 4 },
+  devueltoMsg: { fontSize: 12, color: "#7c2d12", fontStyle: "italic", marginBottom: 4 },
+  devueltoHint: { fontSize: 11, color: "#c2410c" },
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyText: { color: "#9ca3af", fontSize: 15 },
 })
