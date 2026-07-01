@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react"
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, Linking,
+  ActivityIndicator, Alert, Linking, TextInput, Modal, ScrollView,
 } from "react-native"
 import { useRouter, useFocusEffect } from "expo-router"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -9,14 +9,42 @@ import { useAuth } from "../../lib/auth"
 import { getOrdenes, getOrden, getDocumentosOrden, ApiError } from "../../lib/api"
 import { BACKEND_URL } from "../../lib/config"
 
+const PUB_KEY = process.env.EXPO_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
+
+type OrdenItem = {
+  id: string
+  producto_id: string
+  nombre: string
+  sku?: string | null
+  ean?: string | null
+  cantidad: number
+  unidad: string
+  precio_unitario: number
+  alicuota_iva: number
+  subtotal_neto: number
+  subtotal_iva: number
+  subtotal: number
+}
+
 type Orden = {
   id: string
   numero: string
   estado: string
   total: number
+  total_neto: number
+  total_iva: number
   created_at: string
+  mayorista_id: string
   mayorista_nombre?: string
-  items: { nombre: string; cantidad: number; unidad: string }[]
+  notas?: string
+  mensaje_mayorista?: string | null
+  medio_pago_nombre?: string | null
+  porcentaje_costo_mp?: number
+  costo_medio_pago?: number
+  transporte_nombre?: string | null
+  porcentaje_costo_transporte?: number
+  costo_transporte?: number
+  items: OrdenItem[]
 }
 
 const ESTADO: Record<string, { label: string; color: string; bg: string }> = {
@@ -25,16 +53,20 @@ const ESTADO: Record<string, { label: string; color: string; bg: string }> = {
   enviado:    { label: "Enviado",    color: "#5b21b6", bg: "#ede9fe" },
   entregado:  { label: "Entregado",  color: "#065f46", bg: "#d1fae5" },
   cancelado:  { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2" },
+  devuelto:   { label: "Devuelto",   color: "#9a3412", bg: "#ffedd5" },
 }
 
 export default function PedidosTab() {
-  const router = useRouter()
   const { token, logout } = useAuth()
   const [ordenes, setOrdenes] = useState<Orden[]>([])
   const [loading, setLoading] = useState(true)
-  const [detalle, setDetalle] = useState<any | null>(null)
+  const [detalle, setDetalle] = useState<Orden | null>(null)
   const [documentos, setDocumentos] = useState<any[]>([])
   const [loadingDetalle, setLoadingDetalle] = useState(false)
+  const [accionando, setAccionando] = useState(false)
+
+  // Cantidades editables para modo devuelto
+  const [cantidades, setCantidades] = useState<Record<string, number>>({})
 
   const cargar = async () => {
     if (!token) return
@@ -59,18 +91,91 @@ export default function PedidosTab() {
     setLoadingDetalle(true)
     setDetalle(null)
     setDocumentos([])
+    setCantidades({})
     try {
       const d = await getOrden(token, id)
-      setDetalle(d.orden || d)
-      // documentos: ignorar si el endpoint falla (no crítico)
+      const orden = d.orden || d
+      setDetalle(orden)
+      // Inicializar cantidades editables
+      const cants: Record<string, number> = {}
+      for (const item of orden.items || []) {
+        cants[item.id] = item.cantidad
+      }
+      setCantidades(cants)
       try {
         const docs = await getDocumentosOrden(token, id)
         setDocumentos(docs.documentos || [])
       } catch { setDocumentos([]) }
     } catch (e: any) {
       Alert.alert("Error", e?.message || "No se pudo cargar la orden")
+    } finally {
+      setLoadingDetalle(false) }
+  }
+
+  const cancelarPedido = async () => {
+    if (!detalle || !token) return
+    Alert.alert("Cancelar pedido", "¿Seguro que querés cancelar este pedido?", [
+      { text: "No", style: "cancel" },
+      {
+        text: "Sí, cancelar", style: "destructive",
+        onPress: async () => {
+          setAccionando(true)
+          try {
+            const res = await fetch(`${BACKEND_URL}/store/ordenes/${detalle.id}/cancelar`, {
+              method: "PUT",
+              headers: { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error)
+            await abrirDetalle(detalle.id)
+            await cargar()
+          } catch (e: any) {
+            Alert.alert("Error", e.message)
+          } finally { setAccionando(false) }
+        },
+      },
+    ])
+  }
+
+  const reenviarPedido = async () => {
+    if (!detalle || !token) return
+    const items = (detalle.items || [])
+      .filter((item) => (cantidades[item.id] ?? item.cantidad) > 0)
+      .map((item) => ({
+        producto_id: item.producto_id,
+        nombre: item.nombre,
+        sku: item.sku,
+        ean: item.ean,
+        precio_unitario: item.precio_unitario,
+        alicuota_iva: item.alicuota_iva,
+        cantidad: cantidades[item.id] ?? item.cantidad,
+        unidad: item.unidad,
+      }))
+
+    if (items.length === 0) {
+      Alert.alert("Error", "Debe quedar al menos un producto con cantidad mayor a cero.")
+      return
     }
-    finally { setLoadingDetalle(false) }
+
+    setAccionando(true)
+    try {
+      const res = await fetch(`${BACKEND_URL}/store/ordenes/${detalle.id}/reenviar`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "x-publishable-api-key": PUB_KEY,
+        },
+        body: JSON.stringify({ items }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      Alert.alert("✅ Pedido reenviado", "El mayorista recibirá tu pedido modificado.")
+      await abrirDetalle(detalle.id)
+      await cargar()
+    } catch (e: any) {
+      Alert.alert("Error", e.message)
+    } finally { setAccionando(false) }
   }
 
   const renderOrden = ({ item: o }: { item: Orden }) => {
@@ -100,10 +205,11 @@ export default function PedidosTab() {
     )
   }
 
-  // Si hay detalle abierto, mostrar vista de detalle
+  // Vista de detalle
   if (detalle || loadingDetalle) {
     const e = detalle ? (ESTADO[detalle.estado] || { label: detalle.estado, color: "#374151", bg: "#f3f4f6" }) : null
     const DOC_ICON: Record<string, string> = { factura: "🧾", remito: "📋", recibo: "💳", otro: "📄" }
+    const esDevuelto = detalle?.estado === "devuelto"
 
     return (
       <SafeAreaView style={styles.root} edges={["top"]}>
@@ -118,23 +224,34 @@ export default function PedidosTab() {
         {loadingDetalle ? (
           <ActivityIndicator style={{ marginTop: 40 }} color="#2563eb" size="large" />
         ) : detalle && (
-          <FlatList
-            data={detalle.items || []}
-            keyExtractor={(_: any, i: number) => String(i)}
-            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-            ListHeaderComponent={
-              <View>
-                <View style={[styles.estadoBadge, { backgroundColor: e!.bg }]}>
-                  <Text style={[styles.estadoText, { color: e!.color }]}>{e!.label}</Text>
-                </View>
-                {detalle.mayorista_nombre && (
-                  <Text style={styles.detalleMayorista}>{detalle.mayorista_nombre}</Text>
-                )}
-                <Text style={styles.detalleSeccion}>Productos</Text>
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+            {/* Estado */}
+            <View style={[styles.estadoBadge, { backgroundColor: e!.bg, alignSelf: "flex-start" }]}>
+              <Text style={[styles.estadoText, { color: e!.color }]}>{e!.label}</Text>
+            </View>
+
+            {detalle.mayorista_nombre && (
+              <Text style={styles.detalleMayorista}>{detalle.mayorista_nombre}</Text>
+            )}
+
+            {/* Banner devuelto */}
+            {esDevuelto && detalle.mensaje_mayorista && (
+              <View style={styles.devueltoBanner}>
+                <Text style={styles.devueltoTitle}>↩️ El mayorista devolvió tu pedido</Text>
+                <Text style={styles.devueltoMsg}>"{detalle.mensaje_mayorista}"</Text>
+                <Text style={styles.devueltoHint}>
+                  Modificá las cantidades y reenviá, o cancelá el pedido.
+                </Text>
               </View>
-            }
-            renderItem={({ item }: any) => (
-              <View style={styles.detalleItem}>
+            )}
+
+            {/* Productos */}
+            <Text style={styles.detalleSeccion}>
+              Productos{esDevuelto ? "  (modificá cantidades)" : ""}
+            </Text>
+
+            {(detalle.items || []).map((item) => (
+              <View key={item.id} style={styles.detalleItem}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.detalleItemNombre}>{item.nombre}</Text>
                   {(item.sku || item.ean) && (
@@ -142,92 +259,148 @@ export default function PedidosTab() {
                       {item.sku ? `SKU: ${item.sku}` : ""}{item.sku && item.ean ? " · " : ""}{item.ean ? `EAN: ${item.ean}` : ""}
                     </Text>
                   )}
-                  <Text style={styles.detalleItemCant}>{item.cantidad} {item.unidad}</Text>
+                  {esDevuelto ? (
+                    <View style={styles.cantRow}>
+                      <TouchableOpacity
+                        style={styles.cantBtn}
+                        onPress={() => setCantidades((c) => ({ ...c, [item.id]: Math.max(0, (c[item.id] ?? item.cantidad) - 1) }))}>
+                        <Text style={styles.cantBtnText}>−</Text>
+                      </TouchableOpacity>
+                      <TextInput
+                        style={styles.cantInput}
+                        keyboardType="number-pad"
+                        value={String(cantidades[item.id] ?? item.cantidad)}
+                        onChangeText={(v) => setCantidades((c) => ({ ...c, [item.id]: Math.max(0, Number(v) || 0) }))}
+                      />
+                      <TouchableOpacity
+                        style={styles.cantBtn}
+                        onPress={() => setCantidades((c) => ({ ...c, [item.id]: (c[item.id] ?? item.cantidad) + 1 }))}>
+                        <Text style={styles.cantBtnText}>+</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.cantUnidad}>{item.unidad}</Text>
+                      {(cantidades[item.id] ?? item.cantidad) === 0 && (
+                        <Text style={styles.cantCero}>se eliminará</Text>
+                      )}
+                    </View>
+                  ) : (
+                    <Text style={styles.detalleItemCant}>{item.cantidad} {item.unidad}</Text>
+                  )}
                 </View>
-                <Text style={styles.detalleItemTotal}>
-                  ${(item.precio_unitario * item.cantidad).toLocaleString("es-AR")}
-                </Text>
+                {!esDevuelto && (
+                  <Text style={styles.detalleItemTotal}>
+                    ${(item.precio_unitario * item.cantidad).toLocaleString("es-AR")}
+                  </Text>
+                )}
+              </View>
+            ))}
+
+            {/* Totales — solo si no está en devuelto */}
+            {!esDevuelto && (
+              <View style={styles.totalesBox}>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Subtotal neto</Text>
+                  <Text style={styles.totalVal}>${(detalle.total_neto ?? detalle.total).toLocaleString("es-AR")}</Text>
+                </View>
+                {detalle.total_iva != null && (
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>IVA</Text>
+                    <Text style={styles.totalVal}>${detalle.total_iva.toLocaleString("es-AR")}</Text>
+                  </View>
+                )}
+                {detalle.medio_pago_nombre ? (
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Medio de pago</Text>
+                    <Text style={[styles.totalVal, { fontWeight: "600" }]}>{detalle.medio_pago_nombre}</Text>
+                  </View>
+                ) : null}
+                {Number(detalle.costo_medio_pago) > 0 ? (
+                  <View style={[styles.totalRow, { backgroundColor: "#fff7ed", borderRadius: 8, paddingHorizontal: 8 }]}>
+                    <Text style={[styles.totalLabel, { color: "#c2410c" }]}>Costo método ({detalle.porcentaje_costo_mp}%)</Text>
+                    <Text style={[styles.totalVal, { color: "#c2410c", fontWeight: "700" }]}>
+                      +${Number(detalle.costo_medio_pago).toLocaleString("es-AR")}
+                    </Text>
+                  </View>
+                ) : null}
+                {detalle.transporte_nombre ? (
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Transporte</Text>
+                    <Text style={[styles.totalVal, { fontWeight: "600" }]}>{detalle.transporte_nombre}</Text>
+                  </View>
+                ) : null}
+                {Number(detalle.costo_transporte) > 0 ? (
+                  <View style={[styles.totalRow, { backgroundColor: "#fff7ed", borderRadius: 8, paddingHorizontal: 8 }]}>
+                    <Text style={[styles.totalLabel, { color: "#c2410c" }]}>Costo transporte ({detalle.porcentaje_costo_transporte}%)</Text>
+                    <Text style={[styles.totalVal, { color: "#c2410c", fontWeight: "700" }]}>
+                      +${Number(detalle.costo_transporte).toLocaleString("es-AR")}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={[styles.totalRow, styles.totalBig]}>
+                  <Text style={[styles.totalLabel, { fontWeight: "800", fontSize: 16 }]}>Total</Text>
+                  <Text style={[styles.totalVal, { fontSize: 18, color: "#2563eb" }]}>${detalle.total.toLocaleString("es-AR")}</Text>
+                </View>
               </View>
             )}
-            ListFooterComponent={
-              <View>
-                {/* Totales */}
-                <View style={styles.totalesBox}>
-                  <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Subtotal neto</Text>
-                    <Text style={styles.totalVal}>${(detalle.total_neto ?? detalle.total).toLocaleString("es-AR")}</Text>
-                  </View>
-                  {detalle.total_iva != null && (
-                    <View style={styles.totalRow}>
-                      <Text style={styles.totalLabel}>IVA</Text>
-                      <Text style={styles.totalVal}>${detalle.total_iva.toLocaleString("es-AR")}</Text>
-                    </View>
-                  )}
-                  {detalle.medio_pago_nombre ? (
-                    <View style={styles.totalRow}>
-                      <Text style={styles.totalLabel}>Medio de pago</Text>
-                      <Text style={[styles.totalVal, { fontWeight: "600" }]}>{detalle.medio_pago_nombre}</Text>
-                    </View>
-                  ) : null}
-                  {Number(detalle.costo_medio_pago) > 0 ? (
-                    <View style={[styles.totalRow, { backgroundColor: "#fff7ed", borderRadius: 8, paddingHorizontal: 8 }]}>
-                      <Text style={[styles.totalLabel, { color: "#c2410c" }]}>Costo método ({detalle.porcentaje_costo_mp}%)</Text>
-                      <Text style={[styles.totalVal, { color: "#c2410c", fontWeight: "700" }]}>
-                        +${Number(detalle.costo_medio_pago).toLocaleString("es-AR")}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {detalle.transporte_nombre ? (
-                    <View style={styles.totalRow}>
-                      <Text style={styles.totalLabel}>Transporte</Text>
-                      <Text style={[styles.totalVal, { fontWeight: "600" }]}>{detalle.transporte_nombre}</Text>
-                    </View>
-                  ) : null}
-                  {Number(detalle.costo_transporte) > 0 ? (
-                    <View style={[styles.totalRow, { backgroundColor: "#fff7ed", borderRadius: 8, paddingHorizontal: 8 }]}>
-                      <Text style={[styles.totalLabel, { color: "#c2410c" }]}>Costo transporte ({detalle.porcentaje_costo_transporte}%)</Text>
-                      <Text style={[styles.totalVal, { color: "#c2410c", fontWeight: "700" }]}>
-                        +${Number(detalle.costo_transporte).toLocaleString("es-AR")}
-                      </Text>
-                    </View>
-                  ) : null}
-                  <View style={[styles.totalRow, styles.totalBig]}>
-                    <Text style={[styles.totalLabel, { fontWeight: "800", fontSize: 16 }]}>Total</Text>
-                    <Text style={[styles.totalVal, { fontSize: 18, color: "#2563eb" }]}>${detalle.total.toLocaleString("es-AR")}</Text>
-                  </View>
-                </View>
 
-                {/* Notas */}
-                {detalle.notas && (
-                  <View style={styles.notasBox}>
-                    <Text style={styles.notasLabel}>📝 Notas</Text>
-                    <Text style={styles.notasText}>{detalle.notas}</Text>
-                  </View>
-                )}
-
-                {/* Documentos */}
-                {documentos.length > 0 && (
-                  <View style={styles.docsBox}>
-                    <Text style={styles.detalleSeccion}>Documentos adjuntos</Text>
-                    {documentos.map((doc: any) => (
-                      <TouchableOpacity
-                        key={doc.id}
-                        style={styles.docItem}
-                        onPress={() => Linking.openURL(`${BACKEND_URL}${doc.url}`)}
-                      >
-                        <Text style={styles.docIcon}>{DOC_ICON[doc.tipo] || "📄"}</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.docNombre}>{doc.nombre}</Text>
-                          <Text style={styles.docTipo}>{doc.tipo}</Text>
-                        </View>
-                        <Text style={styles.docVer}>Ver ↗</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
+            {/* Notas */}
+            {detalle.notas && (
+              <View style={styles.notasBox}>
+                <Text style={styles.notasLabel}>📝 Notas</Text>
+                <Text style={styles.notasText}>{detalle.notas}</Text>
               </View>
-            }
-          />
+            )}
+
+            {/* Documentos */}
+            {documentos.length > 0 && (
+              <View style={styles.docsBox}>
+                <Text style={styles.detalleSeccion}>Documentos adjuntos</Text>
+                {documentos.map((doc: any) => (
+                  <TouchableOpacity
+                    key={doc.id}
+                    style={styles.docItem}
+                    onPress={() => Linking.openURL(`${BACKEND_URL}${doc.url}`)}>
+                    <Text style={styles.docIcon}>{DOC_ICON[doc.tipo] || "📄"}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.docNombre}>{doc.nombre}</Text>
+                      <Text style={styles.docTipo}>{doc.tipo}</Text>
+                    </View>
+                    <Text style={styles.docVer}>Ver ↗</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Acciones */}
+            {esDevuelto && (
+              <View style={{ gap: 10, marginTop: 8 }}>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, { backgroundColor: "#ea580c" }]}
+                  onPress={reenviarPedido}
+                  disabled={accionando}>
+                  <Text style={styles.btnPrimaryText}>
+                    {accionando ? "Enviando..." : "↩️ Reenviar pedido modificado"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.btnDanger}
+                  onPress={cancelarPedido}
+                  disabled={accionando}>
+                  <Text style={styles.btnDangerText}>✖ Cancelar pedido</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {detalle.estado === "pendiente" && (
+              <TouchableOpacity
+                style={[styles.btnDanger, { marginTop: 8 }]}
+                onPress={cancelarPedido}
+                disabled={accionando}>
+                <Text style={styles.btnDangerText}>
+                  {accionando ? "Procesando..." : "Cancelar pedido"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         )}
       </SafeAreaView>
     )
@@ -296,9 +469,21 @@ const styles = StyleSheet.create({
   total: { fontSize: 15, fontWeight: "800", color: "#111827" },
   fecha: { fontSize: 12, color: "#9ca3af" },
   // Detalle
-  estadoBadge: { alignSelf: "flex-start", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 12 },
+  estadoBadge: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 12 },
   estadoText: { fontWeight: "700", fontSize: 14 },
   detalleMayorista: { fontSize: 14, color: "#2563eb", fontWeight: "700", marginBottom: 12 },
+  // Banner devuelto
+  devueltoBanner: {
+    backgroundColor: "#fff7ed",
+    borderWidth: 1,
+    borderColor: "#fed7aa",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+  },
+  devueltoTitle: { fontSize: 14, fontWeight: "800", color: "#9a3412", marginBottom: 4 },
+  devueltoMsg: { fontSize: 13, color: "#7c2d12", fontStyle: "italic", marginBottom: 6 },
+  devueltoHint: { fontSize: 12, color: "#c2410c" },
   detalleSeccion: { fontSize: 12, fontWeight: "700", color: "#9ca3af", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 4 },
   detalleItem: {
     flexDirection: "row",
@@ -316,6 +501,23 @@ const styles = StyleSheet.create({
   detalleItemSku: { fontSize: 11, color: "#9ca3af", marginTop: 2 },
   detalleItemCant: { fontSize: 12, color: "#6b7280", marginTop: 2 },
   detalleItemTotal: { fontSize: 15, fontWeight: "800", color: "#111827", flexShrink: 0 },
+  // Cantidades editables
+  cantRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
+  cantBtn: {
+    width: 30, height: 30, borderRadius: 8,
+    borderWidth: 1, borderColor: "#d1d5db",
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#f9fafb",
+  },
+  cantBtnText: { fontSize: 18, fontWeight: "600", color: "#374151", lineHeight: 22 },
+  cantInput: {
+    width: 44, height: 30, borderRadius: 8,
+    borderWidth: 1, borderColor: "#fdba74",
+    textAlign: "center", fontSize: 14, fontWeight: "700",
+    color: "#111827", backgroundColor: "#fff",
+  },
+  cantUnidad: { fontSize: 12, color: "#6b7280" },
+  cantCero: { fontSize: 11, color: "#dc2626", fontStyle: "italic" },
   totalesBox: {
     backgroundColor: "#fff",
     borderRadius: 14,
@@ -334,7 +536,7 @@ const styles = StyleSheet.create({
   notasBox: { backgroundColor: "#fffbeb", borderRadius: 12, padding: 14, marginBottom: 12 },
   notasLabel: { fontSize: 13, fontWeight: "700", color: "#92400e", marginBottom: 4 },
   notasText: { fontSize: 13, color: "#78350f" },
-  docsBox: { marginTop: 4 },
+  docsBox: { marginTop: 4, marginBottom: 12 },
   docItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -352,6 +554,22 @@ const styles = StyleSheet.create({
   docNombre: { fontSize: 14, fontWeight: "600", color: "#111827" },
   docTipo: { fontSize: 12, color: "#9ca3af", marginTop: 2 },
   docVer: { color: "#2563eb", fontWeight: "700", fontSize: 13 },
+  btnPrimary: {
+    backgroundColor: "#2563eb",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  btnPrimaryText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  btnDanger: {
+    backgroundColor: "#fef2f2",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+  },
+  btnDangerText: { color: "#dc2626", fontWeight: "700", fontSize: 15 },
   empty: { alignItems: "center", paddingTop: 80, gap: 8 },
   emptyTitle: { fontSize: 18, fontWeight: "700", color: "#374151" },
   emptyText: { fontSize: 14, color: "#9ca3af" },
