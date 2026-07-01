@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
@@ -46,7 +46,7 @@ type MPStatus = {
   error?: string
 }
 
-export default function MediosPagoMayoristaPage() {
+function MediosPagoMayoristaInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [medios, setMedios] = useState<MedioPago[]>([])
@@ -344,5 +344,17 @@ export default function MediosPagoMayoristaPage() {
         </p>
       </main>
     </div>
+  )
+}
+
+export default function MediosPagoMayoristaPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-400 text-sm">Cargando...</p>
+      </div>
+    }>
+      <MediosPagoMayoristaInner />
+    </Suspense>
   )
 }
