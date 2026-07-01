@@ -1,21 +1,15 @@
-export class Migration20260701000003 {
-  name = "Migration20260701000003"
+import { Migration } from "@mikro-orm/migrations"
 
-  async up(queryRunner: any): Promise<void> {
-    await queryRunner.query(`
-      ALTER TABLE "orden"
-        ADD COLUMN IF NOT EXISTS "mp_preference_id" TEXT,
-        ADD COLUMN IF NOT EXISTS "mp_pago_id" TEXT,
-        ADD COLUMN IF NOT EXISTS "mp_estado_pago" TEXT;
-    `)
+export class Migration20260701000003 extends Migration {
+  async up(): Promise<void> {
+    this.addSql(`ALTER TABLE "orden" ADD COLUMN IF NOT EXISTS "mp_preference_id" TEXT;`)
+    this.addSql(`ALTER TABLE "orden" ADD COLUMN IF NOT EXISTS "mp_pago_id" TEXT;`)
+    this.addSql(`ALTER TABLE "orden" ADD COLUMN IF NOT EXISTS "mp_estado_pago" TEXT;`)
   }
 
-  async down(queryRunner: any): Promise<void> {
-    await queryRunner.query(`
-      ALTER TABLE "orden"
-        DROP COLUMN IF EXISTS "mp_preference_id",
-        DROP COLUMN IF EXISTS "mp_pago_id",
-        DROP COLUMN IF EXISTS "mp_estado_pago";
-    `)
+  async down(): Promise<void> {
+    this.addSql(`ALTER TABLE "orden" DROP COLUMN IF EXISTS "mp_preference_id";`)
+    this.addSql(`ALTER TABLE "orden" DROP COLUMN IF EXISTS "mp_pago_id";`)
+    this.addSql(`ALTER TABLE "orden" DROP COLUMN IF EXISTS "mp_estado_pago";`)
   }
 }
