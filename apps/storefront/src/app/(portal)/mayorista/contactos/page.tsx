@@ -25,8 +25,15 @@ type Contacto = {
   estado: "pendiente" | "aceptado" | "rechazado"
   mensaje?: string
   vendedor_id: string | null
+  lista_precio_id: string | null
   created_at: string
   comercio: Comercio | null
+}
+
+type ListaPrecio = {
+  id: string
+  nombre: string
+  descuento_porcentaje: number
 }
 
 type Vendedor = {
@@ -52,6 +59,8 @@ export default function MayoristaContactosPage() {
   const [loading, setLoading] = useState(true)
   const [accionando, setAccionando] = useState<string | null>(null)
   const [asignando, setAsignando] = useState<string | null>(null)
+  const [listas, setListas] = useState<ListaPrecio[]>([])
+  const [asignandoLista, setAsignandoLista] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [expandedMedios, setExpandedMedios] = useState<string | null>(null) // comercio_id expandido
   const [mediosContacto, setMediosContacto] = useState<Record<string, any[]>>({}) // comercio_id → medios
@@ -89,8 +98,18 @@ export default function MayoristaContactosPage() {
     } catch {}
   }
 
+  const cargarListas = async () => {
+    const t = token()
+    if (!t) return
+    try {
+      const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/listas-precio`, { headers: headers(false) })
+      const data = await res.json()
+      setListas(data.listas || [])
+    } catch {}
+  }
+
   useEffect(() => { cargar() }, [tab])
-  useEffect(() => { cargarVendedores() }, [])
+  useEffect(() => { cargarVendedores(); cargarListas() }, [])
 
   const handleAccion = async (solicitudId: string, estado: "aceptado" | "rechazado") => {
     setAccionando(solicitudId)
@@ -120,6 +139,24 @@ export default function MayoristaContactosPage() {
       alert(e.message)
     } finally {
       setAsignando(null)
+    }
+  }
+
+  const asignarLista = async (solicitudId: string, comercioId: string, listaPrecioId: string | null) => {
+    setAsignandoLista(solicitudId)
+    try {
+      await fetch(`${BACKEND_URL}/store/mayoristas/me/contactos/${comercioId}/lista-precio`, {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify({ lista_precio_id: listaPrecioId }),
+      })
+      setContactos((prev) =>
+        prev.map((c) => c.id === solicitudId ? { ...c, lista_precio_id: listaPrecioId } : c)
+      )
+    } catch (e: any) {
+      alert(e.message)
+    } finally {
+      setAsignandoLista(null)
     }
   }
 
@@ -282,6 +319,41 @@ export default function MayoristaContactosPage() {
                           )}
                         </div>
                       )}
+
+                      {/* Selector de lista de precios — solo para aceptados */}
+                      {tab === "aceptado" && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-xs text-gray-500 flex-shrink-0">Lista de precios:</span>
+                          {listas.length === 0 ? (
+                            <a href="/mayorista/listas-precio"
+                              className="text-xs text-blue-600 hover:underline">
+                              + Crear lista de precios
+                            </a>
+                          ) : (
+                            <select
+                              value={c.lista_precio_id || ""}
+                              disabled={asignandoLista === c.id}
+                              onChange={(e) => asignarLista(c.id, c.comercio_id, e.target.value || null)}
+                              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white min-w-0 flex-1 max-w-xs">
+                              <option value="">— Precio de lista —</option>
+                              {listas.map((l) => (
+                                <option key={l.id} value={l.id}>
+                                  {l.nombre}{l.descuento_porcentaje > 0 ? ` (−${l.descuento_porcentaje}%)` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {asignandoLista === c.id && (
+                            <span className="text-xs text-gray-400">Guardando...</span>
+                          )}
+                          {c.lista_precio_id && asignandoLista !== c.id && (
+                            <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full flex-shrink-0">
+                              🏷️ asignada
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                     {/* Panel medios de pago — solo aceptados */}
                       {tab === "aceptado" && c.comercio && (
                         <div className="mt-3">
