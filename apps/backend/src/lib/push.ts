@@ -2,20 +2,23 @@
  * Push Notifications via Firebase Cloud Messaging (FCM v1 API).
  * Usa firebase-admin con service account para autenticación.
  */
-import * as admin from "firebase-admin"
+import { initializeApp, cert, getApps, App } from "firebase-admin/app"
+import { getMessaging } from "firebase-admin/messaging"
 import * as path from "path"
 
-let _app: admin.app.App | null = null
+let _app: App | null = null
 
-function getApp(): admin.app.App {
+function getApp(): App {
   if (!_app) {
-    const saPath =
-      process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
-      path.resolve(process.cwd(), "firebase-service-account.json")
+    if (getApps().length > 0) {
+      _app = getApps()[0]
+    } else {
+      const saPath =
+        process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+        path.resolve(process.cwd(), "firebase-service-account.json")
 
-    _app = admin.initializeApp({
-      credential: admin.credential.cert(saPath),
-    })
+      _app = initializeApp({ credential: cert(saPath) })
+    }
   }
   return _app
 }
@@ -25,28 +28,21 @@ export interface PushMessage {
   title: string
   body: string
   data?: Record<string, string>
-  sound?: "default" | null
-  badge?: number
 }
 
 export async function sendPush(msg: PushMessage): Promise<void> {
   const tokens = (Array.isArray(msg.to) ? msg.to : [msg.to]).filter(Boolean)
   if (tokens.length === 0) return
 
-  const messaging = admin.messaging(getApp())
+  const messaging = getMessaging(getApp())
 
   for (const token of tokens) {
     try {
       await messaging.send({
         token,
-        notification: {
-          title: msg.title,
-          body: msg.body,
-        },
+        notification: { title: msg.title, body: msg.body },
         data: msg.data
-          ? Object.fromEntries(
-              Object.entries(msg.data).map(([k, v]) => [k, String(v)])
-            )
+          ? Object.fromEntries(Object.entries(msg.data).map(([k, v]) => [k, String(v)]))
           : {},
         android: {
           priority: "high",
