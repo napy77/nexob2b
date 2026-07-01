@@ -5,7 +5,7 @@ const Orden = model.define("orden", {
   numero: model.text(),                          // "ORD-00042" — referencia legible
   comercio_id: model.text(),
   mayorista_id: model.text(),
-  estado: model.text().default("pendiente"),      // pendiente|confirmado|enviado|entregado|cancelado
+  estado: model.text().default("cargada"),          // cargada|confirmado|armando|listo|en_transporte|entregado|cancelado|devuelto
   vendedor_id: model.text().nullable(),
   notas: model.text().nullable(),
   total_neto: model.number().default(0),
@@ -25,6 +25,15 @@ const Orden = model.define("orden", {
   mp_preference_id: model.text().nullable(),
   mp_pago_id: model.text().nullable(),
   mp_estado_pago: model.text().nullable(),
+  // Flags de trazabilidad (independientes del estado principal)
+  is_pagada: model.boolean().default(false),
+  is_facturada: model.boolean().default(false),
+  // Datos de armado (estado "listo")
+  cantidad_bultos: model.number().nullable(),
+  peso_kg: model.number().nullable(),
+  dimensiones: model.text().nullable(),
+  // Datos de despacho (estado "en_transporte")
+  numero_guia: model.text().nullable(),
 })
 
 export default Orden

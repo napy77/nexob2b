@@ -20,8 +20,8 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
   if (!orden || orden.comercio_id !== payload.comercio_id) {
     return res.status(404).json({ error: "Orden no encontrada" })
   }
-  if (orden.estado !== "enviado") {
-    return res.status(400).json({ error: "Solo se puede confirmar entrega de un pedido enviado" })
+  if (!["en_transporte", "listo"].includes(orden.estado)) {
+    return res.status(400).json({ error: "Solo se puede confirmar entrega de un pedido en camino o listo para retiro" })
   }
 
   const updated = await svc.updateOrdens({ id: orden.id, estado: "entregado" })

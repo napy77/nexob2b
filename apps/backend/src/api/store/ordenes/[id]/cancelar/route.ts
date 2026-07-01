@@ -20,8 +20,16 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
   if (!orden || orden.comercio_id !== payload.comercio_id) {
     return res.status(404).json({ error: "Orden no encontrada" })
   }
-  if (orden.estado !== "pendiente") {
-    return res.status(400).json({ error: "Solo se puede cancelar un pedido pendiente" })
+
+  const cancelables = ["cargada", "devuelto"]
+  if (!cancelables.includes(orden.estado)) {
+    return res.status(400).json({ error: "Solo se puede cancelar un pedido cargado o devuelto" })
+  }
+
+  if (orden.is_facturada) {
+    return res.status(400).json({
+      error: "Este pedido ya tiene factura emitida. Contactá al mayorista para gestionar la devolución."
+    })
   }
 
   const updated = await svc.updateOrdens({ id: orden.id, estado: "cancelado" })

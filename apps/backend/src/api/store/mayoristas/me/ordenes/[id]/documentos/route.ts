@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ORDEN_MODULE } from "../../../../../../../modules/orden"
+import { getPool } from "../../../../../../../lib/db-seq"
 import jwt from "jsonwebtoken"
 import fs from "fs"
 import path from "path"
@@ -78,6 +79,28 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     tipo: tipo || "otro",
     url: `/documentos/${filename}`,
   })
+
+  // Auto-set is_facturada cuando el mayorista sube una factura
+  if ((tipo === "factura") && !orden.is_facturada) {
+    await getPool().query(
+      `UPDATE orden SET is_facturada = true, updated_at = now() WHERE id = $1`,
+      [id]
+    )
+  }
+
+  // Auto-set is_pagada cuando el mayorista sube un recibo y ya existe comprobante del comercio
+  if (tipo === "recibo" && !orden.is_pagada) {
+    const { rows } = await getPool().query(
+      `SELECT id FROM orden_documento WHERE orden_id = $1 AND tipo = 'comprobante_pago' LIMIT 1`,
+      [id]
+    )
+    if (rows.length > 0) {
+      await getPool().query(
+        `UPDATE orden SET is_pagada = true, updated_at = now() WHERE id = $1`,
+        [id]
+      )
+    }
+  }
 
   return res.status(201).json({ documento })
 }

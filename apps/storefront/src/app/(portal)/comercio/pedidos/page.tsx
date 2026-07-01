@@ -6,12 +6,18 @@ import { useRouter } from "next/navigation"
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
-const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  pendiente:  { label: "Pendiente",  color: "#92400e", bg: "#fef3c7" },
-  confirmado: { label: "Confirmado", color: "#1e40af", bg: "#dbeafe" },
-  enviado:    { label: "En camino",  color: "#5b21b6", bg: "#ede9fe" },
-  entregado:  { label: "Entregado",  color: "#065f46", bg: "#d1fae5" },
-  cancelado:  { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2" },
+const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
+  cargada:       { label: "Cargada",    color: "#92400e", bg: "#fef3c7", emoji: "📥" },
+  confirmado:    { label: "Confirmado", color: "#1e40af", bg: "#dbeafe", emoji: "✅" },
+  armando:       { label: "Armando",    color: "#6d28d9", bg: "#ede9fe", emoji: "📦" },
+  listo:         { label: "Listo",      color: "#065f46", bg: "#d1fae5", emoji: "🟢" },
+  en_transporte: { label: "En camino",  color: "#1e3a8a", bg: "#dbeafe", emoji: "🚚" },
+  entregado:     { label: "Entregado",  color: "#064e3b", bg: "#d1fae5", emoji: "✔️" },
+  cancelado:     { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2", emoji: "✖️" },
+  devuelto:      { label: "Devuelta",   color: "#92400e", bg: "#ffedd5", emoji: "↩️" },
+  // legacy compat
+  pendiente:     { label: "Cargada",    color: "#92400e", bg: "#fef3c7", emoji: "📥" },
+  enviado:       { label: "En camino",  color: "#1e3a8a", bg: "#dbeafe", emoji: "🚚" },
 }
 
 type Orden = {
@@ -19,6 +25,8 @@ type Orden = {
   numero: string
   mayorista_id: string
   estado: string
+  is_pagada?: boolean
+  is_facturada?: boolean
   total: number
   created_at: string
   items: { nombre: string; cantidad: number; unidad: string }[]
@@ -143,12 +151,14 @@ export default function PedidosComercioPage() {
                       <button key={o.id} onClick={() => router.push(`/comercio/pedidos/${o.id}`)}
                         className="w-full bg-white rounded-2xl border border-gray-100 p-4 text-left hover:border-blue-200 hover:shadow-sm transition-all">
                         <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-gray-900 text-sm">{o.numero}</span>
                             <span className="text-xs px-2 py-0.5 rounded-full font-medium"
                               style={{ color: estado.color, background: estado.bg }}>
-                              {estado.label}
+                              {estado.emoji} {estado.label}
                             </span>
+                            {o.is_facturada && <span className="text-xs px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">🧾 Facturada</span>}
+                            {o.is_pagada && <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">💰 Pagada</span>}
                           </div>
                           <span className="font-bold text-gray-900 text-sm">${o.total.toLocaleString("es-AR")}</span>
                         </div>

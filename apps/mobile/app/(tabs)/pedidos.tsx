@@ -49,15 +49,27 @@ type Orden = {
   mp_preference_id?: string | null
   mp_pago_id?: string | null
   mp_estado_pago?: string | null
+  // Flags de trazabilidad
+  is_pagada?: boolean
+  is_facturada?: boolean
+  cantidad_bultos?: number | null
+  peso_kg?: number | null
+  dimensiones?: string | null
+  numero_guia?: string | null
 }
 
-const ESTADO: Record<string, { label: string; color: string; bg: string }> = {
-  pendiente:  { label: "Pendiente",  color: "#92400e", bg: "#fef3c7" },
-  confirmado: { label: "Confirmado", color: "#1e40af", bg: "#dbeafe" },
-  enviado:    { label: "Enviado",    color: "#5b21b6", bg: "#ede9fe" },
-  entregado:  { label: "Entregado",  color: "#065f46", bg: "#d1fae5" },
-  cancelado:  { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2" },
-  devuelto:   { label: "Devuelto",   color: "#9a3412", bg: "#ffedd5" },
+const ESTADO: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
+  cargada:       { label: "Cargada",    color: "#92400e", bg: "#fef3c7", emoji: "📥" },
+  confirmado:    { label: "Confirmado", color: "#1e40af", bg: "#dbeafe", emoji: "✅" },
+  armando:       { label: "Armando",    color: "#6d28d9", bg: "#ede9fe", emoji: "📦" },
+  listo:         { label: "Listo",      color: "#065f46", bg: "#d1fae5", emoji: "🟢" },
+  en_transporte: { label: "En camino",  color: "#1e3a8a", bg: "#dbeafe", emoji: "🚚" },
+  entregado:     { label: "Entregado",  color: "#064e3b", bg: "#d1fae5", emoji: "✔️" },
+  cancelado:     { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2", emoji: "✖️" },
+  devuelto:      { label: "Devuelta",   color: "#9a3412", bg: "#ffedd5", emoji: "↩️" },
+  // legacy compat
+  pendiente:     { label: "Cargada",    color: "#92400e", bg: "#fef3c7", emoji: "📥" },
+  enviado:       { label: "En camino",  color: "#1e3a8a", bg: "#dbeafe", emoji: "🚚" },
 }
 
 export default function PedidosTab() {
@@ -203,13 +215,18 @@ export default function PedidosTab() {
   }
 
   const renderOrden = ({ item: o }: { item: Orden }) => {
-    const e = ESTADO[o.estado] || { label: o.estado, color: "#374151", bg: "#f3f4f6" }
+    const ek = o.estado === "pendiente" ? "cargada" : o.estado === "enviado" ? "en_transporte" : o.estado
+    const e = ESTADO[ek] || { label: ek, color: "#374151", bg: "#f3f4f6", emoji: "📋" }
     return (
       <TouchableOpacity style={styles.card} onPress={() => abrirDetalle(o.id)}>
         <View style={styles.cardTop}>
-          <Text style={styles.numero}>{o.numero}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+            <Text style={styles.numero}>{o.numero}</Text>
+            {o.is_facturada && <Text style={{ fontSize: 14 }}>🧾</Text>}
+            {o.is_pagada && <Text style={{ fontSize: 14 }}>💰</Text>}
+          </View>
           <View style={[styles.badge, { backgroundColor: e.bg }]}>
-            <Text style={[styles.badgeText, { color: e.color }]}>{e.label}</Text>
+            <Text style={[styles.badgeText, { color: e.color }]}>{e.emoji} {e.label}</Text>
           </View>
         </View>
         {o.mayorista_nombre && (
@@ -231,8 +248,9 @@ export default function PedidosTab() {
 
   // Vista de detalle
   if (detalle || loadingDetalle) {
-    const e = detalle ? (ESTADO[detalle.estado] || { label: detalle.estado, color: "#374151", bg: "#f3f4f6" }) : null
-    const DOC_ICON: Record<string, string> = { factura: "🧾", remito: "📋", recibo: "💳", otro: "📄" }
+    const estadoKey = detalle ? (detalle.estado === "pendiente" ? "cargada" : detalle.estado === "enviado" ? "en_transporte" : detalle.estado) : ""
+    const e = detalle ? (ESTADO[estadoKey] || { label: estadoKey, color: "#374151", bg: "#f3f4f6", emoji: "📋" }) : null
+    const DOC_ICON: Record<string, string> = { factura: "🧾", remito: "📋", recibo: "💳", comprobante_pago: "💸", otro: "📄" }
     const esDevuelto = detalle?.estado === "devuelto"
 
     return (
@@ -249,13 +267,44 @@ export default function PedidosTab() {
           <ActivityIndicator style={{ marginTop: 40 }} color="#2563eb" size="large" />
         ) : detalle && (
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-            {/* Estado */}
-            <View style={[styles.estadoBadge, { backgroundColor: e!.bg, alignSelf: "flex-start" }]}>
-              <Text style={[styles.estadoText, { color: e!.color }]}>{e!.label}</Text>
+            {/* Estado + flags */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              <View style={[styles.estadoBadge, { backgroundColor: e!.bg, marginBottom: 0 }]}>
+                <Text style={[styles.estadoText, { color: e!.color }]}>{e!.emoji} {e!.label}</Text>
+              </View>
+              {detalle.is_facturada && (
+                <View style={{ backgroundColor: "#eef2ff", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
+                  <Text style={{ color: "#4338ca", fontSize: 12, fontWeight: "700" }}>🧾 Facturada</Text>
+                </View>
+              )}
+              {detalle.is_pagada && (
+                <View style={{ backgroundColor: "#f0fdf4", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
+                  <Text style={{ color: "#15803d", fontSize: 12, fontWeight: "700" }}>💰 Pagada</Text>
+                </View>
+              )}
             </View>
 
             {detalle.mayorista_nombre && (
               <Text style={styles.detalleMayorista}>{detalle.mayorista_nombre}</Text>
+            )}
+
+            {/* Info de bultos */}
+            {(estadoKey === "listo" || estadoKey === "en_transporte") && detalle.cantidad_bultos && (
+              <View style={{ backgroundColor: "#f0fdf4", borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#166534", marginBottom: 2 }}>
+                  📦 {detalle.cantidad_bultos} bulto{detalle.cantidad_bultos !== 1 ? "s" : ""}
+                  {detalle.peso_kg ? `  ·  ${detalle.peso_kg} kg` : ""}
+                </Text>
+                {detalle.dimensiones && <Text style={{ fontSize: 12, color: "#15803d" }}>{detalle.dimensiones}</Text>}
+              </View>
+            )}
+
+            {/* Número de guía */}
+            {estadoKey === "en_transporte" && detalle.numero_guia && (
+              <View style={{ backgroundColor: "#eff6ff", borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, color: "#1e40af", fontWeight: "700", marginBottom: 2 }}>🚚 Guía / seguimiento</Text>
+                <Text style={{ fontSize: 14, fontFamily: "monospace", fontWeight: "700", color: "#1e3a8a" }}>{detalle.numero_guia}</Text>
+              </View>
             )}
 
             {/* Banner devuelto */}
@@ -446,7 +495,39 @@ export default function PedidosTab() {
               </View>
             )}
 
-            {detalle.estado === "pendiente" && (
+            {/* Confirmar recepción: en camino O listo para retiro */}
+            {["en_transporte", "enviado", "listo"].includes(detalle.estado) && (
+              <View style={{ marginTop: 8 }}>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, { backgroundColor: "#16a34a" }]}
+                  onPress={async () => {
+                    Alert.alert("Confirmar entrega", "¿Ya recibiste este pedido?", [
+                      { text: "No", style: "cancel" },
+                      { text: "Sí, recibido", onPress: async () => {
+                        setAccionando(true)
+                        try {
+                          const res = await fetch(`${BACKEND_URL}/store/ordenes/${detalle.id}/entregar`, {
+                            method: "PUT",
+                            headers: { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY },
+                          })
+                          const data = await res.json()
+                          if (!res.ok) throw new Error(data.error)
+                          await abrirDetalle(detalle.id)
+                          await cargar()
+                        } catch (e: any) {
+                          Alert.alert("Error", e.message)
+                        } finally { setAccionando(false) }
+                      }}
+                    ])
+                  }}
+                  disabled={accionando}>
+                  <Text style={styles.btnPrimaryText}>✅ Confirmar recepción</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Pagar con MP + cancelar */}
+            {["cargada", "pendiente", "confirmado", "armando", "listo"].includes(detalle.estado) && (
               <View style={{ gap: 10, marginTop: 8 }}>
                 {detalle.mp_estado_pago !== "aprobado" && (
                   <TouchableOpacity
@@ -458,15 +539,18 @@ export default function PedidosTab() {
                     </Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity
-                  style={styles.btnDanger}
-                  onPress={cancelarPedido}
-                  disabled={accionando}>
-                  <Text style={styles.btnDangerText}>
-                    {accionando ? "Procesando..." : "Cancelar pedido"}
-                  </Text>
-                </TouchableOpacity>
               </View>
+            )}
+
+            {["cargada", "pendiente", "devuelto"].includes(detalle.estado) && (
+              <TouchableOpacity
+                style={[styles.btnDanger, { marginTop: 8 }]}
+                onPress={cancelarPedido}
+                disabled={accionando}>
+                <Text style={styles.btnDangerText}>
+                  {accionando ? "Procesando..." : "Cancelar pedido"}
+                </Text>
+              </TouchableOpacity>
             )}
           </ScrollView>
         )}

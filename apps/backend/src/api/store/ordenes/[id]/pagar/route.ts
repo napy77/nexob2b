@@ -33,7 +33,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Este pedido ya fue pagado con Mercado Pago" })
   }
 
-  if (!["pendiente", "confirmado"].includes(orden.estado)) {
+  if (!["cargada", "confirmado", "armando", "listo"].includes(orden.estado)) {
     return res.status(400).json({
       error: `No se puede pagar un pedido en estado "${orden.estado}"`,
     })

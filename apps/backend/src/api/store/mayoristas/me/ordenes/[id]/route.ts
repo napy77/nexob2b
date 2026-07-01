@@ -15,12 +15,14 @@ const verifyMayorista = (req: MedusaRequest): { mayorista_id: string } | null =>
 }
 
 const TRANSICIONES: Record<string, string[]> = {
-  pendiente:  ["confirmado", "devuelto", "cancelado"],
-  confirmado: ["enviado", "cancelado"],
-  devuelto:   ["cancelado"],
-  enviado:    [],
-  entregado:  [],
-  cancelado:  [],
+  cargada:       ["confirmado", "devuelto", "cancelado"],
+  confirmado:    ["armando", "cancelado"],
+  armando:       ["listo"],
+  listo:         ["en_transporte", "entregado"],   // entregado directo si retiro en local
+  en_transporte: ["entregado"],
+  devuelto:      ["cancelado"],
+  entregado:     [],
+  cancelado:     [],
 }
 
 // GET /store/mayoristas/me/ordenes/:id
@@ -52,7 +54,10 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     return res.status(404).json({ error: "Orden no encontrada" })
   }
 
-  const { estado, mensaje_mayorista } = req.body as any
+  const body = req.body as any
+  const { estado, mensaje_mayorista, cantidad_bultos, peso_kg, dimensiones, numero_guia } = body
+
+  // Validar transición
   const transicionesValidas = TRANSICIONES[orden.estado] || []
   if (!transicionesValidas.includes(estado)) {
     return res.status(400).json({
@@ -60,7 +65,14 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     })
   }
 
-  // Al confirmar: descontar stock de cada item
+  // No cancelar si ya está facturada — debe ser devolución
+  if (estado === "cancelado" && orden.is_facturada) {
+    return res.status(400).json({
+      error: "El pedido ya tiene factura emitida. Usá 'Devolver' en su lugar para gestionar la devolución."
+    })
+  }
+
+  // Al confirmar: descontar stock
   if (estado === "confirmado") {
     const items = await svc.listOrdenItems({ orden_id: orden.id })
     const pool = getPool()
@@ -68,15 +80,9 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
 
     for (const item of items) {
       const result = await pool.query(
-        `UPDATE producto
-         SET stock = stock - $1
-         WHERE id = $2
-           AND stock IS NOT NULL
-           AND stock >= $1
-         RETURNING id`,
+        `UPDATE producto SET stock = stock - $1 WHERE id = $2 AND stock IS NOT NULL AND stock >= $1 RETURNING id`,
         [item.cantidad, item.producto_id]
       )
-      // Verificar si tenía stock pero era insuficiente
       const { rows: conStock } = await pool.query(
         `SELECT stock FROM producto WHERE id = $1 AND stock IS NOT NULL`,
         [item.producto_id]
@@ -94,8 +100,8 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     }
   }
 
-  // Al cancelar desde confirmado: restaurar stock
-  if (estado === "cancelado" && orden.estado === "confirmado") {
+  // Al cancelar desde confirmado/armando/listo: restaurar stock
+  if (estado === "cancelado" && ["confirmado", "armando", "listo"].includes(orden.estado)) {
     const items = await svc.listOrdenItems({ orden_id: orden.id })
     const pool = getPool()
     for (const item of items) {
@@ -107,16 +113,28 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const updateData: any = { id: orden.id, estado }
+
   if (estado === "devuelto") {
     updateData.mensaje_mayorista = mensaje_mayorista || null
   }
   if (estado === "confirmado") {
     updateData.mensaje_mayorista = null
   }
+  if (estado === "listo") {
+    if (!cantidad_bultos) {
+      return res.status(400).json({ error: "Indicá la cantidad de bultos para marcar como listo." })
+    }
+    updateData.cantidad_bultos = Number(cantidad_bultos)
+    updateData.peso_kg = peso_kg != null ? Number(peso_kg) : null
+    updateData.dimensiones = dimensiones || null
+  }
+  if (estado === "en_transporte") {
+    updateData.numero_guia = numero_guia || null
+  }
 
   const updated = await svc.updateOrdens(updateData)
 
-  // Notificar al comercio — sin bloquear
+  // Notificar al comercio
   try {
     const comercioSvc: any = req.scope.resolve(COMERCIO_MODULE)
     const mayoristaModSvc: any = req.scope.resolve(MAYORISTA_MODULE)

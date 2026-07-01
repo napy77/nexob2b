@@ -1,25 +1,28 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
 const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
-  pendiente:  { label: "Pendiente",  color: "#92400e", bg: "#fef3c7", emoji: "⏳" },
-  confirmado: { label: "Confirmado", color: "#1e40af", bg: "#dbeafe", emoji: "✅" },
-  enviado:    { label: "En camino",  color: "#5b21b6", bg: "#ede9fe", emoji: "🚚" },
-  entregado:  { label: "Entregado",  color: "#065f46", bg: "#d1fae5", emoji: "📦" },
-  cancelado:  { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2", emoji: "✖️" },
-  devuelto:   { label: "Devuelto",   color: "#92400e", bg: "#ffedd5", emoji: "↩️" },
+  cargada:       { label: "Cargada",    color: "#92400e", bg: "#fef3c7", emoji: "📥" },
+  confirmado:    { label: "Confirmado", color: "#1e40af", bg: "#dbeafe", emoji: "✅" },
+  armando:       { label: "Armando",    color: "#6d28d9", bg: "#ede9fe", emoji: "📦" },
+  listo:         { label: "Listo",      color: "#065f46", bg: "#d1fae5", emoji: "🟢" },
+  en_transporte: { label: "En camino",  color: "#1e3a8a", bg: "#dbeafe", emoji: "🚚" },
+  entregado:     { label: "Entregado",  color: "#064e3b", bg: "#d1fae5", emoji: "✔️" },
+  cancelado:     { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2", emoji: "✖️" },
+  devuelto:      { label: "Devuelta",   color: "#92400e", bg: "#ffedd5", emoji: "↩️" },
+  // legacy compat
+  pendiente:     { label: "Cargada",    color: "#92400e", bg: "#fef3c7", emoji: "📥" },
+  enviado:       { label: "En camino",  color: "#1e3a8a", bg: "#dbeafe", emoji: "🚚" },
 }
 
 const TIPO_DOC_LABEL: Record<string, string> = {
-  remito: "Remito",
-  factura: "Factura",
-  recibo: "Recibo",
-  otro: "Otro",
+  remito: "Remito", factura: "Factura", recibo: "Recibo",
+  comprobante_pago: "Comprobante de pago", otro: "Otro",
 }
 
 type OrdenItem = {
@@ -61,6 +64,13 @@ type Orden = {
   mp_preference_id?: string | null
   mp_pago_id?: string | null
   mp_estado_pago?: string | null
+  // Nuevos flags de trazabilidad
+  is_pagada?: boolean
+  is_facturada?: boolean
+  cantidad_bultos?: number | null
+  peso_kg?: number | null
+  dimensiones?: string | null
+  numero_guia?: string | null
 }
 
 type Documento = {
@@ -89,6 +99,13 @@ export default function PedidoDetallePage() {
 
   // Estado para editar cantidades en modo "devuelto"
   const [cantidades, setCantidades] = useState<Record<string, number>>({})
+
+  // Upload comprobante de pago
+  const [comprobNombre, setComprobNombre] = useState("")
+  const [comprobFile, setComprobFile] = useState<File | null>(null)
+  const [comprobUploading, setComprobUploading] = useState(false)
+  const [comprobError, setComprobError] = useState("")
+  const comprobInputRef = useRef<HTMLInputElement>(null)
 
   const token = () => localStorage.getItem("comercio_token") || ""
 
@@ -225,6 +242,41 @@ export default function PedidoDetallePage() {
     }
   }
 
+  const subirComprobante = async () => {
+    if (!comprobFile || !comprobNombre.trim()) {
+      setComprobError("Completá el nombre y seleccioná un archivo.")
+      return
+    }
+    setComprobUploading(true); setComprobError("")
+    try {
+      const b64: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(comprobFile)
+      })
+      const res = await fetch(`${BACKEND_URL}/store/ordenes/${params.id}/documentos`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token()}`,
+          "x-publishable-api-key": PUB_KEY,
+        },
+        body: JSON.stringify({ nombre: comprobNombre.trim(), tipo: "comprobante_pago", archivo_base64: b64 }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setComprobNombre(""); setComprobFile(null)
+      if (comprobInputRef.current) comprobInputRef.current.value = ""
+      await cargarDocumentos()
+      await cargar() // refresca is_pagada
+    } catch (e: any) {
+      setComprobError(e.message)
+    } finally {
+      setComprobUploading(false)
+    }
+  }
+
   if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <p className="text-gray-400 text-sm">Cargando pedido...</p>
@@ -237,7 +289,8 @@ export default function PedidoDetallePage() {
     </div>
   )
 
-  const estado = ESTADO_LABEL[orden.estado] || { label: orden.estado, color: "#374151", bg: "#f3f4f6", emoji: "📋" }
+  const estadoKey = orden.estado === "pendiente" ? "cargada" : orden.estado === "enviado" ? "en_transporte" : orden.estado
+  const estado = ESTADO_LABEL[estadoKey] || { label: estadoKey, color: "#374151", bg: "#f3f4f6", emoji: "📋" }
   const esDevuelto = orden.estado === "devuelto"
 
   return (
@@ -254,6 +307,8 @@ export default function PedidoDetallePage() {
             style={{ color: estado.color, background: estado.bg }}>
             {estado.emoji} {estado.label}
           </span>
+          {orden.is_facturada && <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">🧾 Facturada</span>}
+          {orden.is_pagada && <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">💰 Pagada</span>}
         </div>
       </nav>
 
@@ -322,6 +377,23 @@ export default function PedidoDetallePage() {
               </p>
             )}
           </div>
+          {/* Info de bultos (si está listo o en camino) */}
+          {(estadoKey === "listo" || estadoKey === "en_transporte") && orden.cantidad_bultos && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs font-medium text-gray-500 mb-1">📦 Preparación del pedido</p>
+              <p className="text-xs text-gray-700">{orden.cantidad_bultos} bulto{orden.cantidad_bultos !== 1 ? "s" : ""}
+                {orden.peso_kg ? ` · ${orden.peso_kg} kg` : ""}
+                {orden.dimensiones ? ` · ${orden.dimensiones}` : ""}
+              </p>
+            </div>
+          )}
+          {/* Número de guía (si está en camino) */}
+          {estadoKey === "en_transporte" && orden.numero_guia && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs font-medium text-gray-500 mb-1">🚚 Número de guía</p>
+              <p className="text-xs font-mono font-semibold text-blue-800">{orden.numero_guia}</p>
+            </div>
+          )}
         </div>
 
         {/* Productos — con cantidades editables si está en "devuelto" */}
@@ -410,18 +482,18 @@ export default function PedidoDetallePage() {
           )}
         </div>
 
-        {/* Documentos del mayorista */}
+        {/* Documentos */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <h3 className="font-semibold text-gray-900 text-sm mb-3">📎 Documentos adjuntos</h3>
           {documentos.length === 0 ? (
-            <p className="text-xs text-gray-400">El mayorista aún no adjuntó documentos.</p>
+            <p className="text-xs text-gray-400 mb-4">Sin documentos adjuntos aún.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 mb-4">
               {documentos.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="text-lg flex-shrink-0">
-                      {doc.tipo === "factura" ? "🧾" : doc.tipo === "remito" ? "📋" : doc.tipo === "recibo" ? "💳" : "📄"}
+                      {doc.tipo === "factura" ? "🧾" : doc.tipo === "remito" ? "📋" : doc.tipo === "recibo" ? "💳" : doc.tipo === "comprobante_pago" ? "💸" : "📄"}
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{doc.nombre}</p>
@@ -432,10 +504,40 @@ export default function PedidoDetallePage() {
                   </div>
                   <a href={`${BACKEND_URL}${doc.url}`} target="_blank" rel="noreferrer"
                     className="text-xs text-blue-600 hover:text-blue-700 font-medium px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors flex-shrink-0 ml-2">
-                    Ver / Descargar
+                    Ver
                   </a>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Upload comprobante de pago */}
+          {!orden.is_pagada && !["cancelado", "entregado"].includes(orden.estado) && (
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-medium text-gray-600 mb-3">💸 Adjuntar comprobante de pago</p>
+              <div className="space-y-2">
+                <input type="text" placeholder="Nombre ej: Transferencia 15/07"
+                  value={comprobNombre} onChange={(e) => setComprobNombre(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer hover:border-blue-300">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  <span className="text-gray-500 truncate">{comprobFile ? comprobFile.name : "Seleccionar archivo (PDF o imagen)"}</span>
+                  <input ref={comprobInputRef} type="file" accept=".pdf,image/*" className="hidden"
+                    onChange={(e) => setComprobFile(e.target.files?.[0] || null)} />
+                </label>
+                {comprobError && <p className="text-xs text-red-600">{comprobError}</p>}
+                <button onClick={subirComprobante} disabled={comprobUploading}
+                  className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-60">
+                  {comprobUploading ? "Subiendo..." : "Adjuntar comprobante"}
+                </button>
+              </div>
+            </div>
+          )}
+          {orden.is_pagada && (
+            <div className="border-t border-gray-100 pt-3 text-center">
+              <span className="text-xs text-green-600 font-semibold">✓ Comprobante de pago registrado</span>
             </div>
           )}
         </div>
@@ -460,16 +562,16 @@ export default function PedidoDetallePage() {
             </>
           )}
 
-          {/* Estado enviado: confirmar recepción */}
-          {orden.estado === "enviado" && (
+          {/* Confirmar recepción: en camino O listo para retiro */}
+          {["en_transporte", "enviado", "listo"].includes(orden.estado) && (
             <button onClick={() => accion("entregar")} disabled={accionando}
               className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-60 text-sm">
               {accionando ? "Procesando..." : "✅ Confirmar recepción"}
             </button>
           )}
 
-          {/* Estado pendiente: pagar con MP + cancelar */}
-          {orden.estado === "pendiente" && (
+          {/* Pagar con MP + cancelar — disponible mientras no esté entregado/cancelado */}
+          {["cargada", "pendiente", "confirmado", "armando", "listo"].includes(orden.estado) && (
             <>
               {orden.mp_estado_pago !== "aprobado" && (
                 <button
@@ -480,12 +582,16 @@ export default function PedidoDetallePage() {
                   {pagarLoading ? "Redirigiendo a Mercado Pago..." : "💳 Pagar con Mercado Pago"}
                 </button>
               )}
-              <button onClick={() => { if (confirm("¿Cancelar este pedido?")) accion("cancelar") }}
-                disabled={accionando}
-                className="w-full bg-red-50 text-red-600 border border-red-200 py-3 rounded-xl font-semibold hover:bg-red-100 transition-colors disabled:opacity-60 text-sm">
-                {accionando ? "Procesando..." : "Cancelar pedido"}
-              </button>
             </>
+          )}
+
+          {/* Cancelar — solo desde cargada/devuelto */}
+          {["cargada", "pendiente", "devuelto"].includes(orden.estado) && (
+            <button onClick={() => { if (confirm("¿Cancelar este pedido?")) accion("cancelar") }}
+              disabled={accionando}
+              className="w-full bg-red-50 text-red-600 border border-red-200 py-3 rounded-xl font-semibold hover:bg-red-100 transition-colors disabled:opacity-60 text-sm">
+              {accionando ? "Procesando..." : "Cancelar pedido"}
+            </button>
           )}
         </div>
       </main>

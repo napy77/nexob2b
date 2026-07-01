@@ -6,13 +6,21 @@ import { useRouter } from "next/navigation"
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
-const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  pendiente:  { label: "Pendiente",  color: "#92400e", bg: "#fef3c7" },
-  confirmado: { label: "Confirmado", color: "#1e40af", bg: "#dbeafe" },
-  enviado:    { label: "Enviado",    color: "#5b21b6", bg: "#ede9fe" },
-  entregado:  { label: "Entregado",  color: "#065f46", bg: "#d1fae5" },
-  cancelado:  { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2" },
+export const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string; emoji: string }> = {
+  cargada:       { label: "Cargada",       color: "#92400e", bg: "#fef3c7", emoji: "📥" },
+  confirmado:    { label: "Confirmado",     color: "#1e40af", bg: "#dbeafe", emoji: "✅" },
+  armando:       { label: "Armando",        color: "#6d28d9", bg: "#ede9fe", emoji: "📦" },
+  listo:         { label: "Listo",          color: "#065f46", bg: "#d1fae5", emoji: "🟢" },
+  en_transporte: { label: "En camino",      color: "#1e3a8a", bg: "#dbeafe", emoji: "🚚" },
+  entregado:     { label: "Entregado",      color: "#064e3b", bg: "#d1fae5", emoji: "✔️" },
+  cancelado:     { label: "Cancelado",      color: "#991b1b", bg: "#fee2e2", emoji: "✖️" },
+  devuelto:      { label: "Devuelta",       color: "#92400e", bg: "#ffedd5", emoji: "↩️" },
+  // legacy compat
+  pendiente:     { label: "Cargada",        color: "#92400e", bg: "#fef3c7", emoji: "📥" },
+  enviado:       { label: "En camino",      color: "#1e3a8a", bg: "#dbeafe", emoji: "🚚" },
 }
+
+const FILTROS = ["todos", "cargada", "confirmado", "armando", "listo", "en_transporte", "entregado", "cancelado", "devuelto"]
 
 type Orden = {
   id: string
@@ -20,6 +28,8 @@ type Orden = {
   comercio_id: string
   comercio_nombre?: string
   estado: string
+  is_pagada?: boolean
+  is_facturada?: boolean
   total: number
   created_at: string
   items: { nombre: string; cantidad: number; unidad: string }[]
@@ -45,11 +55,17 @@ export default function PedidosMayoristaPage() {
       .finally(() => setLoading(false))
   }, [router])
 
+  const normEstado = (o: Orden) => {
+    if (o.estado === "pendiente") return "cargada"
+    if (o.estado === "enviado") return "en_transporte"
+    return o.estado
+  }
+
   const filtradas = filtro === "todos"
     ? ordenes
-    : ordenes.filter((o) => o.estado === filtro)
+    : ordenes.filter((o) => normEstado(o) === filtro)
 
-  const pendientes = ordenes.filter((o) => o.estado === "pendiente").length
+  const cargadas = ordenes.filter((o) => ["cargada", "pendiente"].includes(o.estado)).length
 
   if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -68,9 +84,9 @@ export default function PedidosMayoristaPage() {
               </svg>
             </button>
             <span className="font-bold text-gray-900">Pedidos recibidos</span>
-            {pendientes > 0 && (
+            {cargadas > 0 && (
               <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                {pendientes} nuevo{pendientes !== 1 ? "s" : ""}
+                {cargadas} nuevo{cargadas !== 1 ? "s" : ""}
               </span>
             )}
           </div>
@@ -84,21 +100,19 @@ export default function PedidosMayoristaPage() {
 
         {/* Filtros de estado */}
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-          {["todos", "pendiente", "confirmado", "enviado", "entregado", "cancelado"].map((f) => (
-            <button key={f} onClick={() => setFiltro(f)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                filtro === f
-                  ? "bg-gray-900 text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"
-              }`}>
-              {f === "todos" ? "Todos" : (ESTADO_LABEL[f]?.label || f)}
-              {f !== "todos" && (
-                <span className="ml-1 opacity-70">
-                  ({ordenes.filter((o) => o.estado === f).length})
-                </span>
-              )}
-            </button>
-          ))}
+          {FILTROS.map((f) => {
+            const count = f === "todos" ? ordenes.length : ordenes.filter((o) => normEstado(o) === f).length
+            const info = ESTADO_LABEL[f]
+            return (
+              <button key={f} onClick={() => setFiltro(f)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                  filtro === f ? "bg-gray-900 text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-gray-300"
+                }`}>
+                {f === "todos" ? "Todos" : `${info?.emoji || ""} ${info?.label || f}`}
+                <span className="ml-1 opacity-70">({count})</span>
+              </button>
+            )
+          })}
         </div>
 
         {filtradas.length === 0 ? (
@@ -111,20 +125,27 @@ export default function PedidosMayoristaPage() {
         ) : (
           <div className="space-y-3">
             {filtradas.map((o) => {
-              const estado = ESTADO_LABEL[o.estado] || { label: o.estado, color: "#374151", bg: "#f3f4f6" }
+              const est = normEstado(o)
+              const estado = ESTADO_LABEL[est] || { label: est, color: "#374151", bg: "#f3f4f6", emoji: "📋" }
               return (
                 <button key={o.id} onClick={() => router.push(`/mayorista/pedidos/${o.id}`)}
                   className="w-full bg-white rounded-2xl border border-gray-100 p-4 text-left hover:border-blue-200 hover:shadow-sm transition-all">
                   <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-gray-900 text-sm">{o.numero}</span>
-                      {o.estado === "pendiente" && (
+                      {["cargada", "pendiente"].includes(o.estado) && (
                         <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
                       )}
                       <span className="text-xs px-2 py-0.5 rounded-full font-medium"
                         style={{ color: estado.color, background: estado.bg }}>
-                        {estado.label}
+                        {estado.emoji} {estado.label}
                       </span>
+                      {o.is_facturada && (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">🧾 Facturada</span>
+                      )}
+                      {o.is_pagada && (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">💰 Pagada</span>
+                      )}
                     </div>
                     <span className="font-bold text-gray-900">${o.total.toLocaleString("es-AR")}</span>
                   </div>
