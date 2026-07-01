@@ -57,11 +57,14 @@ export async function notificarCambioEstado(data: {
   notas_mayorista?: string
 }): Promise<void> {
   const ESTADO_PUSH: Record<string, { title: string; body: string }> = {
-    confirmado: { title: "Pedido confirmado ✅", body: `${data.numero} fue confirmado por ${data.mayorista_nombre}` },
-    enviado:    { title: "Pedido en camino 🚚", body: `${data.numero} está en camino` },
-    entregado:  { title: "Pedido entregado 📦", body: `${data.numero} fue entregado` },
-    cancelado:  { title: "Pedido cancelado ❌", body: `${data.numero} fue cancelado` },
-    devuelto:   { title: "Pedido devuelto ↩️", body: `${data.numero}: ${data.notas_mayorista || "revisá el mensaje del mayorista"}` },
+    confirmado:    { title: "Pedido confirmado ✅",   body: `${data.numero} fue confirmado por ${data.mayorista_nombre}` },
+    armando:       { title: "Pedido en preparación 📦", body: `${data.mayorista_nombre} está armando tu pedido ${data.numero}` },
+    listo:         { title: "Pedido listo 🟢",        body: `Tu pedido de ${data.mayorista_nombre} está listo` },
+    en_transporte: { title: "Pedido en camino 🚚",    body: `${data.numero} está en camino` },
+    enviado:       { title: "Pedido en camino 🚚",    body: `${data.numero} está en camino` },
+    entregado:     { title: "Pedido entregado ✔️",    body: `${data.numero} fue entregado` },
+    cancelado:     { title: "Pedido cancelado ❌",    body: `${data.numero} fue cancelado` },
+    devuelto:      { title: "Pedido devuelto ↩️",     body: `${data.numero}: ${data.notas_mayorista || "revisá el mensaje del mayorista"}` },
   }
 
   const pushMsg = ESTADO_PUSH[data.estado]
