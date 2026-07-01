@@ -15,7 +15,7 @@ function verifyComercio(req: MedusaRequest): { comercio_id: string } | null {
       auth.split(" ")[1],
       process.env.JWT_SECRET || "nexob2b_jwt_secret_2026"
     ) as any
-    if (payload.rol !== "comercio") return null
+    if (!payload.comercio_id) return null
     return { comercio_id: payload.comercio_id }
   } catch { return null }
 }
