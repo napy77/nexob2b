@@ -12,20 +12,7 @@ const ESTADO_LABEL: Record<string, { label: string; color: string; bg: string; e
   enviado:    { label: "Enviado",    color: "#5b21b6", bg: "#ede9fe", emoji: "🚚" },
   entregado:  { label: "Entregado",  color: "#065f46", bg: "#d1fae5", emoji: "📦" },
   cancelado:  { label: "Cancelado",  color: "#991b1b", bg: "#fee2e2", emoji: "✖️" },
-}
-
-const ACCIONES: Record<string, { label: string; siguiente: string; color: string }[]> = {
-  pendiente:  [
-    { label: "✅ Confirmar pedido",   siguiente: "confirmado", color: "bg-blue-600 text-white hover:bg-blue-700" },
-    { label: "✖ Rechazar pedido",     siguiente: "cancelado",  color: "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" },
-  ],
-  confirmado: [
-    { label: "🚚 Marcar como enviado", siguiente: "enviado",   color: "bg-purple-600 text-white hover:bg-purple-700" },
-    { label: "✖ Cancelar pedido",      siguiente: "cancelado", color: "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100" },
-  ],
-  enviado:    [],
-  entregado:  [],
-  cancelado:  [],
+  devuelto:   { label: "Devuelto",   color: "#92400e", bg: "#ffedd5", emoji: "↩️" },
 }
 
 const TIPO_DOC_LABEL: Record<string, string> = {
@@ -106,6 +93,11 @@ export default function PedidoDetalleMayoristaPage() {
   const [loading, setLoading] = useState(true)
   const [accionando, setAccionando] = useState(false)
   const [error, setError] = useState("")
+  const [sinStock, setSinStock] = useState<string[]>([])
+
+  // Modal devolver
+  const [showDevolver, setShowDevolver] = useState(false)
+  const [mensajeDevolucion, setMensajeDevolucion] = useState("")
 
   // Upload documento
   const [uploadNombre, setUploadNombre] = useState("")
@@ -157,23 +149,37 @@ export default function PedidoDetalleMayoristaPage() {
     cargarDocumentos()
   }, [params.id])
 
-  const cambiarEstado = async (siguiente: string) => {
+  const cambiarEstado = async (siguiente: string, mensaje?: string) => {
     const t = token()
-    setAccionando(true); setError("")
+    setAccionando(true); setError(""); setSinStock([])
     try {
+      const body: any = { estado: siguiente }
+      if (mensaje) body.mensaje_mayorista = mensaje
       const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/ordenes/${params.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${t}`, "x-publishable-api-key": PUB_KEY },
-        body: JSON.stringify({ estado: siguiente }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
+      if (!res.ok) {
+        if (data.detalle) setSinStock(data.detalle)
+        throw new Error(data.error)
+      }
       await cargar()
     } catch (e: any) {
       setError(e.message)
     } finally {
       setAccionando(false)
     }
+  }
+
+  const enviarDevolucion = async () => {
+    if (!mensajeDevolucion.trim()) {
+      setError("Escribí un mensaje explicando qué falta o qué debe modificar el comercio."); return
+    }
+    setShowDevolver(false)
+    await cambiarEstado("devuelto", mensajeDevolucion.trim())
+    setMensajeDevolucion("")
   }
 
   const subirDocumento = async () => {
@@ -234,7 +240,6 @@ export default function PedidoDetalleMayoristaPage() {
   )
 
   const estado = ESTADO_LABEL[orden.estado] || { label: orden.estado, color: "#374151", bg: "#f3f4f6", emoji: "📋" }
-  const acciones = ACCIONES[orden.estado] || []
 
   const fechaFormateada = new Date(orden.created_at).toLocaleDateString("es-AR", {
     day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
@@ -399,20 +404,88 @@ export default function PedidoDetalleMayoristaPage() {
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>
           )}
 
-          {/* Acciones */}
-          {acciones.length > 0 && (
+          {/* Error de stock */}
+          {sinStock.length > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 text-sm">
+              <p className="font-semibold text-orange-800 mb-1">⚠️ Stock insuficiente para estos productos:</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                {sinStock.map((s, i) => (
+                  <li key={i} className="text-orange-700 text-xs">{s}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-orange-600 mt-2">Usá "Devolver con mensaje" para avisar al comercio qué debe modificar.</p>
+            </div>
+          )}
+
+          {/* Acciones según estado */}
+          {orden.estado === "pendiente" && (
             <div className="space-y-2">
-              {acciones.map((a) => (
-                <button key={a.siguiente}
-                  onClick={() => {
-                    if (a.siguiente === "cancelado" && !confirm("¿Rechazar este pedido?")) return
-                    cambiarEstado(a.siguiente)
-                  }}
-                  disabled={accionando}
-                  className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors disabled:opacity-60 ${a.color}`}>
-                  {accionando ? "Procesando..." : a.label}
-                </button>
-              ))}
+              <button
+                onClick={() => cambiarEstado("confirmado")}
+                disabled={accionando}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60">
+                {accionando ? "Procesando..." : "✅ Confirmar pedido"}
+              </button>
+              <button
+                onClick={() => { setSinStock([]); setError(""); setShowDevolver(true) }}
+                disabled={accionando}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors disabled:opacity-60">
+                ↩️ Devolver con mensaje
+              </button>
+              <button
+                onClick={() => { if (confirm("¿Cancelar este pedido?")) cambiarEstado("cancelado") }}
+                disabled={accionando}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60">
+                ✖ Cancelar pedido
+              </button>
+            </div>
+          )}
+
+          {orden.estado === "confirmado" && (
+            <div className="space-y-2">
+              <button
+                onClick={() => cambiarEstado("enviado")}
+                disabled={accionando}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-purple-600 text-white hover:bg-purple-700 transition-colors disabled:opacity-60">
+                {accionando ? "Procesando..." : "🚚 Marcar como enviado"}
+              </button>
+              <button
+                onClick={() => { if (confirm("¿Cancelar este pedido confirmado? Se restaurará el stock.")) cambiarEstado("cancelado") }}
+                disabled={accionando}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-60">
+                ✖ Cancelar pedido
+              </button>
+            </div>
+          )}
+
+          {/* Modal devolver */}
+          {showDevolver && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+              <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+                <h3 className="font-bold text-gray-900 mb-1">↩️ Devolver pedido</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  El comercio recibirá tu mensaje y podrá modificar el pedido y reenviarlo, o cancelarlo.
+                </p>
+                <textarea
+                  rows={4}
+                  placeholder="Ej: No tenemos stock suficiente de leche. Podemos entregar 15 unidades en vez de 20."
+                  value={mensajeDevolucion}
+                  onChange={(e) => setMensajeDevolucion(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none mb-4"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowDevolver(false); setMensajeDevolucion("") }}
+                    className="flex-1 py-2.5 rounded-xl text-sm text-gray-600 border border-gray-200 hover:bg-gray-50">
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={enviarDevolucion}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-orange-600 text-white hover:bg-orange-700">
+                    Enviar devolución
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

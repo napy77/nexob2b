@@ -61,6 +61,7 @@ export async function notificarCambioEstado(data: {
     enviado:    { title: "Pedido en camino 🚚", body: `${data.numero} está en camino` },
     entregado:  { title: "Pedido entregado 📦", body: `${data.numero} fue entregado` },
     cancelado:  { title: "Pedido cancelado ❌", body: `${data.numero} fue cancelado` },
+    devuelto:   { title: "Pedido devuelto ↩️", body: `${data.numero}: ${data.notas_mayorista || "revisá el mensaje del mayorista"}` },
   }
 
   const pushMsg = ESTADO_PUSH[data.estado]

@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.nexob2b.comercio",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#2563EB",
         "foregroundImage": "./assets/android-icon-foreground.png"
@@ -30,6 +31,14 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Nexo B2B necesita tu ubicación para informar tu posición al mayorista.",
           "locationWhenInUsePermission": "Nexo B2B necesita tu ubicación para informar tu posición al mayorista."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563EB",
+          "defaultChannel": "default"
         }
       ]
     ],

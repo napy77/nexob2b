@@ -4,6 +4,7 @@ import { COMERCIO_MODULE } from "../../../../../../modules/comercio"
 import { MAYORISTA_MODULE } from "../../../../../../modules/mayorista"
 import jwt from "jsonwebtoken"
 import { notificarCambioEstado } from "../../../../../../lib/notifications"
+import { getPool } from "../../../../../../lib/db-seq"
 
 const verifyMayorista = (req: MedusaRequest): { mayorista_id: string } | null => {
   const auth = req.headers.authorization
@@ -14,11 +15,12 @@ const verifyMayorista = (req: MedusaRequest): { mayorista_id: string } | null =>
 }
 
 const TRANSICIONES: Record<string, string[]> = {
-  pendiente: ["confirmado", "cancelado"],
+  pendiente:  ["confirmado", "devuelto", "cancelado"],
   confirmado: ["enviado", "cancelado"],
-  enviado: [],      // el comercio marca como entregado
-  entregado: [],
-  cancelado: [],
+  devuelto:   ["cancelado"],
+  enviado:    [],
+  entregado:  [],
+  cancelado:  [],
 }
 
 // GET /store/mayoristas/me/ordenes/:id
@@ -33,8 +35,6 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   }
 
   const items = await svc.listOrdenItems({ orden_id: orden.id }, { order: { created_at: "ASC" } })
-
-  // Info del comercio
   const comercioSvc: any = req.scope.resolve(COMERCIO_MODULE)
   const comercio = await comercioSvc.retrieveComercio(orden.comercio_id).catch(() => null)
 
@@ -52,7 +52,7 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     return res.status(404).json({ error: "Orden no encontrada" })
   }
 
-  const { estado } = req.body as any
+  const { estado, mensaje_mayorista } = req.body as any
   const transicionesValidas = TRANSICIONES[orden.estado] || []
   if (!transicionesValidas.includes(estado)) {
     return res.status(400).json({
@@ -60,9 +60,63 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     })
   }
 
-  const updated = await svc.updateOrdens({ id: orden.id, estado })
+  // Al confirmar: descontar stock de cada item
+  if (estado === "confirmado") {
+    const items = await svc.listOrdenItems({ orden_id: orden.id })
+    const pool = getPool()
+    const sinStock: string[] = []
 
-  // Notificar al comercio (y vendedor si hay) — sin bloquear la respuesta
+    for (const item of items) {
+      const result = await pool.query(
+        `UPDATE producto
+         SET stock = stock - $1
+         WHERE id = $2
+           AND stock IS NOT NULL
+           AND stock >= $1
+         RETURNING id`,
+        [item.cantidad, item.producto_id]
+      )
+      // Verificar si tenía stock pero era insuficiente
+      const { rows: conStock } = await pool.query(
+        `SELECT stock FROM producto WHERE id = $1 AND stock IS NOT NULL`,
+        [item.producto_id]
+      )
+      if (conStock.length > 0 && result.rowCount === 0) {
+        sinStock.push(`${item.nombre} (disponible: ${conStock[0].stock}, pedido: ${item.cantidad})`)
+      }
+    }
+
+    if (sinStock.length > 0) {
+      return res.status(400).json({
+        error: "Stock insuficiente para confirmar. Devolvé el pedido con un mensaje al comercio.",
+        detalle: sinStock,
+      })
+    }
+  }
+
+  // Al cancelar desde confirmado: restaurar stock
+  if (estado === "cancelado" && orden.estado === "confirmado") {
+    const items = await svc.listOrdenItems({ orden_id: orden.id })
+    const pool = getPool()
+    for (const item of items) {
+      await pool.query(
+        `UPDATE producto SET stock = stock + $1 WHERE id = $2 AND stock IS NOT NULL`,
+        [item.cantidad, item.producto_id]
+      )
+    }
+  }
+
+  const updateData: any = { id: orden.id, estado }
+  if (estado === "devuelto") {
+    updateData.mensaje_mayorista = mensaje_mayorista || null
+  }
+  if (estado === "confirmado") {
+    updateData.mensaje_mayorista = null
+  }
+
+  const updated = await svc.updateOrdens(updateData)
+
+  // Notificar al comercio — sin bloquear
   try {
     const comercioSvc: any = req.scope.resolve(COMERCIO_MODULE)
     const mayoristaModSvc: any = req.scope.resolve(MAYORISTA_MODULE)
@@ -84,6 +138,7 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
         estado,
         mayorista_nombre: mayorista?.nombre || "El mayorista",
         total: orden.total,
+        notas_mayorista: mensaje_mayorista || undefined,
       }).catch((e: any) => console.error("[notif] cambio estado:", e))
     }
   } catch (e) {

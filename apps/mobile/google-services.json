@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "832919050150",
+    "project_id": "nexob2b-58e96",
+    "storage_bucket": "nexob2b-58e96.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:832919050150:android:60ce397664270130032167",
+        "android_client_info": {
+          "package_name": "com.nexob2b.comercio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA93hv4rRh-7pl1VpM6TP_iLM_xEUcXcr8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

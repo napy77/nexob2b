@@ -78,6 +78,7 @@ const ESTADO_LABEL: Record<string, string> = {
   enviado:    "Enviado",
   entregado:  "Entregado",
   cancelado:  "Cancelado",
+  devuelto:   "Devuelto",
 }
 const ESTADO_COLOR: Record<string, string> = {
   pendiente:  "background:#fef3c7;color:#92400e",
@@ -85,6 +86,7 @@ const ESTADO_COLOR: Record<string, string> = {
   enviado:    "background:#ede9fe;color:#5b21b6",
   entregado:  "background:#d1fae5;color:#065f46",
   cancelado:  "background:#fee2e2;color:#991b1b",
+  devuelto:   "background:#ffedd5;color:#9a3412",
 }
 
 export function mailNuevaOrdenMayorista(data: {
@@ -145,6 +147,7 @@ export function mailCambioEstadoComercio(data: {
     enviado:    "Tu pedido está <strong>en camino</strong>.",
     entregado:  "Tu pedido fue marcado como <strong>entregado</strong>. ¡Gracias por tu compra!",
     cancelado:  "Tu pedido fue <strong>cancelado</strong>. Contactate con el mayorista si tenés dudas.",
+    devuelto:   "El mayorista <strong>devolvió tu pedido</strong> con un mensaje. Podés modificarlo y reenviarlo desde el portal.",
   }
 
   return {
