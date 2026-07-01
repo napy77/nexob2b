@@ -321,8 +321,19 @@ export default function MediosPagoPage() {
                 </select>
               </div>
 
-              {/* Configuración (solo si hay integración) */}
-              {showConfig && (
+              {/* Configuración (solo si hay integración y no es MP) */}
+              {showConfig && form.integracion === "mercadopago" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-blue-800 mb-1">🔗 Mercado Pago</p>
+                  <p className="text-xs text-blue-700">
+                    Las credenciales de Mercado Pago se configuran en <strong>Parámetros</strong> (mp_access_token, mp_public_key, mp_comision_pct).
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Cada mayorista vinculará su propia cuenta de MP desde su portal (próximamente).
+                  </p>
+                </div>
+              )}
+              {showConfig && form.integracion !== "mercadopago" && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-semibold text-gray-500">Configuración (JSON)</label>
