@@ -112,8 +112,8 @@ export default function PerfilPage() {
           visibilidad: m.visibilidad || "sin_precio",
           descripcion: m.descripcion || "",
           condicion_fiscal: m.condicion_fiscal || "",
-          lat: m.lat ?? null,
-          lng: m.lng ?? null,
+          lat: m.lat != null ? Number(m.lat) : null,
+          lng: m.lng != null ? Number(m.lng) : null,
         })
         if (m.logo_url) setLogoPreview(`${BACKEND_URL}${m.logo_url}`)
       })

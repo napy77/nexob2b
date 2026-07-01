@@ -15,7 +15,7 @@ export function MapaPicker({ lat, lng, direccion, ciudad, provincia, onChange }:
   const inputRef = useRef<HTMLInputElement>(null)
   const [mapReady, setMapReady] = useState(false)
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
-    lat && lng ? { lat, lng } : null
+    lat && lng ? { lat: Number(lat), lng: Number(lng) } : null
   )
 
   const placeMarker = useCallback((newLat: number, newLng: number, extra?: { direccion?: string; ciudad?: string; provincia?: string }) => {
@@ -29,7 +29,7 @@ export function MapaPicker({ lat, lng, direccion, ciudad, provincia, onChange }:
   const initMap = useCallback(() => {
     const google = (window as any).google
     if (!google || !mapRef.current) return
-    const center = lat && lng ? { lat, lng } : { lat: -31.4, lng: -64.2 }
+    const center = lat && lng ? { lat: Number(lat), lng: Number(lng) } : { lat: -31.4, lng: -64.2 }
 
     mapInstance.current = new google.maps.Map(mapRef.current, {
       center, zoom: lat && lng ? 15 : 6,
@@ -119,11 +119,12 @@ export function MapaPicker({ lat, lng, direccion, ciudad, provincia, onChange }:
 
   useEffect(() => {
     if (!mapReady || !markerRef.current || !lat || !lng) return
-    markerRef.current.setPosition({ lat, lng })
+    const nLat = Number(lat), nLng = Number(lng)
+    markerRef.current.setPosition({ lat: nLat, lng: nLng })
     markerRef.current.setVisible(true)
-    mapInstance.current?.setCenter({ lat, lng })
+    mapInstance.current?.setCenter({ lat: nLat, lng: nLng })
     mapInstance.current?.setZoom(15)
-    setCoords({ lat, lng })
+    setCoords({ lat: nLat, lng: nLng })
   }, [lat, lng, mapReady])
 
   if (!MAPS_KEY) return null
