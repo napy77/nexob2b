@@ -10,8 +10,9 @@ export default function ConfiguracionPage() {
   const [passSet, setPassSet] = useState(false)
 
   // Mercado Pago
-  const [mp, setMp] = useState({ public_key: "", access_token: "", comision_pct: "0.3" })
+  const [mp, setMp] = useState({ public_key: "", access_token: "", comision_pct: "0.3", client_id: "", client_secret: "" })
   const [tokenSet, setTokenSet] = useState(false)
+  const [clientSecretSet, setClientSecretSet] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -26,8 +27,9 @@ export default function ConfiguracionPage() {
           setPassSet(data.smtp.pass_set)
         }
         if (data.mp) {
-          setMp({ public_key: data.mp.public_key, access_token: "", comision_pct: data.mp.comision_pct })
+          setMp({ public_key: data.mp.public_key, access_token: "", comision_pct: data.mp.comision_pct, client_id: data.mp.client_id || "", client_secret: "" })
           setTokenSet(data.mp.access_token_set)
+          setClientSecretSet(data.mp.client_secret_set)
         }
       })
       .finally(() => setLoading(false))
@@ -57,9 +59,13 @@ export default function ConfiguracionPage() {
       const body: any = {
         mp_public_key: mp.public_key,
         mp_comision_pct: mp.comision_pct,
+        mp_client_id: mp.client_id,
       }
       if (mp.access_token && mp.access_token !== "••••••••") {
         body.mp_access_token = mp.access_token
+      }
+      if (mp.client_secret && mp.client_secret !== "••••••••") {
+        body.mp_client_secret = mp.client_secret
       }
       const r = await fetch("/admin/configuracion", {
         method: "PUT", credentials: "include",
@@ -69,6 +75,7 @@ export default function ConfiguracionPage() {
       if (r.ok) {
         setMsg({ type: "ok", text: "Configuración de Mercado Pago guardada." })
         if (mp.access_token) { setTokenSet(true); setMp((m) => ({ ...m, access_token: "" })) }
+        if (mp.client_secret) { setClientSecretSet(true); setMp((m) => ({ ...m, client_secret: "" })) }
       } else { setMsg({ type: "error", text: "Error al guardar." }) }
     } catch { setMsg({ type: "error", text: "Error de conexión." }) }
     finally { setSaving(false) }
@@ -182,6 +189,30 @@ export default function ConfiguracionPage() {
                   Se aplica como <code>marketplace_fee</code> en cada preferencia de pago.
                 </span>
               </Field>
+
+              <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16, marginTop: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", margin: "0 0 12px" }}>🔐 OAuth Marketplace (para que los mayoristas vinculen su cuenta)</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <Field label="Client ID (App MP Marketplace)">
+                    <input value={mp.client_id}
+                      onChange={(e) => setMp((m) => ({ ...m, client_id: e.target.value }))}
+                      placeholder="123456789"
+                      style={inputStyle} />
+                    <span style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                      ID de tu aplicación en el panel de developers de Mercado Pago. No es secreto.
+                    </span>
+                  </Field>
+                  <Field label={clientSecretSet ? "Client Secret (ya configurado — dejá vacío para no cambiarlo)" : "Client Secret"}>
+                    <input type="password" value={mp.client_secret}
+                      onChange={(e) => setMp((m) => ({ ...m, client_secret: e.target.value }))}
+                      placeholder={clientSecretSet ? "••••••••" : "Tu client secret de MP"}
+                      style={inputStyle} autoComplete="new-password" />
+                    <span style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                      Secreto. Solo backend. Necesario para intercambiar el code OAuth por tokens.
+                    </span>
+                  </Field>
+                </div>
+              </div>
 
               {tokenSet && (
                 <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "10px 14px" }}>

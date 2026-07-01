@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { getManyConfig, setManyConfig } from "../../../lib/config-store"
 
 const SMTP_KEYS = ["smtp_host", "smtp_port", "smtp_user", "smtp_pass"]
-const MP_KEYS = ["mp_public_key", "mp_access_token", "mp_comision_pct"]
+const MP_KEYS = ["mp_public_key", "mp_access_token", "mp_comision_pct", "mp_client_id", "mp_client_secret"]
 
 // GET /admin/configuracion — devuelve config actual (tokens ofuscados)
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
@@ -19,6 +19,8 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       public_key: cfg.mp_public_key || "",
       access_token_set: !!(cfg.mp_access_token),
       comision_pct: cfg.mp_comision_pct || "0.3",
+      client_id: cfg.mp_client_id || "",
+      client_secret_set: !!(cfg.mp_client_secret),
     },
   })
 }
@@ -40,6 +42,10 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     entries.mp_access_token = body.mp_access_token
   }
   if (body.mp_comision_pct !== undefined) entries.mp_comision_pct = String(body.mp_comision_pct)
+  if (body.mp_client_id !== undefined) entries.mp_client_id = body.mp_client_id
+  if (body.mp_client_secret !== undefined && body.mp_client_secret !== "••••••••") {
+    entries.mp_client_secret = body.mp_client_secret
+  }
 
   if (Object.keys(entries).length > 0) {
     await setManyConfig(entries)

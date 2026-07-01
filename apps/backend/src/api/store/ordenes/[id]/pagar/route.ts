@@ -62,6 +62,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       ordenId: orden.id,
       numero: orden.numero,
       total: orden.total,
+      mayorista_id: orden.mayorista_id,
       mayoristaNombre,
       comercioEmail,
     })

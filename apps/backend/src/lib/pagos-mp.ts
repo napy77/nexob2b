@@ -1,17 +1,19 @@
 /**
- * NexoB2B · Adaptador Mercado Pago — Fase 1 (token de plataforma)
- * ---------------------------------------------------------------
- * Lee mp_access_token y mp_comision_pct de config-store.
- * Crea preferencias de Checkout Pro estándar (sin split por mayorista).
- * Fase 2 añadirá el OAuth por mayorista y marketplace_fee.
+ * NexoB2B · Adaptador Mercado Pago — Marketplace Split
+ * -------------------------------------------------------
+ * - Usa el access_token del MAYORISTA (OAuth) para crear la preferencia
+ * - La plata va directo a la cuenta MP del mayorista
+ * - NexoB2B cobra marketplace_fee (comisión %) a su cuenta de plataforma
+ * - Secretos siempre en backend, jamás en frontend
  */
 
 import crypto from "crypto"
 import { getConfig } from "./config-store"
+import { getMPCuenta } from "./mp-oauth"
 
 const API = "https://api.mercadopago.com"
 
-// ─── Tipos ───────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export interface PreferenciaResult {
   preference_id: string
@@ -19,25 +21,32 @@ export interface PreferenciaResult {
   url_pago: string
 }
 
-// ─── Crear preferencia ────────────────────────────────────────────────────────
+// ─── Crear preferencia con split ─────────────────────────────────────────────
 
 export async function crearPreferenciaMP(params: {
   ordenId: string
   numero: string
   total: number
+  mayorista_id: string
   mayoristaNombre?: string
   comercioEmail?: string
 }): Promise<PreferenciaResult> {
-  const accessToken = await getConfig("mp_access_token")
-  if (!accessToken) {
+  // 1. Token del mayorista (su propia cuenta MP)
+  const cuenta = await getMPCuenta(params.mayorista_id)
+  if (!cuenta) {
     throw new Error(
-      "Mercado Pago no configurado. Configurá las credenciales en Parámetros → Mercado Pago."
+      "El mayorista no tiene su cuenta de Mercado Pago conectada. Pedile que la vincule en Medios de Pago."
     )
   }
+  const accessToken = cuenta.access_token
 
-  const frontendUrl =
-    process.env.FRONTEND_URL || process.env.APP_URL || "https://nexob2b.app"
-  const backendUrl = process.env.APP_URL || "https://nexob2b.app"
+  // 2. Comisión de plataforma
+  const comisionPctStr = await getConfig("mp_comision_pct")
+  const comisionPct = parseFloat(comisionPctStr || "0.3")
+  const marketplace_fee = Math.round(params.total * comisionPct) / 100
+
+  const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || "https://nexob2b.app"
+  const backendUrl  = process.env.APP_URL || "https://nexob2b.app"
 
   const titulo = params.mayoristaNombre
     ? `Pedido ${params.numero} — ${params.mayoristaNombre}`
@@ -53,6 +62,7 @@ export async function crearPreferenciaMP(params: {
         unit_price: Math.round(params.total * 100) / 100,
       },
     ],
+    marketplace_fee,
     external_reference: params.ordenId,
     back_urls: {
       success: `${frontendUrl}/comercio/pedidos/${params.ordenId}?pago=ok`,
@@ -97,12 +107,26 @@ export async function crearPreferenciaMP(params: {
 
 // ─── Consultar pago ───────────────────────────────────────────────────────────
 
-export async function consultarPagoMP(pagoId: string): Promise<{
+export async function consultarPagoMP(
+  pagoId: string,
+  mayorista_id?: string
+): Promise<{
   external_reference: string
   status: string
   status_detail: string
 } | null> {
-  const accessToken = await getConfig("mp_access_token")
+  // Usar el token del mayorista si está disponible, sino fallback al de plataforma
+  let accessToken: string | null = null
+
+  if (mayorista_id) {
+    const cuenta = await getMPCuenta(mayorista_id).catch(() => null)
+    if (cuenta) accessToken = cuenta.access_token
+  }
+
+  if (!accessToken) {
+    accessToken = await getConfig("mp_access_token")
+  }
+
   if (!accessToken) return null
 
   const res = await fetch(`${API}/v1/payments/${pagoId}`, {
@@ -121,29 +145,19 @@ export async function consultarPagoMP(pagoId: string): Promise<{
 
 export function mapearEstadoMP(status: string): string {
   switch (status) {
-    case "approved":
-      return "aprobado"
-    case "rejected":
-      return "rechazado"
+    case "approved":     return "aprobado"
+    case "rejected":     return "rechazado"
     case "refunded":
-    case "charged_back":
-      return "reembolsado"
-    case "cancelled":
-      return "cancelado"
+    case "charged_back": return "reembolsado"
+    case "cancelled":    return "cancelado"
     case "in_process":
-    case "authorized":
-      return "en_proceso"
-    default:
-      return "pendiente"
+    case "authorized":   return "en_proceso"
+    default:             return "pendiente"
   }
 }
 
 // ─── Validar firma del webhook ────────────────────────────────────────────────
 
-/**
- * Header x-signature: "ts=<ts>,v1=<hmac>"
- * Manifest: "id:<data.id>;request-id:<x-request-id>;ts:<ts>;"
- */
 export function validarFirmaMP(
   xSignature: string,
   xRequestId: string,
