@@ -44,7 +44,7 @@ export default function CatalogoMayoristaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { token } = useAuth()
-  const { addItem, items, mayorista_id: cartMayoristaId, clearCart } = useCart()
+  const { addItem, totalItems } = useCart()
 
   const [mayorista, setMayorista] = useState<MayoristaInfo | null>(null)
   const [productos, setProductos] = useState<Producto[]>([])
@@ -75,21 +75,6 @@ export default function CatalogoMayoristaScreen() {
 
   const handleAgregar = () => {
     if (!seleccionado || !mayorista || seleccionado.precio == null) return
-    if (cartMayoristaId && cartMayoristaId !== mayorista.id) {
-      Alert.alert(
-        "Carrito de otro mayorista",
-        `Tu carrito tiene productos de otro mayorista. ¿Vaciarlo y agregar de ${mayorista.nombre}?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Vaciar y agregar",
-            style: "destructive",
-            onPress: () => { clearCart(); doAgregar() },
-          },
-        ]
-      )
-      return
-    }
     doAgregar()
   }
 
@@ -114,29 +99,6 @@ export default function CatalogoMayoristaScreen() {
   // Agrega directo desde la card (cantidad mínima), sin abrir modal
   const agregarDirecto = (p: Producto) => {
     if (!mayorista || p.precio == null) return
-    if (cartMayoristaId && cartMayoristaId !== mayorista.id) {
-      Alert.alert(
-        "Carrito de otro mayorista",
-        `Tu carrito tiene productos de otro mayorista. ¿Vaciarlo y agregar de ${mayorista.nombre}?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Vaciar y agregar",
-            style: "destructive",
-            onPress: () => {
-              clearCart()
-              addItem({
-                producto_id: p.id, nombre: p.nombre, sku: p.sku ?? null, ean: p.ean ?? null,
-                precio_unitario: p.precio!, alicuota_iva: p.alicuota_iva ?? 21,
-                cantidad: p.compra_minima || 1, unidad: p.unidad,
-                imagen_url: p.imagen_url, mayorista_id: mayorista!.id, mayorista_nombre: mayorista!.nombre,
-              })
-            },
-          },
-        ]
-      )
-      return
-    }
     addItem({
       producto_id: p.id, nombre: p.nombre, sku: p.sku ?? null, ean: p.ean ?? null,
       precio_unitario: p.precio, alicuota_iva: p.alicuota_iva ?? 21,
@@ -188,9 +150,9 @@ export default function CatalogoMayoristaScreen() {
         <Text style={styles.navTitle} numberOfLines={1}>{mayorista?.nombre || "Catálogo"}</Text>
         <TouchableOpacity style={styles.cartBtn} onPress={() => router.push("/(tabs)/carrito")}>
           <Text style={styles.cartIcon}>🛒</Text>
-          {cartMayoristaId && items.length > 0 && (
+          {totalItems > 0 && (
             <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{items.reduce((s, i) => s + i.cantidad, 0)}</Text>
+              <Text style={styles.cartBadgeText}>{totalItems}</Text>
             </View>
           )}
         </TouchableOpacity>

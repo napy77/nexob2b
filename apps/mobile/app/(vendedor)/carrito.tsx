@@ -34,8 +34,11 @@ type Paso = "carrito" | "transporte" | "pago"
 export default function CarritoVendedorTab() {
   const router = useRouter()
   const { token } = useAuth()
-  const { items, mayorista_id: carritoMayoristaId, updateItem, removeItem, clearCart,
-    totalNeto, totalIva, total } = useCart()
+  const { activeItems: items, mayoristas, updateCantidad, removeItem, clearCart } = useCart()
+  const carritoMayoristaId = mayoristas[0]?.id ?? null
+  const totalNeto = items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)
+  const totalIva  = items.reduce((s, i) => s + i.precio_unitario * i.cantidad * (i.alicuota_iva / 100), 0)
+  const total     = Math.round((totalNeto + totalIva) * 100) / 100
   const { comercioCliente, setComercioCliente } = useVendedor()
 
   const [paso, setPaso] = useState<Paso>("carrito")
@@ -110,7 +113,7 @@ export default function CarritoVendedorTab() {
         })),
         notas: notas || undefined,
       })
-      clearCart()
+      if (carritoMayoristaId) clearCart(carritoMayoristaId)
       setComercioCliente(null)
       setNotas("")
       setMedioPagoId("")
@@ -195,12 +198,12 @@ export default function CarritoVendedorTab() {
               </View>
               <View style={styles.cantRow}>
                 <TouchableOpacity style={styles.cantBtn}
-                  onPress={() => item.cantidad > 1 ? updateItem(item.producto_id, item.cantidad - 1) : removeItem(item.producto_id)}>
+                  onPress={() => item.cantidad > 1 ? updateCantidad(item.producto_id, item.cantidad - 1, item.mayorista_id) : removeItem(item.producto_id, item.mayorista_id)}>
                   <Text style={styles.cantBtnText}>−</Text>
                 </TouchableOpacity>
                 <Text style={styles.cantVal}>{item.cantidad}</Text>
                 <TouchableOpacity style={styles.cantBtn}
-                  onPress={() => updateItem(item.producto_id, item.cantidad + 1)}>
+                  onPress={() => updateCantidad(item.producto_id, item.cantidad + 1, item.mayorista_id)}>
                   <Text style={styles.cantBtnText}>+</Text>
                 </TouchableOpacity>
               </View>

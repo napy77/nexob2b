@@ -16,89 +16,123 @@ export type CartItem = {
   mayorista_nombre: string
 }
 
+// Un carrito por mayorista
+type Carts = Record<string, CartItem[]>
+
 type CartContextType = {
-  items: CartItem[]
-  mayorista_id: string | null   // todos los items son del mismo mayorista
-  mayorista_nombre: string
-  addItem: (item: CartItem) => void
-  removeItem: (producto_id: string) => void
-  updateCantidad: (producto_id: string, cantidad: number) => void
-  clearCart: () => void
-  totalItems: number
-  totalNeto: number
-  totalIva: number
-  total: number
+  carts: Carts
+  // Lista de mayoristas con carrito abierto
+  mayoristas: { id: string; nombre: string }[]
+  // Carrito activo en el drawer
+  openMayoristaId: string | null
+  setOpenMayoristaId: (id: string | null) => void
   open: boolean
   setOpen: (v: boolean) => void
+  // Helpers para el carrito activo
+  activeItems: CartItem[]
+  // Acciones
+  addItem: (item: CartItem) => void
+  removeItem: (producto_id: string, mayorista_id: string) => void
+  updateCantidad: (producto_id: string, cantidad: number, mayorista_id: string) => void
+  clearCart: (mayorista_id: string) => void
+  // Totales globales
+  totalItems: number
 }
 
 const CartContext = createContext<CartContextType | null>(null)
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([])
+  const [carts, setCarts] = useState<Carts>({})
   const [open, setOpen] = useState(false)
+  const [openMayoristaId, setOpenMayoristaId] = useState<string | null>(null)
+
+  // Cargar desde localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("nexo_carts")
+      if (saved) {
+        const parsed: Carts = JSON.parse(saved)
+        // Limpiar carritos vacíos
+        const clean: Carts = {}
+        for (const [id, items] of Object.entries(parsed)) {
+          if (items.length > 0) clean[id] = items
+        }
+        setCarts(clean)
+      }
+    } catch {}
+  }, [])
 
   // Persistir en localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("nexo_cart")
-      if (saved) setItems(JSON.parse(saved))
+      localStorage.setItem("nexo_carts", JSON.stringify(carts))
     } catch {}
-  }, [])
+  }, [carts])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("nexo_cart", JSON.stringify(items))
-    } catch {}
-  }, [items])
+  const mayoristas = Object.values(carts)
+    .filter((items) => items.length > 0)
+    .map((items) => ({ id: items[0].mayorista_id, nombre: items[0].mayorista_nombre }))
+    .filter((m, i, arr) => arr.findIndex((x) => x.id === m.id) === i)
 
-  const mayorista_id = items[0]?.mayorista_id ?? null
-  const mayorista_nombre = items[0]?.mayorista_nombre ?? ""
+  const activeItems = openMayoristaId ? (carts[openMayoristaId] || []) : []
 
   const addItem = useCallback((newItem: CartItem) => {
-    setItems((prev) => {
-      // Si hay items de otro mayorista, reemplazar el carrito
-      if (prev.length > 0 && prev[0].mayorista_id !== newItem.mayorista_id) {
-        return [{ ...newItem, cantidad: Math.max(1, newItem.cantidad) }]
-      }
-      const existing = prev.find((i) => i.producto_id === newItem.producto_id)
-      if (existing) {
-        return prev.map((i) =>
-          i.producto_id === newItem.producto_id
-            ? { ...i, cantidad: i.cantidad + newItem.cantidad }
-            : i
-        )
-      }
-      return [...prev, { ...newItem, cantidad: Math.max(1, newItem.cantidad) }]
+    setCarts((prev) => {
+      const cart = prev[newItem.mayorista_id] || []
+      const existing = cart.find((i) => i.producto_id === newItem.producto_id)
+      const updated = existing
+        ? cart.map((i) =>
+            i.producto_id === newItem.producto_id
+              ? { ...i, cantidad: i.cantidad + newItem.cantidad }
+              : i
+          )
+        : [...cart, { ...newItem, cantidad: Math.max(1, newItem.cantidad) }]
+      return { ...prev, [newItem.mayorista_id]: updated }
     })
+    setOpenMayoristaId(newItem.mayorista_id)
     setOpen(true)
   }, [])
 
-  const removeItem = useCallback((producto_id: string) => {
-    setItems((prev) => prev.filter((i) => i.producto_id !== producto_id))
+  const removeItem = useCallback((producto_id: string, mayorista_id: string) => {
+    setCarts((prev) => {
+      const cart = (prev[mayorista_id] || []).filter((i) => i.producto_id !== producto_id)
+      if (cart.length === 0) {
+        const { [mayorista_id]: _, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [mayorista_id]: cart }
+    })
   }, [])
 
-  const updateCantidad = useCallback((producto_id: string, cantidad: number) => {
+  const updateCantidad = useCallback((producto_id: string, cantidad: number, mayorista_id: string) => {
     if (cantidad <= 0) {
-      setItems((prev) => prev.filter((i) => i.producto_id !== producto_id))
+      removeItem(producto_id, mayorista_id)
     } else {
-      setItems((prev) => prev.map((i) => i.producto_id === producto_id ? { ...i, cantidad } : i))
+      setCarts((prev) => ({
+        ...prev,
+        [mayorista_id]: (prev[mayorista_id] || []).map((i) =>
+          i.producto_id === producto_id ? { ...i, cantidad } : i
+        ),
+      }))
     }
+  }, [removeItem])
+
+  const clearCart = useCallback((mayorista_id: string) => {
+    setCarts((prev) => {
+      const { [mayorista_id]: _, ...rest } = prev
+      return rest
+    })
+    setOpenMayoristaId((cur) => cur === mayorista_id ? null : cur)
   }, [])
 
-  const clearCart = useCallback(() => setItems([]), [])
-
-  const totalItems = items.reduce((s, i) => s + i.cantidad, 0)
-  const totalNeto = items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)
-  const totalIva = items.reduce((s, i) => s + i.precio_unitario * i.cantidad * i.alicuota_iva / 100, 0)
-  const total = totalNeto + totalIva
+  const totalItems = Object.values(carts).flat().reduce((s, i) => s + i.cantidad, 0)
 
   return (
     <CartContext.Provider value={{
-      items, mayorista_id, mayorista_nombre,
+      carts, mayoristas, openMayoristaId, setOpenMayoristaId,
+      open, setOpen, activeItems,
       addItem, removeItem, updateCantidad, clearCart,
-      totalItems, totalNeto, totalIva, total,
-      open, setOpen,
+      totalItems,
     }}>
       {children}
     </CartContext.Provider>

@@ -49,7 +49,7 @@ type Producto = {
 
 export default function CatalogoProductosPage() {
   const router = useRouter()
-  const { addItem, mayorista_id: carritoMayoristaId } = useCart()
+  const { addItem } = useCart()
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -333,9 +333,6 @@ export default function CatalogoProductosPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              if (carritoMayoristaId && carritoMayoristaId !== p.mayorista.id) {
-                                if (!confirm("Tu carrito tiene productos de otro mayorista. ¿Vaciarlo y agregar este?")) return
-                              }
                               addItem({
                                 producto_id: p.id,
                                 nombre: p.nombre,
@@ -468,9 +465,6 @@ export default function CatalogoProductosPage() {
                   </div>
                   <button
                     onClick={() => {
-                      if (carritoMayoristaId && carritoMayoristaId !== seleccionado.mayorista.id) {
-                        if (!confirm("Tu carrito tiene productos de otro mayorista. ¿Vaciarlo y agregar este?")) return
-                      }
                       addItem({
                         producto_id: seleccionado.id,
                         nombre: seleccionado.nombre,

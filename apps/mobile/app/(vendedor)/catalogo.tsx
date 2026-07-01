@@ -26,7 +26,7 @@ type Producto = {
 
 export default function CatalogoVendedorTab() {
   const { token, logout } = useAuth()
-  const { addItem, mayorista_id: cartMayoristaId, clearCart } = useCart()
+  const { addItem } = useCart()
   const { comercioCliente } = useVendedor()
   const [productos, setProductos] = useState<Producto[]>([])
   const [mayoristaId, setMayoristaId] = useState<string | null>(null)
@@ -55,9 +55,6 @@ export default function CatalogoVendedorTab() {
 
   const handleAgregar = () => {
     if (!seleccionado || !mayoristaId) return
-    if (cartMayoristaId && cartMayoristaId !== mayoristaId) {
-      clearCart()
-    }
     addItem({
       producto_id: seleccionado.id,
       nombre: seleccionado.nombre,

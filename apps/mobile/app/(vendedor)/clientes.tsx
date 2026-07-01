@@ -23,7 +23,7 @@ type Comercio = {
 
 export default function ClientesTab() {
   const { token, logout } = useAuth()
-  const { clearCart } = useCart()
+  const { clearCart, mayoristas } = useCart()
   const { comercioCliente, setComercioCliente } = useVendedor()
   const router = useRouter()
   const [comercios, setComercio] = useState<Comercio[]>([])
@@ -53,7 +53,7 @@ export default function ClientesTab() {
           { text: "Cancelar", style: "cancel" },
           {
             text: "Cambiar", style: "destructive", onPress: () => {
-              clearCart()
+              if (mayoristas[0]) clearCart(mayoristas[0].id)
               setComercioCliente({ id: c.id, nombre: c.nombre })
               router.push("/(vendedor)/catalogo")
             }

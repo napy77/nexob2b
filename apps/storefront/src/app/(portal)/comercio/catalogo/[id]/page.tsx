@@ -45,7 +45,7 @@ type Producto = {
 export default function CatalogoMayoristaPage() {
   const router = useRouter()
   const { id: mayoristaId } = useParams<{ id: string }>()
-  const { addItem, mayorista_id: cartMayoristaId } = useCart()
+  const { addItem } = useCart()
   const [mayorista, setMayorista] = useState<Mayorista | null>(null)
   const [productos, setProductos] = useState<Producto[]>([])
   const [acceso, setAcceso] = useState<Acceso | null>(null)
@@ -99,9 +99,6 @@ export default function CatalogoMayoristaPage() {
 
   const handleAgregarAlCarrito = () => {
     if (!seleccionado || !mayorista || seleccionado.precio == null) return
-    if (cartMayoristaId && cartMayoristaId !== mayorista.id) {
-      if (!confirm(`Tu carrito tiene productos de otro mayorista. ¿Vaciarlo y agregar de ${mayorista.nombre}?`)) return
-    }
     addItem({
       producto_id: seleccionado.id,
       nombre: seleccionado.nombre,

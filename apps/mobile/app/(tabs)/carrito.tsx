@@ -33,8 +33,10 @@ type Paso = "carrito" | "transporte" | "pago"
 export default function CarritoTab() {
   const router = useRouter()
   const { token } = useAuth()
-  const { items, removeItem, updateCantidad, clearCart,
-    totalNeto, totalIva, total, mayorista_nombre, mayorista_id } = useCart()
+  const {
+    mayoristas, activeItems, activeMayoristaId, setActiveMayoristaId,
+    removeItem, updateCantidad, clearCart, totalItems,
+  } = useCart()
 
   const [paso, setPaso] = useState<Paso>("carrito")
   const [notas, setNotas] = useState("")
@@ -45,15 +47,31 @@ export default function CarritoTab() {
   const [transporteId, setTransporteId] = useState<string>("")
   const [cargando, setCargando] = useState(false)
 
+  const mayorista_nombre = mayoristas.find((m) => m.id === activeMayoristaId)?.nombre || ""
+
+  // Totales del carrito activo
+  const totalNeto = activeItems.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)
+  const totalIva  = activeItems.reduce((s, i) => s + i.precio_unitario * i.cantidad * (i.alicuota_iva / 100), 0)
+  const total     = Math.round((totalNeto + totalIva) * 100) / 100
+
+  // Si hay un solo mayorista y no hay activo, establecerlo
   useEffect(() => {
-    if (!mayorista_id || !token || items.length === 0) return
+    if (!activeMayoristaId && mayoristas.length === 1) {
+      setActiveMayoristaId(mayoristas[0].id)
+    }
+  }, [mayoristas, activeMayoristaId])
+
+  useEffect(() => {
+    if (!activeMayoristaId || !token || activeItems.length === 0) return
     setCargando(true)
     const headers = { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY }
 
+    setMediosPago([]); setTransportes([]); setMedioPagoId(""); setTransporteId("")
+
     Promise.all([
-      fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/medios-pago`, { headers })
+      fetch(`${BACKEND_URL}/store/mayoristas/${activeMayoristaId}/medios-pago`, { headers })
         .then(r => r.json()).catch(() => ({ medios_pago: [] })),
-      fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/transportes`, { headers })
+      fetch(`${BACKEND_URL}/store/mayoristas/${activeMayoristaId}/transportes`, { headers })
         .then(r => r.json()).catch(() => ({ transportes: [] })),
     ]).then(([dmp, dtr]) => {
       const medios = dmp.medios_pago || []
@@ -63,7 +81,13 @@ export default function CarritoTab() {
       if (medios.length > 0) setMedioPagoId(medios[0].id)
       if (trList.length > 0) setTransporteId(trList[0].id)
     }).finally(() => setCargando(false))
-  }, [mayorista_id, token, items.length > 0])
+  }, [activeMayoristaId, token])
+
+  const switchMayorista = (id: string) => {
+    setActiveMayoristaId(id)
+    setPaso("carrito")
+    setNotas("")
+  }
 
   const medioSeleccionado = mediosPago.find(m => m.id === medioPagoId)
   const costoMedioPago = medioSeleccionado && medioSeleccionado.porcentaje_costo > 0
@@ -77,7 +101,6 @@ export default function CarritoTab() {
 
   const totalFinal = total + costoMedioPago + costoTransporte
 
-  // Pasos disponibles (omitir transporte si el mayorista no tiene)
   const pasosVisibles: Paso[] = transportes.length > 0
     ? ["carrito", "transporte", "pago"]
     : ["carrito", "pago"]
@@ -86,14 +109,14 @@ export default function CarritoTab() {
   const pasoAnt = pasosVisibles[pasoIdx - 1] as Paso | undefined
 
   const handleConfirmar = async () => {
-    if (!token || items.length === 0) return
+    if (!token || activeItems.length === 0 || !activeMayoristaId) return
     setConfirmando(true)
     try {
       const data = await crearOrden(token, {
-        mayorista_id: items[0].mayorista_id,
+        mayorista_id: activeMayoristaId,
         medio_pago_id: medioPagoId || undefined,
         transporte_id: transporteId || undefined,
-        items: items.map((i) => ({
+        items: activeItems.map((i) => ({
           producto_id: i.producto_id,
           nombre: i.nombre,
           sku: i.sku,
@@ -105,7 +128,7 @@ export default function CarritoTab() {
         })),
         notas,
       })
-      clearCart()
+      clearCart(activeMayoristaId)
       setPaso("carrito")
       Alert.alert(
         "✅ Pedido enviado",
@@ -120,7 +143,7 @@ export default function CarritoTab() {
   }
 
   // ── Carrito vacío ────────────────────────────────────────────────────────────
-  if (items.length === 0) {
+  if (totalItems === 0) {
     return (
       <SafeAreaView style={styles.root} edges={["top"]}>
         <View style={styles.nav}>
@@ -138,12 +161,30 @@ export default function CarritoTab() {
     )
   }
 
-  // ── Header compartido ────────────────────────────────────────────────────────
   const tituloPaso: Record<Paso, string> = {
     carrito:    "Mi Carrito",
     transporte: "Transporte",
     pago:       "Forma de pago",
   }
+
+  // Tabs multi-mayorista
+  const tabsMayoristas = mayoristas.length > 1 ? (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      style={{ backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#f0f0f0" }}
+      contentContainerStyle={{ flexDirection: "row" }}>
+      {mayoristas.map((m) => (
+        <TouchableOpacity
+          key={m.id}
+          onPress={() => switchMayorista(m.id)}
+          style={[styles.tab, m.id === activeMayoristaId && styles.tabActive]}
+        >
+          <Text style={[styles.tabText, m.id === activeMayoristaId && styles.tabTextActive]}>
+            {m.nombre}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  ) : null
 
   const header = (
     <View style={styles.nav}>
@@ -157,11 +198,12 @@ export default function CarritoTab() {
         )}
         <View>
           <Text style={styles.navTitle}>{tituloPaso[paso]}</Text>
-          <Text style={styles.navSub}>{mayorista_nombre}</Text>
+          {mayoristas.length === 1 && (
+            <Text style={styles.navSub}>{mayorista_nombre}</Text>
+          )}
         </View>
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        {/* Indicador de pasos */}
         <View style={{ flexDirection: "row", gap: 4 }}>
           {pasosVisibles.map((p, i) => (
             <View key={p} style={[
@@ -170,11 +212,11 @@ export default function CarritoTab() {
             ]} />
           ))}
         </View>
-        {paso === "carrito" && (
+        {paso === "carrito" && activeMayoristaId && (
           <TouchableOpacity onPress={() => {
-            Alert.alert("Vaciar carrito", "¿Eliminás todos los productos?", [
+            Alert.alert("Vaciar carrito", `¿Eliminás los productos de ${mayorista_nombre}?`, [
               { text: "Cancelar", style: "cancel" },
-              { text: "Vaciar", style: "destructive", onPress: clearCart },
+              { text: "Vaciar", style: "destructive", onPress: () => clearCart(activeMayoristaId) },
             ])
           }}>
             <Text style={styles.navClear}>Vaciar</Text>
@@ -189,11 +231,19 @@ export default function CarritoTab() {
     return (
       <SafeAreaView style={styles.root} edges={["top"]}>
         {header}
-        <View style={styles.mayoristaBanner}>
-          <Text style={styles.mayoristaLabel}>Pedido a: <Text style={styles.mayoristaNombre}>{mayorista_nombre}</Text></Text>
-        </View>
+        {tabsMayoristas}
+        {mayoristas.length > 1 && activeMayoristaId && (
+          <View style={styles.mayoristaBanner}>
+            <Text style={styles.mayoristaLabel}>Pedido a: <Text style={styles.mayoristaNombre}>{mayorista_nombre}</Text></Text>
+          </View>
+        )}
+        {mayoristas.length === 1 && (
+          <View style={styles.mayoristaBanner}>
+            <Text style={styles.mayoristaLabel}>Pedido a: <Text style={styles.mayoristaNombre}>{mayorista_nombre}</Text></Text>
+          </View>
+        )}
         <FlatList
-          data={items}
+          data={activeItems}
           keyExtractor={(i) => i.producto_id}
           contentContainerStyle={{ padding: 12, paddingBottom: 8 }}
           renderItem={({ item }) => (
@@ -208,11 +258,11 @@ export default function CarritoTab() {
                 <Text style={styles.itemNombre} numberOfLines={2}>{item.nombre}</Text>
                 <Text style={styles.itemPrecio}>${item.precio_unitario.toLocaleString("es-AR")} / {item.unidad}</Text>
                 <View style={styles.cantRow}>
-                  <TouchableOpacity style={styles.cantBtn} onPress={() => updateCantidad(item.producto_id, item.cantidad - 1)}>
+                  <TouchableOpacity style={styles.cantBtn} onPress={() => updateCantidad(item.producto_id, item.cantidad - 1, item.mayorista_id)}>
                     <Text style={styles.cantBtnText}>−</Text>
                   </TouchableOpacity>
                   <Text style={styles.cantVal}>{item.cantidad}</Text>
-                  <TouchableOpacity style={styles.cantBtn} onPress={() => updateCantidad(item.producto_id, item.cantidad + 1)}>
+                  <TouchableOpacity style={styles.cantBtn} onPress={() => updateCantidad(item.producto_id, item.cantidad + 1, item.mayorista_id)}>
                     <Text style={styles.cantBtnText}>+</Text>
                   </TouchableOpacity>
                   <Text style={styles.itemSubtotal}>
@@ -220,7 +270,7 @@ export default function CarritoTab() {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={() => removeItem(item.producto_id)} style={styles.deleteBtn}>
+              <TouchableOpacity onPress={() => removeItem(item.producto_id, item.mayorista_id)} style={styles.deleteBtn}>
                 <Text style={{ fontSize: 18, color: "#ef4444" }}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -352,7 +402,6 @@ export default function CarritoTab() {
       </ScrollView>
 
       <View style={styles.footerFijo}>
-        {/* Resumen */}
         <View style={styles.resumenBox}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Productos</Text>
@@ -412,6 +461,13 @@ const styles = StyleSheet.create({
   },
   stepDotActive: { width: 20, backgroundColor: "#2563eb" },
   stepDotDone: { backgroundColor: "#93c5fd" },
+  tab: {
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderBottomWidth: 2, borderBottomColor: "transparent",
+  },
+  tabActive: { borderBottomColor: "#2563eb" },
+  tabText: { fontSize: 13, color: "#6b7280", fontWeight: "600" },
+  tabTextActive: { color: "#2563eb" },
   mayoristaBanner: { backgroundColor: "#eff6ff", paddingHorizontal: 16, paddingVertical: 8 },
   mayoristaLabel: { fontSize: 13, color: "#1d4ed8" },
   mayoristaNombre: { fontWeight: "700" },
@@ -450,7 +506,6 @@ const styles = StyleSheet.create({
   subtotalBorder: { borderTopWidth: 1, borderTopColor: "#e5e7eb", paddingTop: 8, marginTop: 4, marginBottom: 0 },
   totalLabel: { fontSize: 14, color: "#6b7280" },
   totalVal: { fontSize: 14, fontWeight: "700", color: "#111827" },
-  // opciones (transporte / pago)
   opcionRow: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     borderWidth: 1, borderColor: "#f0f0f0", borderRadius: 14,

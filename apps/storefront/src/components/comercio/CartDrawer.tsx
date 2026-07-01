@@ -29,8 +29,11 @@ type Paso = "carrito" | "transporte" | "pago"
 
 export default function CartDrawer() {
   const router = useRouter()
-  const { items, mayorista_nombre, mayorista_id, removeItem, updateCantidad, clearCart,
-    totalItems, totalNeto, totalIva, total, open, setOpen } = useCart()
+  const {
+    mayoristas, activeItems, openMayoristaId, setOpenMayoristaId,
+    removeItem, updateCantidad, clearCart,
+    totalItems, open, setOpen,
+  } = useCart()
 
   const [paso, setPaso] = useState<Paso>("carrito")
   const [enviando, setEnviando] = useState(false)
@@ -41,13 +44,22 @@ export default function CartDrawer() {
   const [transportes, setTransportes] = useState<Transporte[]>([])
   const [transporteId, setTransporteId] = useState<string>("")
 
-  // Cargar medios de pago y transportes cuando se abre el carrito
+  const mayorista_nombre = mayoristas.find((m) => m.id === openMayoristaId)?.nombre || ""
+
+  // Totales del carrito activo
+  const totalNeto = activeItems.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)
+  const totalIva  = activeItems.reduce((s, i) => s + i.precio_unitario * i.cantidad * (i.alicuota_iva / 100), 0)
+  const total     = Math.round((totalNeto + totalIva) * 100) / 100
+
+  // Cargar medios de pago y transportes cuando se abre o cambia el mayorista activo
   useEffect(() => {
-    if (!open || !mayorista_id) return
+    if (!open || !openMayoristaId) return
     const token = localStorage.getItem("comercio_token") || ""
     const headers: HeadersInit = { "Authorization": `Bearer ${token}`, "x-publishable-api-key": PUB_KEY }
 
-    fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/medios-pago`, { headers })
+    setMediosPago([]); setTransportes([]); setMedioPagoId(""); setTransporteId("")
+
+    fetch(`${BACKEND_URL}/store/mayoristas/${openMayoristaId}/medios-pago`, { headers })
       .then(r => r.json())
       .then(d => {
         const medios = d.medios_pago || []
@@ -56,7 +68,7 @@ export default function CartDrawer() {
       })
       .catch(() => {})
 
-    fetch(`${BACKEND_URL}/store/mayoristas/${mayorista_id}/transportes`, { headers })
+    fetch(`${BACKEND_URL}/store/mayoristas/${openMayoristaId}/transportes`, { headers })
       .then(r => r.json())
       .then(d => {
         const trList = d.transportes || []
@@ -64,9 +76,16 @@ export default function CartDrawer() {
         if (trList.length > 0) setTransporteId(trList[0].id)
       })
       .catch(() => {})
-  }, [open, mayorista_id])
+  }, [open, openMayoristaId])
 
-  // Resetear al paso 1 cuando se cierra
+  // Al cambiar de carrito (tab), volver al paso 1
+  const switchMayorista = (id: string) => {
+    setOpenMayoristaId(id)
+    setPaso("carrito")
+    setError("")
+    setNotas("")
+  }
+
   const cerrar = () => {
     setOpen(false)
     setPaso("carrito")
@@ -85,12 +104,19 @@ export default function CartDrawer() {
 
   const totalFinal = total + costoMedioPago + costoTransporte
 
+  const pasosVisibles: Paso[] = transportes.length > 0
+    ? ["carrito", "transporte", "pago"]
+    : ["carrito", "pago"]
+
+  const pasoActualIdx = pasosVisibles.indexOf(paso)
+  const pasosig = pasosVisibles[pasoActualIdx + 1] as Paso | undefined
+
   if (!open) return null
 
   const handleConfirmar = async () => {
     const token = localStorage.getItem("comercio_token")
     if (!token) { router.push("/comercio/login"); return }
-    if (!items.length) return
+    if (!activeItems.length || !openMayoristaId) return
 
     setEnviando(true)
     setError("")
@@ -103,11 +129,11 @@ export default function CartDrawer() {
           "x-publishable-api-key": PUB_KEY,
         },
         body: JSON.stringify({
-          mayorista_id: items[0].mayorista_id,
+          mayorista_id: openMayoristaId,
           notas: notas.trim() || null,
           medio_pago_id: medioPagoId || null,
           transporte_id: transporteId || null,
-          items: items.map((i) => ({
+          items: activeItems.map((i) => ({
             producto_id: i.producto_id,
             nombre: i.nombre,
             precio_unitario: i.precio_unitario,
@@ -121,7 +147,7 @@ export default function CartDrawer() {
       try { data = await res.json() } catch {}
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
 
-      clearCart()
+      clearCart(openMayoristaId)
       cerrar()
       setNotas("")
       setMedioPagoId("")
@@ -134,27 +160,38 @@ export default function CartDrawer() {
     }
   }
 
-  // ─── Encabezados de cada paso ───────────────────────────────────────────────
   const tituloPaso: Record<Paso, string> = {
     carrito:    "Carrito",
     transporte: "Elegí el transporte",
     pago:       "Forma de pago",
   }
 
-  const pasoIdx: Record<Paso, number> = { carrito: 1, transporte: 2, pago: 3 }
-  const totalPasos = transportes.length > 0 ? 3 : 2
-  const pasosVisibles: Paso[] = transportes.length > 0
-    ? ["carrito", "transporte", "pago"]
-    : ["carrito", "pago"]
-
-  const pasoActualIdx = pasosVisibles.indexOf(paso)
-  const pasosig = pasosVisibles[pasoActualIdx + 1] as Paso | undefined
+  const activeCount = activeItems.reduce((s, i) => s + i.cantidad, 0)
 
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-40" onClick={cerrar} />
 
       <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-50 flex flex-col shadow-2xl">
+
+        {/* Tabs de mayoristas (si hay más de uno) */}
+        {mayoristas.length > 1 && (
+          <div className="flex border-b border-gray-100 overflow-x-auto">
+            {mayoristas.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => switchMayorista(m.id)}
+                className={`flex-shrink-0 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${
+                  m.id === openMayoristaId
+                    ? "border-blue-500 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {m.nombre}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -169,7 +206,7 @@ export default function CartDrawer() {
             )}
             <div>
               <h2 className="font-bold text-gray-900 text-lg">{tituloPaso[paso]}</h2>
-              {mayorista_nombre && (
+              {mayorista_nombre && mayoristas.length === 1 && (
                 <p className="text-xs text-blue-600 font-medium">{mayorista_nombre}</p>
               )}
             </div>
@@ -195,13 +232,13 @@ export default function CartDrawer() {
         {paso === "carrito" && (
           <>
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-              {items.length === 0 ? (
+              {activeItems.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <span className="text-4xl block mb-3">🛒</span>
                   <p className="text-sm">El carrito está vacío</p>
                 </div>
               ) : (
-                items.map((item) => (
+                activeItems.map((item) => (
                   <div key={item.producto_id} className="flex gap-3 bg-gray-50 rounded-xl p-3">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-gray-900 truncate">{item.nombre}</p>
@@ -213,13 +250,13 @@ export default function CartDrawer() {
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <button onClick={() => removeItem(item.producto_id)}
+                      <button onClick={() => removeItem(item.producto_id, item.mayorista_id)}
                         className="text-red-400 hover:text-red-600 text-xs">✕</button>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => updateCantidad(item.producto_id, item.cantidad - 1)}
+                        <button onClick={() => updateCantidad(item.producto_id, item.cantidad - 1, item.mayorista_id)}
                           className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-100 flex items-center justify-center">−</button>
                         <span className="w-8 text-center text-sm font-medium">{item.cantidad}</span>
-                        <button onClick={() => updateCantidad(item.producto_id, item.cantidad + 1)}
+                        <button onClick={() => updateCantidad(item.producto_id, item.cantidad + 1, item.mayorista_id)}
                           className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-600 text-sm font-bold hover:bg-gray-100 flex items-center justify-center">+</button>
                       </div>
                       <span className="text-xs text-gray-400">{item.unidad}</span>
@@ -229,7 +266,7 @@ export default function CartDrawer() {
               )}
             </div>
 
-            {items.length > 0 && (
+            {activeItems.length > 0 && (
               <div className="border-t border-gray-100 px-5 py-4 space-y-3">
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between text-gray-500">
@@ -246,7 +283,7 @@ export default function CartDrawer() {
                   className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors text-sm">
                   Continuar →
                 </button>
-                <button onClick={clearCart}
+                <button onClick={() => openMayoristaId && clearCart(openMayoristaId)}
                   className="w-full text-xs text-gray-400 hover:text-red-500 transition-colors py-1">
                   Vaciar carrito
                 </button>
@@ -375,7 +412,6 @@ export default function CartDrawer() {
               {error && (
                 <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
               )}
-              {/* Resumen final */}
               <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-1 text-sm">
                 <div className="flex justify-between text-gray-500">
                   <span>Productos</span><span>${total.toLocaleString("es-AR")}</span>
@@ -399,7 +435,7 @@ export default function CartDrawer() {
 
               <button onClick={handleConfirmar} disabled={enviando}
                 className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60 text-sm">
-                {enviando ? "Enviando pedido..." : `Confirmar orden · ${totalItems} ítem${totalItems !== 1 ? "s" : ""}`}
+                {enviando ? "Enviando pedido..." : `Confirmar orden · ${activeCount} ítem${activeCount !== 1 ? "s" : ""}`}
               </button>
             </div>
           </>

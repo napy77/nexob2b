@@ -14,86 +14,90 @@ export type CartItem = {
   mayorista_nombre: string
 }
 
+type Carts = Record<string, CartItem[]>
+
 type CartContextType = {
-  items: CartItem[]
-  mayorista_id: string | null
-  mayorista_nombre: string
+  carts: Carts
+  mayoristas: { id: string; nombre: string }[]
+  activeMayoristaId: string | null
+  setActiveMayoristaId: (id: string | null) => void
+  activeItems: CartItem[]
   addItem: (item: CartItem) => void
-  removeItem: (producto_id: string) => void
-  updateCantidad: (producto_id: string, cantidad: number) => void
-  clearCart: () => void
+  removeItem: (producto_id: string, mayorista_id: string) => void
+  updateCantidad: (producto_id: string, cantidad: number, mayorista_id: string) => void
+  clearCart: (mayorista_id: string) => void
   totalItems: number
-  totalNeto: number
-  totalIva: number
-  total: number
 }
 
 const CartContext = createContext<CartContextType | null>(null)
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([])
+  const [carts, setCarts] = useState<Carts>({})
+  const [activeMayoristaId, setActiveMayoristaId] = useState<string | null>(null)
 
-  const mayorista_id = items[0]?.mayorista_id ?? null
-  const mayorista_nombre = items[0]?.mayorista_nombre ?? ""
+  const mayoristas = Object.values(carts)
+    .filter((items) => items.length > 0)
+    .map((items) => ({ id: items[0].mayorista_id, nombre: items[0].mayorista_nombre }))
+    .filter((m, i, arr) => arr.findIndex((x) => x.id === m.id) === i)
 
-  const addItem = useCallback((item: CartItem) => {
-    setItems((prev) => {
-      // Si es otro mayorista, limpiar carrito
-      if (prev.length > 0 && prev[0].mayorista_id !== item.mayorista_id) {
-        return [item]
+  const activeItems = activeMayoristaId ? (carts[activeMayoristaId] || []) : []
+
+  const addItem = useCallback((newItem: CartItem) => {
+    setCarts((prev) => {
+      const cart = prev[newItem.mayorista_id] || []
+      const existing = cart.find((i) => i.producto_id === newItem.producto_id)
+      const updated = existing
+        ? cart.map((i) =>
+            i.producto_id === newItem.producto_id
+              ? { ...i, cantidad: i.cantidad + newItem.cantidad }
+              : i
+          )
+        : [...cart, { ...newItem, cantidad: Math.max(1, newItem.cantidad) }]
+      return { ...prev, [newItem.mayorista_id]: updated }
+    })
+    setActiveMayoristaId(newItem.mayorista_id)
+  }, [])
+
+  const removeItem = useCallback((producto_id: string, mayorista_id: string) => {
+    setCarts((prev) => {
+      const cart = (prev[mayorista_id] || []).filter((i) => i.producto_id !== producto_id)
+      if (cart.length === 0) {
+        const { [mayorista_id]: _, ...rest } = prev
+        return rest
       }
-      const existing = prev.find((i) => i.producto_id === item.producto_id)
-      if (existing) {
-        return prev.map((i) =>
-          i.producto_id === item.producto_id
-            ? { ...i, cantidad: i.cantidad + item.cantidad }
-            : i
-        )
-      }
-      return [...prev, item]
+      return { ...prev, [mayorista_id]: cart }
     })
   }, [])
 
-  const removeItem = useCallback((producto_id: string) => {
-    setItems((prev) => prev.filter((i) => i.producto_id !== producto_id))
-  }, [])
-
-  const updateCantidad = useCallback((producto_id: string, cantidad: number) => {
+  const updateCantidad = useCallback((producto_id: string, cantidad: number, mayorista_id: string) => {
     if (cantidad <= 0) {
-      setItems((prev) => prev.filter((i) => i.producto_id !== producto_id))
+      removeItem(producto_id, mayorista_id)
     } else {
-      setItems((prev) =>
-        prev.map((i) => (i.producto_id === producto_id ? { ...i, cantidad } : i))
-      )
+      setCarts((prev) => ({
+        ...prev,
+        [mayorista_id]: (prev[mayorista_id] || []).map((i) =>
+          i.producto_id === producto_id ? { ...i, cantidad } : i
+        ),
+      }))
     }
+  }, [removeItem])
+
+  const clearCart = useCallback((mayorista_id: string) => {
+    setCarts((prev) => {
+      const { [mayorista_id]: _, ...rest } = prev
+      return rest
+    })
+    setActiveMayoristaId((cur) => cur === mayorista_id ? null : cur)
   }, [])
 
-  const clearCart = useCallback(() => setItems([]), [])
-
-  const totalItems = items.reduce((s, i) => s + i.cantidad, 0)
-  const totalNeto = items.reduce((s, i) => s + i.precio_unitario * i.cantidad, 0)
-  const totalIva = items.reduce(
-    (s, i) => s + i.precio_unitario * i.cantidad * (i.alicuota_iva / 100),
-    0
-  )
-  const total = totalNeto + totalIva
+  const totalItems = Object.values(carts).flat().reduce((s, i) => s + i.cantidad, 0)
 
   return (
-    <CartContext.Provider
-      value={{
-        items,
-        mayorista_id,
-        mayorista_nombre,
-        addItem,
-        removeItem,
-        updateCantidad,
-        clearCart,
-        totalItems,
-        totalNeto,
-        totalIva,
-        total,
-      }}
-    >
+    <CartContext.Provider value={{
+      carts, mayoristas, activeMayoristaId, setActiveMayoristaId,
+      activeItems, addItem, removeItem, updateCantidad, clearCart,
+      totalItems,
+    }}>
       {children}
     </CartContext.Provider>
   )

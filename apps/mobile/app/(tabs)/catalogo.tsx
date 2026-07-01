@@ -40,7 +40,7 @@ type MayoristaInfo = { id: string; nombre: string; email: string; telefono?: str
 
 export default function CatalogoTab() {
   const { token, logout } = useAuth()
-  const { addItem, items, mayorista_id: cartMayoristaId, clearCart } = useCart()
+  const { addItem, totalItems } = useCart()
 
   const [vista, setVista] = useState<"lista" | "catalogo">("lista")
 
@@ -118,32 +118,17 @@ export default function CatalogoTab() {
     })
   }
 
-  const conConfirmacion = (p: Producto, qty: number, onConfirm: () => void) => {
-    if (cartMayoristaId && mayoristaActual && cartMayoristaId !== mayoristaActual.id) {
-      Alert.alert("Carrito de otro mayorista", `¿Vaciar y agregar de ${mayoristaActual.nombre}?`, [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Vaciar y agregar", style: "destructive", onPress: () => { clearCart(); onConfirm() } },
-      ])
-    } else {
-      onConfirm()
-    }
-  }
-
   const agregarDirecto = (p: Producto) => {
-    conConfirmacion(p, p.compra_minima || 1, () => doAddItem(p, p.compra_minima || 1))
+    doAddItem(p, p.compra_minima || 1)
   }
 
   const agregarDesdeModal = () => {
     if (!seleccionado) return
     const prod = seleccionado
-    conConfirmacion(prod, cantidad, () => {
-      doAddItem(prod, cantidad)
-      setSeleccionado(null)
-      Alert.alert("✓ Agregado", `${prod.nombre} en tu carrito`)
-    })
+    doAddItem(prod, cantidad)
+    setSeleccionado(null)
+    Alert.alert("✓ Agregado", `${prod.nombre} en tu carrito`)
   }
-
-  const totalItems = items.reduce((s, i) => s + i.cantidad, 0)
 
   // ══ VISTA LISTA MAYORISTAS ════════════════════════════════════════
   if (vista === "lista") {
