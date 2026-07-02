@@ -145,21 +145,40 @@ export default function CatalogoMayoristaPage() {
 
   const fmt = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
 
+  // Redirigir al login si el token expiró
+  const handleTokenExpirado = () => {
+    localStorage.removeItem("mayorista_token")
+    router.push("/mayorista/login")
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Mi catálogo</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Productos que ofrecés con tus precios y stock</p>
+        {/* Cabecera con volver */}
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => router.push("/mayorista/dashboard")}
+            className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none">←</button>
+          <div className="flex-1 flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Mi catálogo</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Productos que ofrecés con tus precios y stock</p>
+            </div>
+            <button onClick={() => setShowNuevo(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700">
+              + Proponer producto nuevo
+            </button>
           </div>
-          <button onClick={() => setShowNuevo(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700">
-            + Proponer producto nuevo
-          </button>
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4">{error}</div>}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4 flex items-center justify-between">
+            <span>{error}</span>
+            {(error.toLowerCase().includes("expirado") || error.toLowerCase().includes("autenticación")) && (
+              <button onClick={handleTokenExpirado}
+                className="ml-4 text-xs font-semibold underline shrink-0">Volver a ingresar</button>
+            )}
+          </div>
+        )}
 
         {/* Buscador en catálogo maestro */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-6">
