@@ -126,8 +126,15 @@ export default function PedidoDetalleMayoristaPage() {
         method: "POST",
         headers: { "Authorization": `Bearer ${token()}`, "x-publishable-api-key": PUB_KEY },
       })
+      const contentType = res.headers.get("content-type") || ""
+      if (!res.ok) {
+        if (contentType.includes("application/json")) {
+          const data = await res.json()
+          throw new Error(data.error || `Error ${res.status}`)
+        }
+        throw new Error(`Error del servidor (${res.status}). Verificá que la tabla envio exista en la base de datos.`)
+      }
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
       setEnvio(data)
       return data as Envio & { seguimiento_url: string | null }
     } catch (e: any) {
