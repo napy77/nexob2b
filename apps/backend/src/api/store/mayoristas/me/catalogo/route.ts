@@ -50,29 +50,30 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       p.ean, p.nombre, p.descripcion, p.marca, p.unidad_base, p.alicuota_iva, p.estado AS producto_estado,
       p.pasillo_id, p.rubro_id, p.subrubro_id,
       pa.nombre AS pasillo_nombre,
-      COALESCE(
-        json_agg(
+      (
+        SELECT COALESCE(json_agg(
           json_build_object(
-            'id', pmp.id,
-            'presentacion_id', pmp.presentacion_id,
-            'nombre', pp.nombre,
-            'factor', pp.factor,
-            'ean_propio', pp.ean_propio,
-            'peso_g', pp.peso_g,
-            'orden', pp.orden,
-            'precio', pmp.precio,
-            'precio_lista', pmp.precio_lista,
-            'stock', pmp.stock,
-            'activo', pmp.activo
-          ) ORDER BY pp.orden ASC
-        ) FILTER (WHERE pmp.id IS NOT NULL AND pmp.deleted_at IS NULL),
-        '[]'
+            'mp_id', pmp2.id,
+            'presentacion_id', pp2.id,
+            'nombre', pp2.nombre,
+            'factor', pp2.factor,
+            'ean_propio', pp2.ean_propio,
+            'peso_g', pp2.peso_g,
+            'orden', pp2.orden,
+            'precio', pmp2.precio,
+            'precio_lista', pmp2.precio_lista,
+            'stock', pmp2.stock,
+            'activo', COALESCE(pmp2.activo, false)
+          ) ORDER BY pp2.orden ASC
+        ), '[]')
+        FROM producto_maestro_presentacion pp2
+        LEFT JOIN producto_mayorista_presentacion pmp2
+          ON pmp2.listing_id = pml.id AND pmp2.presentacion_id = pp2.id AND pmp2.deleted_at IS NULL
+        WHERE pp2.producto_id = p.id AND pp2.deleted_at IS NULL
       ) AS presentaciones
     FROM producto_mayorista_listing pml
     JOIN producto_maestro p ON p.id = pml.producto_id
     LEFT JOIN pasillo pa ON pa.id = p.pasillo_id
-    LEFT JOIN producto_mayorista_presentacion pmp ON pmp.listing_id = pml.id
-    LEFT JOIN producto_maestro_presentacion pp ON pp.id = pmp.presentacion_id AND pp.deleted_at IS NULL
     WHERE pml.mayorista_id = $1 AND pml.deleted_at IS NULL AND p.deleted_at IS NULL ${extra}
     GROUP BY pml.id, p.id, pa.nombre
     ORDER BY p.nombre ASC

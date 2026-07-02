@@ -339,7 +339,7 @@ export default function CatalogoMayoristaPage() {
                         </label>
                       </div>
                       <button
-                        onClick={() => guardarPresentacion(showPres.id, p.presentacion_id, p.id || null)}
+                        onClick={() => guardarPresentacion(showPres.id, p.presentacion_id, p.mp_id || null)}
                         disabled={saving || !vals.precio}
                         className="mt-3 w-full py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60">
                         {saving ? "Guardando..." : "Guardar"}
