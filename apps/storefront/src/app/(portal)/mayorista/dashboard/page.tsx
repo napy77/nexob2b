@@ -260,8 +260,8 @@ export default function DashboardPage() {
         {/* Navegación */}
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Secciones</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <NavCard href="/mayorista/productos" icon="📦" title="Mis productos"
-            description="Gestioná tu catálogo: precios, stock y descripción"
+          <NavCard href="/mayorista/catalogo" icon="📦" title="Mi catálogo"
+            description="Buscá productos por EAN, configurá precios y stock por presentación"
             disabled={mayorista.estado !== "aprobado"} />
           <NavCard href="/mayorista/pedidos" icon="📋" title="Pedidos recibidos"
             description="Confirmá, despachá y gestioná las órdenes de compra"

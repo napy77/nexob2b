@@ -9,6 +9,46 @@ import { notificarNuevaOrden } from "../../../lib/notifications"
 import { MAYORISTA_MODULE } from "../../../modules/mayorista"
 import { getPool } from "../../../lib/db-seq"
 
+// Resolver item desde presentacion_id
+async function resolverItemDesdePresentacion(pool: any, item: any): Promise<any | null> {
+  const { rows: [row] } = await pool.query(`
+    SELECT
+      pp.nombre AS presentacion_nombre,
+      pp.factor,
+      pp.ean_propio,
+      p.nombre AS producto_nombre,
+      p.ean AS producto_ean,
+      p.unidad_base,
+      p.alicuota_iva,
+      pmp.precio,
+      pmp.listing_id,
+      pml.mayorista_id
+    FROM producto_mayorista_presentacion pmp
+    JOIN producto_presentacion pp ON pp.id = pmp.presentacion_id
+    JOIN producto_mayorista_listing pml ON pml.id = pmp.listing_id
+    JOIN producto p ON p.id = pml.producto_id
+    WHERE pmp.id = $1 AND pmp.deleted_at IS NULL AND pmp.activo = true
+  `, [item.presentacion_id])
+  if (!row) return null
+  const neto = row.precio * item.cantidad
+  const iva = neto * (row.alicuota_iva / 100)
+  return {
+    presentacion_id: item.presentacion_id,
+    listing_id: row.listing_id,
+    nombre: `${row.producto_nombre} — ${row.presentacion_nombre}`,
+    sku: null,
+    ean: row.ean_propio || row.producto_ean || null,
+    precio_unitario: row.precio,
+    alicuota_iva: parseFloat(String(row.alicuota_iva)),
+    cantidad: item.cantidad,
+    unidad: row.presentacion_nombre,
+    subtotal_neto: neto,
+    subtotal_iva: iva,
+    subtotal: neto + iva,
+    _mayorista_id: row.mayorista_id,
+  }
+}
+
 const verifyComercio = (req: MedusaRequest): { comercio_id: string } | null => {
   const auth = req.headers.authorization
   if (!auth?.startsWith("Bearer ")) return null
@@ -55,15 +95,21 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     return res.status(400).json({ error: "Faltan mayorista_id o items" })
   }
 
-  // Calcular totales de productos
+  // Calcular totales de productos — soporta presentacion_id (nuevo catálogo) y campos directos (legado)
+  const pool = getPool()
   let total_neto = 0
   let total_iva = 0
-  const itemsCalc = items.map((item: any) => {
+  const itemsCalcRaw = await Promise.all(items.map(async (item: any) => {
+    if (item.presentacion_id) {
+      const resolved = await resolverItemDesdePresentacion(pool, item)
+      if (!resolved) throw new Error(`Presentación ${item.presentacion_id} no encontrada o inactiva`)
+      return resolved
+    }
     const neto = item.precio_unitario * item.cantidad
     const iva = neto * (item.alicuota_iva / 100)
-    total_neto += neto
-    total_iva += iva
     return {
+      presentacion_id: null,
+      listing_id: null,
       producto_id: item.producto_id,
       nombre: item.nombre,
       sku: item.sku || null,
@@ -75,7 +121,13 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
       subtotal_neto: neto,
       subtotal_iva: iva,
       subtotal: neto + iva,
+      _mayorista_id: null,
     }
+  }))
+  const itemsCalc = itemsCalcRaw
+  itemsCalc.forEach((item: any) => {
+    total_neto += item.subtotal_neto
+    total_iva += item.subtotal_iva
   })
   const subtotal_con_iva = total_neto + total_iva
 
@@ -159,7 +211,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     numero,
     comercio_id: payload.comercio_id,
     mayorista_id,
-    estado: "pendiente",
+    estado: "cargada",
     notas: notas || null,
     total_neto,
     total_iva,
@@ -176,10 +228,11 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     monto_descuento,
   })
 
-  // Crear items
-  await Promise.all(itemsCalc.map((item: any) =>
-    svc.createOrdenItems({ ...item, orden_id: orden.id })
-  ))
+  // Crear items (excluir campo interno _mayorista_id)
+  await Promise.all(itemsCalc.map((item: any) => {
+    const { _mayorista_id, ...itemData } = item
+    return svc.createOrdenItems({ ...itemData, orden_id: orden.id })
+  }))
 
   const itemsCreados = await svc.listOrdenItems({ orden_id: orden.id })
 

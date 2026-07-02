@@ -116,10 +116,17 @@ export default function ComercioDashboardPage() {
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Secciones</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <NavCard
+            href="/comercio/productos"
+            icon="🛍️"
+            title="Catálogo unificado"
+            description="Un producto, múltiples mayoristas — compará precios y presentaciones"
+            disabled={comercio.estado !== "aprobado"}
+          />
+          <NavCard
             href="/comercio/catalogo"
             icon="🛒"
-            title="Catálogo de productos"
-            description="Explorá productos de mayoristas disponibles en la plataforma"
+            title="Catálogo por mayorista"
+            description="Explorá los productos de cada mayorista individualmente"
             disabled={comercio.estado !== "aprobado"}
           />
           <NavCard

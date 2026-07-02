@@ -54,5 +54,11 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/envio",
     },
+    {
+      resolve: "./src/modules/producto-maestro",
+    },
+    {
+      resolve: "./src/modules/producto-listing",
+    },
   ]
 })
