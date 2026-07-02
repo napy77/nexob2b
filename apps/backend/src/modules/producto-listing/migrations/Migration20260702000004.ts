@@ -37,6 +37,7 @@ export class Migration20260702000004 extends Migration {
         CONSTRAINT "producto_mayorista_presentacion_pkey" PRIMARY KEY ("id"),
         CONSTRAINT "mp_unique" UNIQUE ("listing_id", "presentacion_id"),
         CONSTRAINT "fk_mp_listing" FOREIGN KEY ("listing_id") REFERENCES "producto_mayorista_listing" ("id") ON DELETE CASCADE
+
       );
     `)
     this.addSql(`CREATE INDEX IF NOT EXISTS "mp_listing_idx" ON "producto_mayorista_presentacion" ("listing_id");`)

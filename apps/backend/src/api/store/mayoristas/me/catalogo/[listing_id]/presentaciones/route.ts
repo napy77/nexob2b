@@ -31,7 +31,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Verificar que la presentacion pertenece al producto del listing
   const { rows: [pres] } = await pool.query(
-    `SELECT id FROM producto_presentacion WHERE id = $1 AND producto_id = $2 AND deleted_at IS NULL`,
+    `SELECT id FROM producto_maestro_presentacion WHERE id = $1 AND producto_id = $2 AND deleted_at IS NULL`,
     [body.presentacion_id, listing.producto_id]
   )
   if (!pres) return res.status(400).json({ error: "La presentación no pertenece a este producto" })

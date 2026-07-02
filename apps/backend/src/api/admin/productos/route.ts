@@ -27,14 +27,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       ru.nombre AS rubro_nombre,
       sr.nombre AS subrubro_nombre,
       (
-        SELECT COUNT(*)::int FROM producto_presentacion pp
+        SELECT COUNT(*)::int FROM producto_maestro_presentacion pp
         WHERE pp.producto_id = p.id AND pp.deleted_at IS NULL
       ) AS total_presentaciones,
       (
         SELECT COUNT(*)::int FROM producto_mayorista_listing pml
         WHERE pml.producto_id = p.id AND pml.deleted_at IS NULL AND pml.activo = true
       ) AS total_mayoristas
-    FROM producto p
+    FROM producto_maestro p
     LEFT JOIN pasillo pa ON pa.id = p.pasillo_id
     LEFT JOIN rubro ru ON ru.id = p.rubro_id
     LEFT JOIN subrubro sr ON sr.id = p.subrubro_id

@@ -1,6 +1,6 @@
 import { model } from "@medusajs/framework/utils"
 
-const ProductoPresentacion = model.define("producto_presentacion", {
+const ProductoPresentacion = model.define("producto_maestro_presentacion", {
   id: model.id().primaryKey(),
   producto_id: model.text(),
   nombre: model.text(),                                     // "Unidad", "Pack x12", "Caja x120", "Pallet"

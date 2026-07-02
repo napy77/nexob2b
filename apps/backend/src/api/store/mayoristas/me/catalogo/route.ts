@@ -69,10 +69,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         '[]'
       ) AS presentaciones
     FROM producto_mayorista_listing pml
-    JOIN producto p ON p.id = pml.producto_id
+    JOIN producto_maestro p ON p.id = pml.producto_id
     LEFT JOIN pasillo pa ON pa.id = p.pasillo_id
     LEFT JOIN producto_mayorista_presentacion pmp ON pmp.listing_id = pml.id
-    LEFT JOIN producto_presentacion pp ON pp.id = pmp.presentacion_id AND pp.deleted_at IS NULL
+    LEFT JOIN producto_maestro_presentacion pp ON pp.id = pmp.presentacion_id AND pp.deleted_at IS NULL
     WHERE pml.mayorista_id = $1 AND pml.deleted_at IS NULL AND p.deleted_at IS NULL ${extra}
     GROUP BY pml.id, p.id, pa.nombre
     ORDER BY p.nombre ASC
@@ -134,7 +134,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (existing.length) return res.status(409).json({ error: "Ya tenés este producto en tu catálogo", listing_id: existing[0].id })
 
   // Verificar que el producto esté aprobado (o fue recién creado como pendiente por este mayorista)
-  const { rows: [prod] } = await pool.query(`SELECT estado FROM producto WHERE id = $1`, [producto_id])
+  const { rows: [prod] } = await pool.query(`SELECT estado FROM producto_maestro WHERE id = $1`, [producto_id])
   const aprobado = prod?.estado === "aprobado"
 
   const listing = await svcListing.createProductoMayoristaListings({

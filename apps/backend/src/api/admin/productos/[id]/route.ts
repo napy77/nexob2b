@@ -12,7 +12,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       pa.nombre AS pasillo_nombre,
       ru.nombre AS rubro_nombre,
       sr.nombre AS subrubro_nombre
-    FROM producto p
+    FROM producto_maestro p
     LEFT JOIN pasillo pa ON pa.id = p.pasillo_id
     LEFT JOIN rubro ru ON ru.id = p.rubro_id
     LEFT JOIN subrubro sr ON sr.id = p.subrubro_id
@@ -22,7 +22,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!producto) return res.status(404).json({ error: "Producto no encontrado" })
 
   const { rows: presentaciones } = await pool.query(`
-    SELECT * FROM producto_presentacion
+    SELECT * FROM producto_maestro_presentacion
     WHERE producto_id = $1 AND deleted_at IS NULL
     ORDER BY orden ASC, factor ASC
   `, [id])

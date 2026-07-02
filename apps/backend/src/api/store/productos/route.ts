@@ -95,12 +95,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
               ) ORDER BY pp.orden ASC
             )
             FROM producto_mayorista_presentacion pmp2
-            JOIN producto_presentacion pp ON pp.id = pmp2.presentacion_id AND pp.deleted_at IS NULL
+            JOIN producto_maestro_presentacion pp ON pp.id = pmp2.presentacion_id AND pp.deleted_at IS NULL
             WHERE pmp2.listing_id = pml.id AND pmp2.deleted_at IS NULL AND pmp2.activo = true
           )
         ) ORDER BY m.nombre ASC
       ) AS mayoristas
-    FROM producto p
+    FROM producto_maestro p
     JOIN producto_mayorista_listing pml ON pml.producto_id = p.id
     JOIN producto_mayorista_presentacion pmp ON pmp.listing_id = pml.id
     JOIN mayorista m ON m.id = pml.mayorista_id AND m.deleted_at IS NULL

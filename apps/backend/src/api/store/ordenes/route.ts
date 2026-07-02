@@ -24,9 +24,9 @@ async function resolverItemDesdePresentacion(pool: any, item: any): Promise<any 
       pmp.listing_id,
       pml.mayorista_id
     FROM producto_mayorista_presentacion pmp
-    JOIN producto_presentacion pp ON pp.id = pmp.presentacion_id
+    JOIN producto_maestro_presentacion pp ON pp.id = pmp.presentacion_id
     JOIN producto_mayorista_listing pml ON pml.id = pmp.listing_id
-    JOIN producto p ON p.id = pml.producto_id
+    JOIN producto_maestro p ON p.id = pml.producto_id
     WHERE pmp.id = $1 AND pmp.deleted_at IS NULL AND pmp.activo = true
   `, [item.presentacion_id])
   if (!row) return null

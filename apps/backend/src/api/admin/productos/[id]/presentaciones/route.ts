@@ -6,7 +6,7 @@ import { getPool } from "../../../../../lib/db"
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const pool = getPool()
   const { rows } = await pool.query(`
-    SELECT * FROM producto_presentacion
+    SELECT * FROM producto_maestro_presentacion
     WHERE producto_id = $1 AND deleted_at IS NULL
     ORDER BY orden ASC, factor ASC
   `, [req.params.id])

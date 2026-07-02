@@ -1,6 +1,6 @@
 import { model } from "@medusajs/framework/utils"
 
-const Producto = model.define("producto", {
+const Producto = model.define("producto_maestro", {
   id: model.id().primaryKey(),
   ean: model.text().nullable(),                          // EAN oficial o NXB-xxxxxxx generado
   nombre: model.text(),

@@ -3,7 +3,7 @@ import { Migration } from "@mikro-orm/migrations"
 export class Migration20260702000003 extends Migration {
   async up(): Promise<void> {
     this.addSql(`
-      CREATE TABLE IF NOT EXISTS "producto" (
+      CREATE TABLE IF NOT EXISTS "producto_maestro" (
         "id" text NOT NULL,
         "ean" text NULL,
         "nombre" text NOT NULL,
@@ -19,15 +19,15 @@ export class Migration20260702000003 extends Migration {
         "created_at" timestamptz NOT NULL DEFAULT now(),
         "updated_at" timestamptz NOT NULL DEFAULT now(),
         "deleted_at" timestamptz NULL,
-        CONSTRAINT "producto_pkey" PRIMARY KEY ("id")
+        CONSTRAINT "producto_maestro_pkey" PRIMARY KEY ("id")
       );
     `)
-    this.addSql(`CREATE UNIQUE INDEX IF NOT EXISTS "producto_ean_unique" ON "producto" ("ean") WHERE ean IS NOT NULL AND deleted_at IS NULL;`)
-    this.addSql(`CREATE INDEX IF NOT EXISTS "producto_estado_idx" ON "producto" ("estado");`)
-    this.addSql(`CREATE INDEX IF NOT EXISTS "producto_pasillo_idx" ON "producto" ("pasillo_id");`)
+    this.addSql(`CREATE UNIQUE INDEX IF NOT EXISTS "producto_maestro_ean_unique" ON "producto_maestro" ("ean") WHERE ean IS NOT NULL AND deleted_at IS NULL;`)
+    this.addSql(`CREATE INDEX IF NOT EXISTS "producto_maestro_estado_idx" ON "producto_maestro" ("estado");`)
+    this.addSql(`CREATE INDEX IF NOT EXISTS "producto_maestro_pasillo_idx" ON "producto_maestro" ("pasillo_id");`)
 
     this.addSql(`
-      CREATE TABLE IF NOT EXISTS "producto_presentacion" (
+      CREATE TABLE IF NOT EXISTS "producto_maestro_presentacion" (
         "id" text NOT NULL,
         "producto_id" text NOT NULL,
         "nombre" text NOT NULL,
@@ -42,19 +42,19 @@ export class Migration20260702000003 extends Migration {
         "created_at" timestamptz NOT NULL DEFAULT now(),
         "updated_at" timestamptz NOT NULL DEFAULT now(),
         "deleted_at" timestamptz NULL,
-        CONSTRAINT "producto_presentacion_pkey" PRIMARY KEY ("id"),
-        CONSTRAINT "fk_presentacion_producto" FOREIGN KEY ("producto_id") REFERENCES "producto" ("id") ON DELETE CASCADE
+        CONSTRAINT "producto_maestro_presentacion_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "fk_presentacion_producto" FOREIGN KEY ("producto_id") REFERENCES "producto_maestro" ("id") ON DELETE CASCADE
       );
     `)
-    this.addSql(`CREATE INDEX IF NOT EXISTS "presentacion_producto_idx" ON "producto_presentacion" ("producto_id");`)
+    this.addSql(`CREATE INDEX IF NOT EXISTS "presentacion_producto_idx" ON "producto_maestro_presentacion" ("producto_id");`)
 
     // Secuencia para EAN internos NXB-xxxxxxx
     this.addSql(`CREATE SEQUENCE IF NOT EXISTS nexob2b_ean_seq START WITH 1000001;`)
   }
 
   async down(): Promise<void> {
-    this.addSql(`DROP TABLE IF EXISTS "producto_presentacion";`)
-    this.addSql(`DROP TABLE IF EXISTS "producto";`)
+    this.addSql(`DROP TABLE IF EXISTS "producto_maestro_presentacion";`)
+    this.addSql(`DROP TABLE IF EXISTS "producto_maestro";`)
     this.addSql(`DROP SEQUENCE IF EXISTS nexob2b_ean_seq;`)
   }
 }
