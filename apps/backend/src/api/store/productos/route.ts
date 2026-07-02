@@ -71,8 +71,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
           'descripcion_propia', pml.descripcion_propia,
           'tiene_alta', CASE
             WHEN $${i}::text IS NOT NULL THEN EXISTS(
-              SELECT 1 FROM contacto_mayorista cm
-              WHERE cm.mayorista_id = pml.mayorista_id AND cm.comercio_id = $${i}::text AND cm.deleted_at IS NULL
+              SELECT 1 FROM solicitud s
+              WHERE s.mayorista_id = pml.mayorista_id AND s.comercio_id = $${i}::text AND s.estado = 'aceptado' AND s.deleted_at IS NULL
             )
             ELSE NULL
           END,
