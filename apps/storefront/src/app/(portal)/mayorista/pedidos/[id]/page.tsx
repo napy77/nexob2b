@@ -47,6 +47,10 @@ type Mayorista = {
   id: string; nombre: string; cuit: string; email: string
   telefono?: string; direccion?: string; ciudad?: string; provincia?: string; logo_url?: string
 }
+type Envio = {
+  id: string; token_publico: string; tiene_seguimiento_propio: boolean
+  tracking_url: string | null; seguimiento_url: string | null; estado: string
+}
 
 export default function PedidoDetalleMayoristaPage() {
   const router = useRouter()
@@ -54,8 +58,10 @@ export default function PedidoDetalleMayoristaPage() {
   const [orden, setOrden] = useState<Orden | null>(null)
   const [mayorista, setMayorista] = useState<Mayorista | null>(null)
   const [documentos, setDocumentos] = useState<Documento[]>([])
+  const [envio, setEnvio] = useState<Envio | null>(null)
   const [loading, setLoading] = useState(true)
   const [accionando, setAccionando] = useState(false)
+  const [despachando, setDespachando] = useState(false)
   const [error, setError] = useState("")
   const [sinStock, setSinStock] = useState<string[]>([])
 
@@ -111,6 +117,107 @@ export default function PedidoDetalleMayoristaPage() {
       const data = await res.json()
       setDocumentos(data.documentos || [])
     } catch {}
+  }
+
+  const despacharYObtenerEnvio = async () => {
+    setDespachando(true); setError("")
+    try {
+      const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/ordenes/${params.id}/despachar`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token()}`, "x-publishable-api-key": PUB_KEY },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setEnvio(data)
+      return data as Envio & { seguimiento_url: string | null }
+    } catch (e: any) {
+      setError(e.message)
+      return null
+    } finally {
+      setDespachando(false)
+    }
+  }
+
+  const imprimirEtiqueta = async () => {
+    let envioData = envio
+    if (!envioData) {
+      envioData = await despacharYObtenerEnvio() as any
+      if (!envioData) return
+    }
+    const seguimientoUrl = (envioData as any).seguimiento_url || `${BACKEND_URL}/seguimiento/${(envioData as any).token_publico}`
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(seguimientoUrl)}`
+
+    const win = window.open("", "_blank")
+    if (!win) { alert("Habilitá los pop-ups para imprimir la etiqueta."); return }
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8"/>
+        <title>Etiqueta ${orden?.numero}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; background: #fff; }
+          .etiqueta {
+            width: 10cm; min-height: 15cm; border: 2px solid #000;
+            margin: 1cm auto; padding: 0.6cm; display: flex;
+            flex-direction: column; gap: 0.4cm;
+          }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1.5px solid #000; padding-bottom: 0.4cm; }
+          .remitente h3 { font-size: 13px; font-weight: 900; }
+          .remitente p { font-size: 10px; color: #444; }
+          .orden-num { font-size: 20px; font-weight: 900; text-align: right; }
+          .seccion-titulo { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #666; letter-spacing: 0.5px; margin-bottom: 2px; }
+          .destinatario h2 { font-size: 15px; font-weight: 900; }
+          .destinatario p { font-size: 11px; color: #333; }
+          .bultos { font-size: 13px; font-weight: 700; background: #f0f0f0; padding: 6px 10px; border-radius: 6px; }
+          .qr-section { border-top: 1.5px dashed #000; padding-top: 0.4cm; display: flex; gap: 0.4cm; align-items: center; }
+          .qr-section img { width: 3.5cm; height: 3.5cm; border: 1px solid #ddd; }
+          .qr-info { flex: 1; }
+          .qr-info p { font-size: 9px; color: #555; line-height: 1.4; }
+          .qr-info .url { font-size: 8px; font-family: monospace; color: #333; word-break: break-all; margin-top: 4px; }
+          .footer { font-size: 8px; color: #aaa; text-align: center; border-top: 1px solid #eee; padding-top: 4px; }
+          @media print { body { -webkit-print-color-adjust: exact; } }
+        </style>
+      </head>
+      <body>
+        <div class="etiqueta">
+          <div class="header">
+            <div class="remitente">
+              <h3>${mayorista?.nombre || "Remitente"}</h3>
+              ${mayorista?.direccion ? `<p>${mayorista.direccion}</p>` : ""}
+              ${mayorista?.ciudad || mayorista?.provincia ? `<p>${[mayorista.ciudad, mayorista.provincia].filter(Boolean).join(", ")}</p>` : ""}
+            </div>
+            <div class="orden-num">${orden?.numero || ""}</div>
+          </div>
+          <div class="destinatario">
+            <p class="seccion-titulo">Destinatario</p>
+            <h2>${orden?.comercio?.nombre || "Destinatario"}</h2>
+            ${orden?.comercio?.cuit ? `<p>CUIT: ${orden.comercio.cuit}</p>` : ""}
+            ${orden?.comercio?.telefono ? `<p>Tel: ${orden.comercio.telefono}</p>` : ""}
+            ${orden?.comercio?.email ? `<p>${orden.comercio.email}</p>` : ""}
+          </div>
+          ${orden?.cantidad_bultos ? `
+          <div class="bultos">
+            📦 ${orden.cantidad_bultos} bulto${orden.cantidad_bultos !== 1 ? "s" : ""}
+            ${orden?.peso_kg ? ` · ${orden.peso_kg} kg` : ""}
+            ${orden?.dimensiones ? ` · ${orden.dimensiones}` : ""}
+          </div>` : ""}
+          ${orden?.transporte_nombre ? `<p style="font-size:11px;color:#555;">🚚 ${orden.transporte_nombre}${orden?.numero_guia ? ` — Guía: ${orden.numero_guia}` : ""}</p>` : ""}
+          <div class="qr-section">
+            <img src="${qrUrl}" alt="QR Seguimiento" onload="window.print()"/>
+            <div class="qr-info">
+              <p class="seccion-titulo">Seguimiento del envío</p>
+              <p>Escaneá el QR para ver el estado del paquete o actualizar la entrega.</p>
+              <p class="url">${seguimientoUrl}</p>
+            </div>
+          </div>
+          <div class="footer">Nexo B2B · Plataforma mayorista · ${new Date().toLocaleDateString("es-AR")}</div>
+        </div>
+      </body>
+      </html>
+    `)
+    win.document.close()
   }
 
   useEffect(() => { cargar(); cargarDocumentos() }, [params.id])
@@ -407,6 +514,10 @@ export default function PedidoDetalleMayoristaPage() {
                   <p className="font-mono font-semibold text-blue-900">{orden.numero_guia}</p>
                 </div>
               )}
+              <button onClick={imprimirEtiqueta} disabled={despachando}
+                className="w-full py-3 rounded-xl font-semibold text-sm bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 disabled:opacity-60 flex items-center justify-center gap-2">
+                {despachando ? "Generando..." : "🏷️ Imprimir etiqueta con QR"}
+              </button>
               <button onClick={() => { if (confirm("¿Confirmar entrega?")) cambiarEstado("entregado") }} disabled={accionando}
                 className="w-full py-3 rounded-xl font-semibold text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60">
                 {accionando ? "Procesando..." : "✔️ Confirmar entrega"}

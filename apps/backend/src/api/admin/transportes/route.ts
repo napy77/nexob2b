@@ -20,6 +20,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     activo: body.activo !== false,
     orden: body.orden ?? 0,
     porcentaje_costo: parseFloat(String(body.porcentaje_costo)) || 0,
+    tiene_seguimiento_propio: !!body.tiene_seguimiento_propio,
+    tracking_url_template: body.tracking_url_template || null,
+    integracion_tipo: body.integracion_tipo || null,
+    integracion_config: body.integracion_config || null,
   })
   res.status(201).json({ transporte })
 }

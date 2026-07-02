@@ -51,5 +51,8 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/transporte",
     },
+    {
+      resolve: "./src/modules/envio",
+    },
   ]
 })
