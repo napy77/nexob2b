@@ -12,13 +12,13 @@ const getMayoristaId = async (req: MedusaRequest): Promise<string | null> => {
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "nexob2b_jwt_secret_2026")
     const { rows } = await pool.query(
       `SELECT id FROM mayorista WHERE actor_id = $1 AND deleted_at IS NULL LIMIT 1`,
-      [decoded.app_metadata?.mayorista_id || decoded.sub]
+      [decoded.mayorista_id || decoded.sub]
     )
     // Try by actor_id first, then by direct id
     if (rows.length) return rows[0].id
     const { rows: rows2 } = await pool.query(
       `SELECT id FROM mayorista WHERE id = $1 AND deleted_at IS NULL LIMIT 1`,
-      [decoded.app_metadata?.mayorista_id]
+      [decoded.mayorista_id]
     )
     return rows2[0]?.id || null
   } catch { return null }
@@ -35,7 +35,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   let mayorista_id: string
   try {
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "nexob2b_jwt_secret_2026")
-    mayorista_id = decoded.app_metadata?.mayorista_id
+    mayorista_id = decoded.mayorista_id
     if (!mayorista_id) return res.status(401).json({ error: "Token inválido" })
   } catch { return res.status(401).json({ error: "Token expirado" }) }
 
@@ -94,7 +94,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   let mayorista_id: string
   try {
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "nexob2b_jwt_secret_2026")
-    mayorista_id = decoded.app_metadata?.mayorista_id
+    mayorista_id = decoded.mayorista_id
     if (!mayorista_id) return res.status(401).json({ error: "Token inválido" })
   } catch { return res.status(401).json({ error: "Token expirado" }) }
 
