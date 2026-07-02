@@ -18,7 +18,7 @@ const Envio = model.define("envio", {
   // Estado del envío
   estado: model.text().default("pendiente"),  // pendiente | en_camino | visita_fallida | entregado | rechazado
   // Historial de eventos como JSONB
-  eventos: model.json().default([]),
+  eventos: model.json().default([] as unknown as Record<string, unknown>),
   // Datos del bulto (copiados de la orden)
   cantidad_bultos: model.number().nullable(),
   peso_kg: model.number().nullable(),
