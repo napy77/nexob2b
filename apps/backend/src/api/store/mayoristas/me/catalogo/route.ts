@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { PRODUCTO_LISTING_MODULE } from "../../../../../modules/producto-listing"
 import { PRODUCTO_MAESTRO_MODULE } from "../../../../../modules/producto-maestro"
-import { getPool } from "../../../../../lib/db"
+import { getPool } from "../../../../../lib/db-seq"
 
 const getMayoristaId = async (req: MedusaRequest): Promise<string | null> => {
   const pool = getPool()

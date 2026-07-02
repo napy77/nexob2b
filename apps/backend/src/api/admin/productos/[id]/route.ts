@@ -1,6 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { PRODUCTO_MAESTRO_MODULE } from "../../../../modules/producto-maestro"
-import { getPool } from "../../../../lib/db"
+import { getPool } from "../../../../lib/db-seq"
 
 // GET /admin/productos/:id — producto con todas sus presentaciones
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {

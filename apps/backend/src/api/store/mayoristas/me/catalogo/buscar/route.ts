@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { getPool } from "../../../../../../lib/db"
+import { getPool } from "../../../../../../lib/db-seq"
 
 // GET /store/mayoristas/me/catalogo/buscar?ean=7790123456789
 // Busca en el catálogo maestro por EAN o nombre — para que el mayorista vincule un producto

@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { getPool } from "../../../lib/db"
+import { getPool } from "../../../lib/db-seq"
 
 // GET /store/productos?q=azucar&pasillo_id=xx&comercio_id=xx
 // Catálogo unificado: un producto → múltiples mayoristas con sus presentaciones
