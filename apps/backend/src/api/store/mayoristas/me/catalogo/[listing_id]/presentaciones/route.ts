@@ -8,7 +8,7 @@ const getMayoristaId = (req: MedusaRequest): string | null => {
   const jwt = require("jsonwebtoken")
   try {
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "nexob2b_jwt_secret_2026")
-    return decoded.app_metadata?.mayorista_id || null
+    return decoded.mayorista_id || null
   } catch { return null }
 }
 
@@ -46,9 +46,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (existing) {
     // Reactivar y actualizar precio/stock
     await pool.query(
-      `UPDATE producto_mayorista_presentacion SET precio = $1, precio_lista = $2, stock = $3, activo = true, deleted_at = NULL, updated_at = now()
-       WHERE id = $4`,
-      [parseFloat(String(body.precio)), body.precio_lista ? parseFloat(String(body.precio_lista)) : null, parseInt(String(body.stock ?? 0)), existing.id]
+      `UPDATE producto_mayorista_presentacion SET precio = $1, precio_lista = $2, stock = $3, cantidad_minima = $4, activo = true, deleted_at = NULL, updated_at = now()
+       WHERE id = $5`,
+      [parseFloat(String(body.precio)), body.precio_lista ? parseFloat(String(body.precio_lista)) : null, parseInt(String(body.stock ?? 0)), parseInt(String(body.cantidad_minima ?? 1)), existing.id]
     )
     const { rows: [updated] } = await pool.query(`SELECT * FROM producto_mayorista_presentacion WHERE id = $1`, [existing.id])
     result = updated
@@ -59,6 +59,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       precio: parseFloat(String(body.precio)),
       precio_lista: body.precio_lista ? parseFloat(String(body.precio_lista)) : null,
       stock: parseInt(String(body.stock ?? 0)),
+      cantidad_minima: parseInt(String(body.cantidad_minima ?? 1)),
       activo: true,
     })
   }

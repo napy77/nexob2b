@@ -12,7 +12,7 @@ const headers = () => ({ "Authorization": `Bearer ${token()}`, "x-publishable-ap
 type Presentacion = {
   id: string; presentacion_id: string; nombre: string; factor: number
   ean_propio: string | null; peso_g: number | null; orden: number
-  precio: number; precio_lista: number | null; stock: number; activo: boolean
+  precio: number; precio_lista: number | null; stock: number; cantidad_minima: number; activo: boolean
 }
 type Listing = {
   id: string; producto_id: string; ean: string; nombre: string; marca: string | null
@@ -40,7 +40,7 @@ export default function CatalogoMayoristaPage() {
 
   // Modal presentaciones
   const [showPres, setShowPres] = useState<Listing | null>(null)
-  const [precioEdit, setPrecioEdit] = useState<Record<string, { precio: string; precio_lista: string; stock: string }>>({})
+  const [precioEdit, setPrecioEdit] = useState<Record<string, { precio: string; precio_lista: string; stock: string; cantidad_minima: string }>>({})
   const [saving, setSaving] = useState(false)
 
   // Modal proponer nuevo
@@ -107,9 +107,9 @@ export default function CatalogoMayoristaPage() {
 
   const abrirPresentaciones = (listing: Listing) => {
     setShowPres(listing)
-    const init: Record<string, { precio: string; precio_lista: string; stock: string }> = {}
+    const init: Record<string, { precio: string; precio_lista: string; stock: string; cantidad_minima: string }> = {}
     listing.presentaciones.forEach(p => {
-      init[p.presentacion_id] = { precio: String(p.precio || ""), precio_lista: String(p.precio_lista || ""), stock: String(p.stock || 0) }
+      init[p.presentacion_id] = { precio: String(p.precio || ""), precio_lista: String(p.precio_lista || ""), stock: String(p.stock || 0), cantidad_minima: String(p.cantidad_minima ?? 1) }
     })
     setPrecioEdit(init)
   }
@@ -123,13 +123,13 @@ export default function CatalogoMayoristaPage() {
         // Actualizar existente
         await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/${listing_id}/presentaciones/${mp_id}`, {
           method: "PUT", headers: headers(),
-          body: JSON.stringify({ precio: parseFloat(vals.precio), precio_lista: vals.precio_lista ? parseFloat(vals.precio_lista) : null, stock: parseInt(vals.stock || "0") }),
+          body: JSON.stringify({ precio: parseFloat(vals.precio), precio_lista: vals.precio_lista ? parseFloat(vals.precio_lista) : null, stock: parseInt(vals.stock || "0"), cantidad_minima: parseInt(vals.cantidad_minima || "1") }),
         })
       } else {
         // Crear nueva
         await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/${listing_id}/presentaciones`, {
           method: "POST", headers: headers(),
-          body: JSON.stringify({ presentacion_id, precio: parseFloat(vals.precio), precio_lista: vals.precio_lista ? parseFloat(vals.precio_lista) : null, stock: parseInt(vals.stock || "0") }),
+          body: JSON.stringify({ presentacion_id, precio: parseFloat(vals.precio), precio_lista: vals.precio_lista ? parseFloat(vals.precio_lista) : null, stock: parseInt(vals.stock || "0"), cantidad_minima: parseInt(vals.cantidad_minima || "1") }),
         })
       }
       cargar()
@@ -309,7 +309,7 @@ export default function CatalogoMayoristaPage() {
             ) : (
               <div className="space-y-3">
                 {showPres.presentaciones.map(p => {
-                  const vals = precioEdit[p.presentacion_id] || { precio: "", precio_lista: "", stock: "0" }
+                  const vals = precioEdit[p.presentacion_id] || { precio: "", precio_lista: "", stock: "0", cantidad_minima: "1" }
                   return (
                     <div key={p.presentacion_id} className="bg-gray-50 rounded-xl p-4">
                       <div className="flex items-center gap-2 mb-3">
@@ -318,7 +318,7 @@ export default function CatalogoMayoristaPage() {
                         {p.ean_propio && <span className="text-xs font-mono text-gray-400">{p.ean_propio}</span>}
                         {p.peso_g && <span className="text-xs text-gray-400">{p.peso_g}g</span>}
                       </div>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 gap-3">
                         <label className="text-xs font-medium text-gray-600">
                           Precio *
                           <input type="number" value={vals.precio} onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, precio: e.target.value } }))}
@@ -335,6 +335,12 @@ export default function CatalogoMayoristaPage() {
                           Stock disponible
                           <input type="number" value={vals.stock} onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, stock: e.target.value } }))}
                             min={0}
+                            className="mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                        </label>
+                        <label className="text-xs font-medium text-gray-600">
+                          Cant. mínima de venta
+                          <input type="number" value={vals.cantidad_minima} onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, cantidad_minima: e.target.value } }))}
+                            min={1}
                             className="mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                         </label>
                       </div>

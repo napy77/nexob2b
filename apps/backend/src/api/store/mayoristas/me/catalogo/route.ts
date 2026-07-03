@@ -63,6 +63,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
             'precio', pmp2.precio,
             'precio_lista', pmp2.precio_lista,
             'stock', pmp2.stock,
+            'cantidad_minima', COALESCE(pmp2.cantidad_minima, 1),
             'activo', COALESCE(pmp2.activo, false)
           ) ORDER BY pp2.orden ASC
         ), '[]')

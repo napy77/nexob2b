@@ -8,7 +8,7 @@ const getMayoristaId = (req: MedusaRequest): string | null => {
   const jwt = require("jsonwebtoken")
   try {
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET || "nexob2b_jwt_secret_2026")
-    return decoded.app_metadata?.mayorista_id || null
+    return decoded.mayorista_id || null
   } catch { return null }
 }
 
@@ -34,6 +34,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (body.precio !== undefined) updates.precio = parseFloat(String(body.precio))
   if (body.precio_lista !== undefined) updates.precio_lista = body.precio_lista ? parseFloat(String(body.precio_lista)) : null
   if (body.stock !== undefined) updates.stock = parseInt(String(body.stock))
+  if (body.cantidad_minima !== undefined) updates.cantidad_minima = parseInt(String(body.cantidad_minima))
   if (body.activo !== undefined) updates.activo = !!body.activo
 
   const updated = await svc.updateProductoMayoristaPresentacions({ id: pid }, updates)
