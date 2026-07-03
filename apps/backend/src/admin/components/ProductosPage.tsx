@@ -176,7 +176,7 @@ export default function ProductosPage() {
       rubro_id: prod.rubro_id || "", subrubro_id: prod.subrubro_id || "",
     })
     setImagenBase64(null)
-    setImagenPreview(prod.imagen_url ? `https://nexob2b.app${prod.imagen_url}` : null)
+    setImagenPreview(prod.imagen_url || null)
     setShowModal(true)
   }
 
@@ -228,7 +228,7 @@ export default function ProductosPage() {
                 <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "10px 12px", width: 48 }}>
                     {p.imagen_url
-                      ? <img src={`https://nexob2b.app${p.imagen_url}`} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }} />
+                      ? <img src={p.imagen_url!} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }} />
                       : <div style={{ width: 40, height: 40, background: "#f3f4f6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📦</div>
                     }
                   </td>

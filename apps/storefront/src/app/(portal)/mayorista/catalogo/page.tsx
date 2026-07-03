@@ -42,6 +42,7 @@ export default function CatalogoMayoristaPage() {
   // Modal presentaciones
   const [showPres, setShowPres] = useState<Listing | null>(null)
   const [precioEdit, setPrecioEdit] = useState<Record<string, { precio: string; precio_lista: string; stock: string; cantidad_minima: string }>>({})
+  const [saving, setSaving] = useState(false)
   const [savingRow, setSavingRow] = useState<Record<string, boolean>>({})
   const [savedRow, setSavedRow] = useState<Record<string, boolean>>({})
 
@@ -264,7 +265,7 @@ export default function CatalogoMayoristaPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
                     {l.imagen_url
-                      ? <img src={`${BACKEND_URL}${l.imagen_url}`} alt={l.nombre} className="w-14 h-14 object-cover rounded-xl border border-gray-100 shrink-0" />
+                      ? <img src={l.imagen_url!} alt={l.nombre} className="w-14 h-14 object-cover rounded-xl border border-gray-100 shrink-0" />
                       : <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shrink-0">📦</div>
                     }
                   <div>

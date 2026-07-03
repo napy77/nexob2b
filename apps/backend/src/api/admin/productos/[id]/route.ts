@@ -52,12 +52,13 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   // Guardar imagen si viene en base64
+  // Se guarda en storefront/public/ para que Next.js la sirva directamente en nexob2b.app/product-images/
   if (body.imagen_url_base64) {
     const match = body.imagen_url_base64.match(/^data:([a-zA-Z0-9+/]+\/[a-zA-Z0-9+/]+);base64,(.+)$/)
     if (match) {
       const ext = match[1].split("/")[1].replace("jpeg", "jpg")
       const buffer = Buffer.from(match[2], "base64")
-      const uploadDir = path.join(process.cwd(), ".medusa", "server", "public", "product-images")
+      const uploadDir = path.join(process.cwd(), "..", "storefront", "public", "product-images")
       fs.mkdirSync(uploadDir, { recursive: true })
       const filename = `producto_${id}.${ext}`
       fs.writeFileSync(path.join(uploadDir, filename), buffer)
