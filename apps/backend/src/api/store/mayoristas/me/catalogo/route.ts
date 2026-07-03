@@ -48,7 +48,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     SELECT
       pml.*,
       p.ean, p.nombre, p.descripcion, p.marca, p.unidad_base, p.alicuota_iva, p.estado AS producto_estado,
-      p.pasillo_id, p.rubro_id, p.subrubro_id,
+      p.imagen_url, p.pasillo_id, p.rubro_id, p.subrubro_id,
       pa.nombre AS pasillo_nombre,
       (
         SELECT COALESCE(json_agg(

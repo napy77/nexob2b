@@ -18,6 +18,7 @@ type Listing = {
   id: string; producto_id: string; ean: string; nombre: string; marca: string | null
   unidad_base: string; alicuota_iva: number; activo: boolean; aprobado: boolean
   producto_estado: string; tiempo_entrega_dias: number | null; pasillo_nombre: string | null
+  imagen_url: string | null
   presentaciones: Presentacion[]
 }
 type ProductoMaestro = {
@@ -261,6 +262,11 @@ export default function CatalogoMayoristaPage() {
             {listings.map(l => (
               <div key={l.id} className="bg-white rounded-2xl border border-gray-100 p-5">
                 <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    {l.imagen_url
+                      ? <img src={`${BACKEND_URL}${l.imagen_url}`} alt={l.nombre} className="w-14 h-14 object-cover rounded-xl border border-gray-100 shrink-0" />
+                      : <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center text-2xl shrink-0">📦</div>
+                    }
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-gray-900">{l.nombre}</h3>
@@ -276,7 +282,8 @@ export default function CatalogoMayoristaPage() {
                       {l.pasillo_nombre && ` · ${l.pasillo_nombre}`}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  </div>
+                  <div className="flex gap-2 shrink-0">
                     <button onClick={() => abrirPresentaciones(l)}
                       className="text-xs bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg font-semibold hover:bg-purple-100">
                       💰 Precios y stock ({l.presentaciones.length})
