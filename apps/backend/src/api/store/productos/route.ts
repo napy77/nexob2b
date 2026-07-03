@@ -55,6 +55,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       p.marca,
       p.unidad_base,
       p.alicuota_iva,
+      p.imagen_url,
       p.pasillo_id,
       p.rubro_id,
       p.subrubro_id,

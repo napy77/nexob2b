@@ -291,7 +291,7 @@ export default function CatalogoProductosPage() {
                       onClick={() => abrirDetalle(p)}>
                       <div className="aspect-video bg-gray-50 overflow-hidden">
                         {p.imagen_url
-                          ? <img src={`${BACKEND_URL}${p.imagen_url}`} alt={p.nombre} className="w-full h-full object-cover" />
+                          ? <img src={p.imagen_url!.startsWith("data:") ? p.imagen_url! : `${BACKEND_URL}${p.imagen_url}`} alt={p.nombre} className="w-full h-full object-cover" />
                           : <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
                         }
                       </div>
@@ -367,7 +367,7 @@ export default function CatalogoProductosPage() {
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             {seleccionado.imagen_url && (
               <div className="aspect-video bg-gray-50 overflow-hidden rounded-t-2xl">
-                <img src={`${BACKEND_URL}${seleccionado.imagen_url}`} alt={seleccionado.nombre} className="w-full h-full object-cover" />
+                <img src={seleccionado.imagen_url!.startsWith("data:") ? seleccionado.imagen_url! : `${BACKEND_URL}${seleccionado.imagen_url}`} alt={seleccionado.nombre} className="w-full h-full object-cover" />
               </div>
             )}
             <div className="p-6">

@@ -22,6 +22,7 @@ type MayoristaOpcion = {
 type Producto = {
   id: string; ean: string; nombre: string; descripcion: string | null
   marca: string | null; unidad_base: string; alicuota_iva: number
+  imagen_url: string | null
   pasillo_nombre: string | null; rubro_nombre: string | null
   mayoristas: MayoristaOpcion[]
 }
@@ -184,8 +185,11 @@ export default function ProductosComercioPage() {
                   {/* Cabecera del producto */}
                   <button onClick={() => setExpandido(isOpen ? null : prod.id)}
                     className="w-full flex items-center gap-4 p-5 text-left hover:bg-gray-50">
-                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
-                      📦
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center text-2xl flex-shrink-0">
+                      {prod.imagen_url
+                        ? <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-full object-cover" />
+                        : <span>📦</span>
+                      }
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-900">{prod.nombre}</h3>
