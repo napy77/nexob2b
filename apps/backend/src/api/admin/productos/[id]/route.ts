@@ -39,6 +39,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 // PUT /admin/productos/:id
 export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
+  const pool = getPool()
   const svc: any = req.scope.resolve(PRODUCTO_MAESTRO_MODULE)
   const { id } = req.params
   const body = req.body as any
@@ -49,12 +50,19 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     if (body[c] !== undefined) updates[c] = body[c]
   }
 
-  // Guardar imagen como base64 directamente en la BD
+  // Actualizar campos normales con el servicio Medusa
+  const producto = await svc.updateProductos({ id }, updates)
+
+  // Guardar imagen base64 directo en SQL (el servicio Medusa ignora campos nuevos)
   if (body.imagen_url_base64) {
-    updates.imagen_url = body.imagen_url_base64
+    await pool.query(
+      `UPDATE producto_maestro SET imagen_url = $1, updated_at = now() WHERE id = $2`,
+      [body.imagen_url_base64, id]
+    )
+    res.json({ producto: { ...producto, imagen_url: body.imagen_url_base64 } })
+    return
   }
 
-  const producto = await svc.updateProductos({ id }, updates)
   res.json({ producto })
 }
 
