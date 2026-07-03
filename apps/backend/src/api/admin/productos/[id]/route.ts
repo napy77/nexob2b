@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { PRODUCTO_MAESTRO_MODULE } from "../../../../modules/producto-maestro"
 import { getPool } from "../../../../lib/db-seq"
+import * as fs from "fs"
+import * as path from "path"
 
 // GET /admin/productos/:id — producto con todas sus presentaciones
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -47,6 +49,20 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   const campos = ["nombre", "descripcion", "marca", "unidad_base", "alicuota_iva", "pasillo_id", "rubro_id", "subrubro_id", "ean"]
   for (const c of campos) {
     if (body[c] !== undefined) updates[c] = body[c]
+  }
+
+  // Guardar imagen si viene en base64
+  if (body.imagen_url_base64) {
+    const match = body.imagen_url_base64.match(/^data:([a-zA-Z0-9+/]+\/[a-zA-Z0-9+/]+);base64,(.+)$/)
+    if (match) {
+      const ext = match[1].split("/")[1].replace("jpeg", "jpg")
+      const buffer = Buffer.from(match[2], "base64")
+      const uploadDir = path.join(process.cwd(), ".medusa", "server", "public", "product-images")
+      fs.mkdirSync(uploadDir, { recursive: true })
+      const filename = `producto_${id}.${ext}`
+      fs.writeFileSync(path.join(uploadDir, filename), buffer)
+      updates.imagen_url = `/product-images/${filename}`
+    }
   }
 
   const producto = await svc.updateProductos({ id }, updates)

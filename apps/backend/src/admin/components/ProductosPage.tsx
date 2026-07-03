@@ -25,6 +25,7 @@ type Producto = {
   unidad_base: string
   alicuota_iva: number
   estado: string
+  imagen_url?: string
   pasillo_nombre?: string
   total_presentaciones: number
   total_mayoristas: number
@@ -47,6 +48,8 @@ export default function ProductosPage() {
   const [presentaciones, setPresentaciones] = useState<Presentacion[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [imagenBase64, setImagenBase64] = useState<string | null>(null)
+  const [imagenPreview, setImagenPreview] = useState<string | null>(null)
 
   // Formulario producto
   const [form, setForm] = useState({
@@ -77,17 +80,31 @@ export default function ProductosPage() {
     setShowPresModal(producto_id)
   }
 
+  const handleImagenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      const b64 = ev.target?.result as string
+      setImagenBase64(b64)
+      setImagenPreview(b64)
+    }
+    reader.readAsDataURL(file)
+  }
+
   const guardarProducto = async () => {
     setSaving(true); setError("")
     try {
       const url = editing ? `${API}/${editing.id}` : API
       const method = editing ? "PUT" : "POST"
+      const body: any = { ...form }
+      if (imagenBase64) body.imagen_url_base64 = imagenBase64
       const res = await fetch(url, {
         method, headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
-      setShowModal(false); setEditing(null)
+      setShowModal(false); setEditing(null); setImagenBase64(null); setImagenPreview(null)
       cargar()
     } catch (e: any) { setError(e.message) }
     finally { setSaving(false) }
@@ -144,6 +161,7 @@ export default function ProductosPage() {
   const abrirCrear = () => {
     setEditing(null)
     setForm({ ean: "", nombre: "", marca: "", descripcion: "", unidad_base: "unidad", alicuota_iva: 21, pasillo_id: "", rubro_id: "", subrubro_id: "" })
+    setImagenBase64(null); setImagenPreview(null)
     setShowModal(true)
   }
   const abrirEditar = async (p: Producto) => {
@@ -157,6 +175,8 @@ export default function ProductosPage() {
       alicuota_iva: prod.alicuota_iva || 21, pasillo_id: prod.pasillo_id || "",
       rubro_id: prod.rubro_id || "", subrubro_id: prod.subrubro_id || "",
     })
+    setImagenBase64(null)
+    setImagenPreview(prod.imagen_url ? `https://nexob2b.app${prod.imagen_url}` : null)
     setShowModal(true)
   }
 
@@ -196,7 +216,7 @@ export default function ProductosPage() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: "2px solid #e5e7eb", background: "#f9fafb" }}>
-              {["EAN", "Nombre", "Marca", "Unidad base", "IVA", "Estado", "Presentaciones", "Mayoristas", ""].map(h => (
+              {["", "EAN", "Nombre", "Marca", "Unidad base", "IVA", "Estado", "Presentaciones", "Mayoristas", ""].map(h => (
                 <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#374151" }}>{h}</th>
               ))}
             </tr>
@@ -206,6 +226,12 @@ export default function ProductosPage() {
               const badge = ESTADO_BADGE[p.estado] || { label: p.estado, color: "#374151" }
               return (
                 <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "10px 12px", width: 48 }}>
+                    {p.imagen_url
+                      ? <img src={`https://nexob2b.app${p.imagen_url}`} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }} />
+                      : <div style={{ width: 40, height: 40, background: "#f3f4f6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📦</div>
+                    }
+                  </td>
                   <td style={{ padding: "10px 12px", fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>{p.ean}</td>
                   <td style={{ padding: "10px 12px", fontWeight: 600 }}>{p.nombre}</td>
                   <td style={{ padding: "10px 12px", color: "#6b7280" }}>{p.marca || "—"}</td>
@@ -275,6 +301,30 @@ export default function ProductosPage() {
                 <textarea value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} rows={2}
                   style={{ display: "block", width: "100%", marginTop: 4, border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px", fontSize: 14, resize: "vertical", boxSizing: "border-box" }} />
               </label>
+              {/* Imagen */}
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
+                Foto del producto
+                <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 12 }}>
+                  {imagenPreview
+                    ? <img src={imagenPreview} alt="" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+                    : <div style={{ width: 72, height: 72, background: "#f9fafb", borderRadius: 8, border: "1px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>📦</div>
+                  }
+                  <div>
+                    <input type="file" accept="image/*" onChange={handleImagenChange} id="img-upload" style={{ display: "none" }} />
+                    <label htmlFor="img-upload"
+                      style={{ display: "inline-block", background: "#f3f4f6", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
+                      {imagenPreview ? "Cambiar foto" : "Subir foto"}
+                    </label>
+                    {imagenPreview && (
+                      <button onClick={() => { setImagenBase64(null); setImagenPreview(null) }}
+                        style={{ display: "block", marginTop: 6, background: "none", border: "none", color: "#dc2626", fontSize: 12, cursor: "pointer", padding: 0 }}>
+                        Quitar foto
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </label>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
                   Unidad base

@@ -12,6 +12,7 @@ const Producto = model.define("producto_maestro", {
   rubro_id: model.text().nullable(),
   subrubro_id: model.text().nullable(),
   estado: model.text().default("aprobado"),              // "aprobado" | "pendiente" | "rechazado"
+  imagen_url: model.text().nullable(),                   // foto del producto
   creado_por_mayorista_id: model.text().nullable(),      // si lo propuso un mayorista
 })
 
