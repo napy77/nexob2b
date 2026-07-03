@@ -121,6 +121,7 @@ export default function CatalogoMayoristaPage() {
     setSavingRow(v => ({ ...v, [presentacion_id]: true }))
     setSavedRow(v => ({ ...v, [presentacion_id]: false }))
     try {
+      let newMpId = mp_id
       if (mp_id) {
         await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/${listing_id}/presentaciones/${mp_id}`, {
           method: "PUT", headers: headers(),
@@ -131,17 +132,23 @@ export default function CatalogoMayoristaPage() {
           method: "POST", headers: headers(),
           body: JSON.stringify({ presentacion_id, precio: parseFloat(vals.precio), precio_lista: vals.precio_lista ? parseFloat(vals.precio_lista) : null, stock: parseInt(vals.stock || "0"), cantidad_minima: parseInt(vals.cantidad_minima || "1") }),
         })
-        // Actualizar el mp_id local para que futuras ediciones usen PUT
         const data = await r.json()
-        if (showPres && data.presentacion?.id) {
-          setShowPres(prev => prev ? {
-            ...prev,
-            presentaciones: prev.presentaciones.map(p =>
-              p.presentacion_id === presentacion_id ? { ...p, mp_id: data.presentacion.id } : p
-            )
-          } : prev)
-        }
+        if (data.presentacion?.id) newMpId = data.presentacion.id
       }
+
+      // Actualizar estado local sin recargar página
+      const updatePres = (p: Presentacion) => p.presentacion_id !== presentacion_id ? p : {
+        ...p,
+        mp_id: newMpId,
+        precio: parseFloat(vals.precio),
+        precio_lista: vals.precio_lista ? parseFloat(vals.precio_lista) : null,
+        stock: parseInt(vals.stock || "0"),
+        cantidad_minima: parseInt(vals.cantidad_minima || "1"),
+        activo: true,
+      }
+      setListings(prev => prev.map(l => l.id !== listing_id ? l : { ...l, presentaciones: l.presentaciones.map(updatePres) }))
+      setShowPres(prev => prev ? { ...prev, presentaciones: prev.presentaciones.map(updatePres) } : prev)
+
       setSavedRow(v => ({ ...v, [presentacion_id]: true }))
       setTimeout(() => setSavedRow(v => ({ ...v, [presentacion_id]: false })), 2000)
     } catch (e: any) { setError(e.message) }
