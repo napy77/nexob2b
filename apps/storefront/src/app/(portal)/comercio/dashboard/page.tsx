@@ -118,15 +118,8 @@ export default function ComercioDashboardPage() {
           <NavCard
             href="/comercio/productos"
             icon="🛍️"
-            title="Catálogo unificado"
-            description="Un producto, múltiples mayoristas — compará precios y presentaciones"
-            disabled={comercio.estado !== "aprobado"}
-          />
-          <NavCard
-            href="/comercio/catalogo"
-            icon="🛒"
-            title="Catálogo por mayorista"
-            description="Explorá los productos de cada mayorista individualmente"
+            title="Catálogo"
+            description="Compará precios y presentaciones de todos los mayoristas"
             disabled={comercio.estado !== "aprobado"}
           />
           <NavCard

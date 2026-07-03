@@ -2,165 +2,127 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { useCart } from "../../../../lib/comercio/cart"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "https://nexob2b.app"
 const PUB_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || ""
 
-const token = () => (typeof localStorage !== "undefined" ? localStorage.getItem("comercio_token") || "" : "")
-const authHeaders = () => ({ "Authorization": `Bearer ${token()}`, "x-publishable-api-key": PUB_KEY, "Content-Type": "application/json" })
+const authHeaders = () => ({
+  "Authorization": `Bearer ${typeof localStorage !== "undefined" ? localStorage.getItem("comercio_token") || "" : ""}`,
+  "x-publishable-api-key": PUB_KEY,
+  "Content-Type": "application/json",
+})
 
 type PresentacionMayorista = {
-  id: string; presentacion_id: string; nombre: string; factor: number
-  ean_propio: string | null; peso_g: number | null; orden: number
-  precio: number; precio_lista: number | null; stock: number
-}
-type MayoristaOpcion = {
-  listing_id: string; mayorista_id: string; mayorista_nombre: string
-  mayorista_logo: string | null; tiempo_entrega_dias: number | null
-  tiene_alta: boolean | null; presentaciones: PresentacionMayorista[]
-}
-type Producto = {
-  id: string; ean: string; nombre: string; descripcion: string | null
-  marca: string | null; unidad_base: string; alicuota_iva: number
-  imagen_url: string | null
-  pasillo_nombre: string | null; rubro_nombre: string | null
-  mayoristas: MayoristaOpcion[]
+  id: string           // producto_mayorista_presentacion.id → va como presentacion_id al orden
+  presentacion_id: string
+  nombre: string
+  factor: number
+  ean_propio: string | null
+  peso_g: number | null
+  orden: number
+  precio: number
+  precio_lista: number | null
+  stock: number
 }
 
-type CarritoItem = {
-  mayorista_id: string; mayorista_nombre: string; listing_id: string
-  presentacion_id: string; mp_presentacion_id: string
-  nombre: string; precio: number; alicuota_iva: number; cantidad: number; unidad: string
+type MayoristaOpcion = {
+  listing_id: string
+  mayorista_id: string
+  mayorista_nombre: string
+  mayorista_logo: string | null
+  tiempo_entrega_dias: number | null
+  tiene_alta: boolean | null
+  presentaciones: PresentacionMayorista[]
+}
+
+type Producto = {
+  id: string
+  ean: string
+  nombre: string
+  descripcion: string | null
+  marca: string | null
+  unidad_base: string
+  alicuota_iva: number
+  imagen_url: string | null
+  pasillo_nombre: string | null
+  rubro_nombre: string | null
+  mayoristas: MayoristaOpcion[]
 }
 
 export default function ProductosComercioPage() {
   const router = useRouter()
-  const [comercio, setComercio] = useState<{ id: string; nombre: string } | null>(null)
+  const { addItem, carts } = useCart()
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState("")
   const [error, setError] = useState("")
-
-  // Carrito
-  const [carrito, setCarrito] = useState<CarritoItem[]>([])
-  const [showCarrito, setShowCarrito] = useState(false)
-  const [creandoOrden, setCreandoOrden] = useState(false)
-
-  // Producto expandido
   const [expandido, setExpandido] = useState<string | null>(null)
-
-  const cargarComercio = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/store/comercios/me`, { headers: authHeaders() })
-      if (res.ok) { const d = await res.json(); setComercio(d.comercio) }
-    } catch {}
-  }
 
   const cargarProductos = useCallback(async () => {
     setLoading(true)
     try {
+      const token = typeof localStorage !== "undefined" ? localStorage.getItem("comercio_token") : null
+      if (!token) { router.replace("/comercio/login"); return }
+
+      // Obtener comercio_id para filtrar por zona
+      let comercio_id: string | null = null
+      try {
+        const me = await fetch(`${BACKEND_URL}/store/comercios/me`, { headers: authHeaders() })
+        if (me.ok) { const d = await me.json(); comercio_id = d.comercio?.id }
+      } catch {}
+
       const params = new URLSearchParams()
       if (q) params.set("q", q)
-      if (comercio?.id) params.set("comercio_id", comercio.id)
+      if (comercio_id) params.set("comercio_id", comercio_id)
+
       const res = await fetch(`${BACKEND_URL}/store/productos?${params}`, {
         headers: { "x-publishable-api-key": PUB_KEY },
       })
       const data = await res.json()
       setProductos(data.productos || [])
-    } catch (e: any) { setError(e.message) }
-    finally { setLoading(false) }
-  }, [q, comercio?.id])
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [q, router])
 
-  useEffect(() => { cargarComercio() }, [])
   useEffect(() => { cargarProductos() }, [cargarProductos])
 
-  const agregarAlCarrito = (
-    producto: Producto,
-    mayorista: MayoristaOpcion,
-    pres: PresentacionMayorista,
-    cantidad: number
-  ) => {
-    const key = `${mayorista.mayorista_id}|${pres.id}`
-    setCarrito(c => {
-      const exists = c.findIndex(i => `${i.mayorista_id}|${i.mp_presentacion_id}` === key)
-      if (exists >= 0) {
-        const updated = [...c]
-        updated[exists] = { ...updated[exists], cantidad: updated[exists].cantidad + cantidad }
-        return updated
-      }
-      return [...c, {
-        mayorista_id: mayorista.mayorista_id,
-        mayorista_nombre: mayorista.mayorista_nombre,
-        listing_id: mayorista.listing_id,
-        presentacion_id: pres.presentacion_id,
-        mp_presentacion_id: pres.id,
-        nombre: `${producto.nombre} — ${pres.nombre}`,
-        precio: pres.precio,
-        alicuota_iva: producto.alicuota_iva,
-        cantidad,
-        unidad: pres.nombre,
-      }]
-    })
-  }
-
-  const crearOrden = async () => {
-    if (!carrito.length) return
-    // Agrupar por mayorista
-    const porMayorista: Record<string, CarritoItem[]> = {}
-    carrito.forEach(i => {
-      if (!porMayorista[i.mayorista_id]) porMayorista[i.mayorista_id] = []
-      porMayorista[i.mayorista_id].push(i)
-    })
-
-    if (Object.keys(porMayorista).length > 1) {
-      alert("Por ahora solo podés hacer un pedido a un mayorista a la vez. Separá los productos por mayorista.")
-      return
-    }
-
-    const [mayorista_id, items] = Object.entries(porMayorista)[0]
-    setCreandoOrden(true)
-    try {
-      const res = await fetch(`${BACKEND_URL}/store/ordenes`, {
-        method: "POST", headers: authHeaders(),
-        body: JSON.stringify({
-          mayorista_id,
-          items: items.map(i => ({ presentacion_id: i.mp_presentacion_id, cantidad: i.cantidad })),
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setCarrito([])
-      setShowCarrito(false)
-      router.push(`/comercio/pedidos/${data.orden.id}`)
-    } catch (e: any) { setError(e.message) }
-    finally { setCreandoOrden(false) }
-  }
-
-  const fmt = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
-  const totalCarrito = carrito.reduce((s, i) => s + i.precio * i.cantidad, 0)
-  const cantidadCarrito = carrito.reduce((s, i) => s + i.cantidad, 0)
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Catálogo de productos</h1>
-          {cantidadCarrito > 0 && (
-            <button onClick={() => setShowCarrito(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700">
-              🛒 <span>{cantidadCarrito} items · {fmt(totalCarrito)}</span>
-            </button>
-          )}
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => router.push("/comercio/dashboard")} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">Catálogo unificado</h1>
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4">{error}</div>}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4">{error}</div>
+        )}
 
         {/* Búsqueda */}
-        <input value={q} onChange={e => setQ(e.target.value)}
-          placeholder="Buscar por nombre, EAN, marca..."
-          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm mb-6 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <div className="relative mb-6">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Buscar por nombre, EAN, marca..."
+            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
 
         {/* Productos */}
         {loading ? (
@@ -174,18 +136,20 @@ export default function ProductosComercioPage() {
           <div className="space-y-3">
             {productos.map(prod => {
               const isOpen = expandido === prod.id
-              const mejorPrecio = prod.mayoristas.flatMap(m => m.presentaciones).reduce<number | null>(
-                (min, p) => min === null ? p.precio : Math.min(min, p.precio), null
-              )
+              const mejorPrecio = prod.mayoristas
+                .flatMap(m => m.presentaciones)
+                .reduce<number | null>((min, p) => min === null ? p.precio : Math.min(min, p.precio), null)
               const mayoristasConAlta = prod.mayoristas.filter(m => m.tiene_alta === true).length
               const totalMayoristas = prod.mayoristas.length
 
               return (
                 <div key={prod.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                   {/* Cabecera del producto */}
-                  <button onClick={() => setExpandido(isOpen ? null : prod.id)}
-                    className="w-full flex items-center gap-4 p-5 text-left hover:bg-gray-50">
-                    <div className="w-12 h-12 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center text-2xl flex-shrink-0">
+                  <button
+                    onClick={() => setExpandido(isOpen ? null : prod.id)}
+                    className="w-full flex items-center gap-4 p-5 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="w-14 h-14 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center text-2xl flex-shrink-0">
                       {prod.imagen_url
                         ? <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-full object-cover" />
                         : <span>📦</span>
@@ -197,9 +161,12 @@ export default function ProductosComercioPage() {
                         {prod.marca && `${prod.marca} · `}EAN: {prod.ean}
                         {prod.pasillo_nombre && ` · ${prod.pasillo_nombre}`}
                       </p>
+                      {prod.descripcion && (
+                        <p className="text-xs text-gray-400 mt-0.5 truncate">{prod.descripcion}</p>
+                      )}
                     </div>
                     <div className="text-right flex-shrink-0">
-                      {mejorPrecio && (
+                      {mejorPrecio != null && (
                         <p className="text-sm font-bold text-gray-900">desde {fmt(mejorPrecio)}</p>
                       )}
                       <p className="text-xs text-gray-400">
@@ -207,44 +174,63 @@ export default function ProductosComercioPage() {
                         {mayoristasConAlta > 0 && ` · ${mayoristasConAlta} con alta`}
                       </p>
                     </div>
-                    <span className="text-gray-300 ml-2">{isOpen ? "▲" : "▼"}</span>
+                    <span className="text-gray-300 ml-2 text-xs">{isOpen ? "▲" : "▼"}</span>
                   </button>
 
                   {/* Opciones de mayoristas (expandido) */}
                   {isOpen && (
                     <div className="border-t border-gray-100">
-                      {prod.mayoristas.map(m => (
-                        <div key={m.listing_id} className="border-b border-gray-50 last:border-0">
-                          <div className="flex items-center gap-3 px-5 py-3 bg-gray-50">
-                            <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-700">
-                              {m.mayorista_nombre[0]}
+                      {prod.mayoristas.map(m => {
+                        const carritoMayorista = carts[m.mayorista_id] || []
+                        return (
+                          <div key={m.listing_id} className="border-b border-gray-50 last:border-0">
+                            <div className="flex items-center gap-3 px-5 py-3 bg-gray-50">
+                              <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-700">
+                                {m.mayorista_nombre[0]}
+                              </div>
+                              <span className="text-sm font-semibold text-gray-800">{m.mayorista_nombre}</span>
+                              {m.tiene_alta === true && (
+                                <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Alta</span>
+                              )}
+                              {m.tiene_alta === false && (
+                                <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Sin alta</span>
+                              )}
+                              {m.tiempo_entrega_dias != null && (
+                                <span className="text-xs text-gray-400">🚚 {m.tiempo_entrega_dias}d</span>
+                              )}
                             </div>
-                            <span className="text-sm font-semibold text-gray-800">{m.mayorista_nombre}</span>
-                            {m.tiene_alta === true && (
-                              <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Alta</span>
-                            )}
-                            {m.tiene_alta === false && (
-                              <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Sin alta</span>
-                            )}
-                            {m.tiempo_entrega_dias && (
-                              <span className="text-xs text-gray-400">🚚 {m.tiempo_entrega_dias}d</span>
-                            )}
-                          </div>
 
-                          {/* Presentaciones */}
-                          <div className="divide-y divide-gray-50">
-                            {(m.presentaciones || []).map(p => (
-                              <PresentacionRow
-                                key={p.id}
-                                prod={prod} mayorista={m} pres={p}
-                                onAgregar={(cant) => agregarAlCarrito(prod, m, p, cant)}
-                                carritoQty={carrito.find(c => c.mp_presentacion_id === p.id)?.cantidad || 0}
-                                fmt={fmt}
-                              />
-                            ))}
+                            <div className="divide-y divide-gray-50">
+                              {(m.presentaciones || []).map(pres => {
+                                const enCarrito = carritoMayorista.find(c => c.producto_id === pres.id)?.cantidad || 0
+                                return (
+                                  <PresentacionRow
+                                    key={pres.id}
+                                    prod={prod}
+                                    mayorista={m}
+                                    pres={pres}
+                                    enCarrito={enCarrito}
+                                    fmt={fmt}
+                                    onAgregar={(cantidad) => addItem({
+                                      producto_id: pres.id,          // mp_presentacion_id como clave única
+                                      presentacion_id: pres.id,      // para el orden nuevo
+                                      nombre: `${prod.nombre} — ${pres.nombre}`,
+                                      ean: prod.ean || null,
+                                      precio_unitario: pres.precio,
+                                      alicuota_iva: prod.alicuota_iva,
+                                      cantidad,
+                                      unidad: pres.nombre,
+                                      imagen_url: prod.imagen_url || undefined,
+                                      mayorista_id: m.mayorista_id,
+                                      mayorista_nombre: m.mayorista_nombre,
+                                    })}
+                                  />
+                                )
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -253,63 +239,17 @@ export default function ProductosComercioPage() {
           </div>
         )}
       </div>
-
-      {/* Modal carrito */}
-      {showCarrito && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-5 border-b border-gray-100">
-              <h2 className="font-bold text-gray-900">🛒 Mi pedido</h2>
-              <button onClick={() => setShowCarrito(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-            </div>
-
-            <div className="p-5 space-y-3">
-              {/* Avisar si hay múltiples mayoristas */}
-              {new Set(carrito.map(i => i.mayorista_id)).size > 1 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
-                  ⚠️ Tenés productos de múltiples mayoristas. Por ahora se procesa un pedido por mayorista.
-                </div>
-              )}
-
-              {carrito.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{item.nombre}</p>
-                    <p className="text-xs text-gray-500">{item.mayorista_nombre} · {fmt(item.precio)} c/u</p>
-                  </div>
-                  <div className="flex items-center gap-2 ml-3">
-                    <button onClick={() => setCarrito(c => c.map((i, j) => j === idx ? { ...i, cantidad: Math.max(1, i.cantidad - 1) } : i))}
-                      className="w-7 h-7 rounded-full bg-gray-200 text-gray-600 font-bold hover:bg-gray-300 text-sm">−</button>
-                    <span className="text-sm font-semibold w-6 text-center">{item.cantidad}</span>
-                    <button onClick={() => setCarrito(c => c.map((i, j) => j === idx ? { ...i, cantidad: i.cantidad + 1 } : i))}
-                      className="w-7 h-7 rounded-full bg-gray-200 text-gray-600 font-bold hover:bg-gray-300 text-sm">+</button>
-                    <button onClick={() => setCarrito(c => c.filter((_, j) => j !== idx))}
-                      className="ml-1 text-gray-300 hover:text-red-400 text-lg">✕</button>
-                  </div>
-                </div>
-              ))}
-
-              <div className="border-t border-gray-100 pt-3">
-                <div className="flex justify-between text-sm font-bold text-gray-900 mb-4">
-                  <span>Total estimado</span>
-                  <span>{fmt(totalCarrito)}</span>
-                </div>
-                <button onClick={crearOrden} disabled={creandoOrden || carrito.length === 0}
-                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-60">
-                  {creandoOrden ? "Procesando..." : "Confirmar pedido"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
 
-function PresentacionRow({ prod, mayorista, pres, onAgregar, carritoQty, fmt }: {
-  prod: Producto; mayorista: MayoristaOpcion; pres: PresentacionMayorista
-  onAgregar: (cantidad: number) => void; carritoQty: number; fmt: (n: number) => string
+function PresentacionRow({ prod, mayorista, pres, enCarrito, fmt, onAgregar }: {
+  prod: Producto
+  mayorista: MayoristaOpcion
+  pres: PresentacionMayorista
+  enCarrito: number
+  fmt: (n: number) => string
+  onAgregar: (cantidad: number) => void
 }) {
   const [cantidad, setCantidad] = useState(1)
 
@@ -322,7 +262,7 @@ function PresentacionRow({ prod, mayorista, pres, onAgregar, carritoQty, fmt }: 
           {pres.ean_propio && ` · ${pres.ean_propio}`}
           {pres.peso_g && ` · ${pres.peso_g}g`}
         </p>
-        {pres.precio_lista && (
+        {pres.precio_lista != null && (
           <p className="text-xs text-gray-400 line-through">{fmt(pres.precio_lista)}</p>
         )}
         <p className="text-base font-bold text-gray-900">{fmt(pres.precio)}</p>
@@ -334,18 +274,27 @@ function PresentacionRow({ prod, mayorista, pres, onAgregar, carritoQty, fmt }: 
         )}
       </div>
       <div className="flex items-center gap-2 ml-4">
-        {carritoQty > 0 && (
-          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{carritoQty} en carrito</span>
+        {enCarrito > 0 && (
+          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+            {enCarrito} en carrito
+          </span>
         )}
         <div className="flex items-center gap-1">
-          <button onClick={() => setCantidad(c => Math.max(1, c - 1))}
-            className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">−</button>
+          <button
+            onClick={() => setCantidad(c => Math.max(1, c - 1))}
+            className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm"
+          >−</button>
           <span className="text-sm w-6 text-center font-semibold">{cantidad}</span>
-          <button onClick={() => setCantidad(c => c + 1)}
-            className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm">+</button>
+          <button
+            onClick={() => setCantidad(c => c + 1)}
+            className="w-7 h-7 rounded-full bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 text-sm"
+          >+</button>
         </div>
-        <button onClick={() => onAgregar(cantidad)} disabled={pres.stock === 0}
-          className="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-40">
+        <button
+          onClick={() => onAgregar(cantidad)}
+          disabled={pres.stock === 0}
+          className="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-40 transition-colors"
+        >
           Agregar
         </button>
       </div>

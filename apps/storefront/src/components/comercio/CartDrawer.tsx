@@ -176,14 +176,13 @@ export default function CartDrawer() {
           medio_pago_id: medioPagoId || null,
           transporte_id: transporteId || null,
           codigo_descuento_id: codigoDescuentoId || null,
-          items: activeItems.map((i) => ({
-            producto_id: i.producto_id,
-            nombre: i.nombre,
-            precio_unitario: i.precio_unitario,
-            alicuota_iva: i.alicuota_iva,
-            cantidad: i.cantidad,
-            unidad: i.unidad,
-          })),
+          items: activeItems.map((i) =>
+            // Catálogo nuevo: enviar presentacion_id + cantidad (el backend resuelve precio)
+            // Catálogo viejo: enviar campos planos (legado)
+            i.presentacion_id
+              ? { presentacion_id: i.presentacion_id, cantidad: i.cantidad }
+              : { producto_id: i.producto_id, nombre: i.nombre, precio_unitario: i.precio_unitario, alicuota_iva: i.alicuota_iva, cantidad: i.cantidad, unidad: i.unidad }
+          ),
         }),
       })
       let data: any = {}

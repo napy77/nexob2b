@@ -3,11 +3,12 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 
 export type CartItem = {
-  producto_id: string
+  producto_id: string          // ID único del item en el carrito (puede ser mp_presentacion_id para catálogo nuevo)
+  presentacion_id?: string     // si viene del catálogo nuevo (producto_mayorista_presentacion.id)
   nombre: string
   sku?: string | null
   ean?: string | null
-  precio_unitario: number   // neto
+  precio_unitario: number      // neto
   alicuota_iva: number
   cantidad: number
   unidad: string
