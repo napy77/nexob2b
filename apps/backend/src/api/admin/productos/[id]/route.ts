@@ -1,8 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { PRODUCTO_MAESTRO_MODULE } from "../../../../modules/producto-maestro"
 import { getPool } from "../../../../lib/db-seq"
-import * as fs from "fs"
-import * as path from "path"
 
 // GET /admin/productos/:id — producto con todas sus presentaciones
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -51,19 +49,9 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
     if (body[c] !== undefined) updates[c] = body[c]
   }
 
-  // Guardar imagen si viene en base64
-  // Se guarda en storefront/public/ para que Next.js la sirva directamente en nexob2b.app/product-images/
+  // Guardar imagen como base64 directamente en la BD
   if (body.imagen_url_base64) {
-    const match = body.imagen_url_base64.match(/^data:([a-zA-Z0-9+/]+\/[a-zA-Z0-9+/]+);base64,(.+)$/)
-    if (match) {
-      const ext = match[1].split("/")[1].replace("jpeg", "jpg")
-      const buffer = Buffer.from(match[2], "base64")
-      const uploadDir = path.join(process.cwd(), "..", "storefront", "public", "product-images")
-      fs.mkdirSync(uploadDir, { recursive: true })
-      const filename = `producto_${id}.${ext}`
-      fs.writeFileSync(path.join(uploadDir, filename), buffer)
-      updates.imagen_url = `/product-images/${filename}`
-    }
+    updates.imagen_url = body.imagen_url_base64
   }
 
   const producto = await svc.updateProductos({ id }, updates)
