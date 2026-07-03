@@ -61,6 +61,19 @@ export default function CatalogoProductosPage() {
   const [subrubroActivo, setSubrubroActivo] = useState<string | null>(null)
   const [pasilloActivo, setPasilloActivo] = useState<string | null>(null)
 
+  // Vista: "lista" | "grilla-chica" | "grilla-grande"
+  const [vista, setVista] = useState<"lista" | "grilla-chica" | "grilla-grande">("grilla-grande")
+
+  // Cargar / persistir preferencia de vista
+  useEffect(() => {
+    const saved = localStorage.getItem("nexo_catalogo_vista") as "lista" | "grilla-chica" | "grilla-grande" | null
+    if (saved) setVista(saved)
+  }, [])
+  const cambiarVista = (v: "lista" | "grilla-chica" | "grilla-grande") => {
+    setVista(v)
+    localStorage.setItem("nexo_catalogo_vista", v)
+  }
+
   // Modal
   const [seleccionado, setSeleccionado] = useState<Producto | null>(null)
   const [cantidadModal, setCantidadModal] = useState(1)
@@ -166,7 +179,38 @@ export default function CatalogoProductosPage() {
             <span className="text-gray-300">|</span>
             <span className="text-sm text-gray-500">Catálogo</span>
           </div>
-          <span className="text-sm text-gray-400">{filtrados.length} productos</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-400">{filtrados.length} productos</span>
+            {/* Toggle de vista */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
+              {/* Lista */}
+              <button onClick={() => cambiarVista("lista")} title="Vista lista"
+                className={`p-1.5 rounded-md transition-colors ${vista === "lista" ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+              </button>
+              {/* Grilla chica */}
+              <button onClick={() => cambiarVista("grilla-chica")} title="Grilla pequeña"
+                className={`p-1.5 rounded-md transition-colors ${vista === "grilla-chica" ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                  <rect x="1" y="1" width="4" height="4" rx="0.5"/><rect x="6" y="1" width="4" height="4" rx="0.5"/>
+                  <rect x="11" y="1" width="4" height="4" rx="0.5"/><rect x="1" y="6" width="4" height="4" rx="0.5"/>
+                  <rect x="6" y="6" width="4" height="4" rx="0.5"/><rect x="11" y="6" width="4" height="4" rx="0.5"/>
+                  <rect x="1" y="11" width="4" height="4" rx="0.5"/><rect x="6" y="11" width="4" height="4" rx="0.5"/>
+                  <rect x="11" y="11" width="4" height="4" rx="0.5"/>
+                </svg>
+              </button>
+              {/* Grilla grande */}
+              <button onClick={() => cambiarVista("grilla-grande")} title="Grilla grande"
+                className={`p-1.5 rounded-md transition-colors ${vista === "grilla-grande" ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                  <rect x="1" y="1" width="6.5" height="6.5" rx="0.5"/><rect x="8.5" y="1" width="6.5" height="6.5" rx="0.5"/>
+                  <rect x="1" y="8.5" width="6.5" height="6.5" rx="0.5"/><rect x="8.5" y="8.5" width="6.5" height="6.5" rx="0.5"/>
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </nav>
 
@@ -284,77 +328,161 @@ export default function CatalogoProductosPage() {
             {Object.entries(grupos).map(([grupo, items]) => (
               <div key={grupo}>
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{grupo}</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {items.map((p) => (
-                    <div key={p.id}
-                      className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer"
-                      onClick={() => abrirDetalle(p)}>
-                      <div className="aspect-video bg-gray-50 overflow-hidden">
-                        {p.imagen_url
-                          ? <img src={p.imagen_url!.startsWith("data:") ? p.imagen_url! : `${BACKEND_URL}${p.imagen_url}`} alt={p.nombre} className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
-                        }
-                      </div>
-                      <div className="p-3">
-                        <p className="text-xs text-blue-600 font-medium mb-0.5">{p.mayorista?.nombre}</p>
-                        {(p.rubro || p.subrubro) && (
-                          <p className="text-xs text-gray-400 mb-0.5">{[p.rubro, p.subrubro].filter(Boolean).join(" › ")}</p>
-                        )}
-                        <h3 className="font-semibold text-gray-900 text-sm leading-tight">{p.nombre}</h3>
-                        <div className="mt-1">
-                          {p.precio != null ? (
-                            p.acceso.mostrarDesglosado ? (
-                              <div className="text-xs space-y-0.5">
-                                <div className="flex items-baseline gap-1">
-                                  <span className="text-base font-bold text-gray-900">${p.precio.toLocaleString("es-AR")}</span>
-                                  <span className="text-gray-400">neto</span>
-                                </div>
-                                {p.alicuota_iva > 0 && (
-                                  <div className="text-gray-500">
-                                    + IVA {p.alicuota_iva}% = <strong className="text-gray-700">${(p.precio * (1 + p.alicuota_iva / 100)).toLocaleString("es-AR")}</strong>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-base font-bold text-gray-900">
-                                  ${(p.precio * (1 + p.alicuota_iva / 100)).toLocaleString("es-AR")}
-                                </span>
-                                <span className="text-xs text-gray-400">/ {p.unidad}</span>
-                              </div>
-                            )
-                          ) : (
-                            <span className="text-xs text-gray-400 italic">Precio bajo solicitud</span>
+
+                {/* ── VISTA LISTA ── */}
+                {vista === "lista" && (
+                  <div className="space-y-2">
+                    {items.map((p) => {
+                      const imgSrc = p.imagen_url
+                        ? (p.imagen_url.startsWith("data:") ? p.imagen_url : `${BACKEND_URL}${p.imagen_url}`)
+                        : null
+                      const precioDisplay = p.precio != null
+                        ? `$${(p.acceso.mostrarDesglosado ? p.precio : p.precio * (1 + p.alicuota_iva / 100)).toLocaleString("es-AR")}${p.acceso.mostrarDesglosado ? " neto" : ""}`
+                        : null
+                      return (
+                        <div key={p.id}
+                          className="bg-white rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer flex items-center gap-3 px-3 py-2.5"
+                          onClick={() => abrirDetalle(p)}>
+                          <div className="w-12 h-12 bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center text-xl flex-shrink-0">
+                            {imgSrc ? <img src={imgSrc} alt={p.nombre} className="w-full h-full object-cover" /> : "📦"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-blue-600 font-medium">{p.mayorista?.nombre}</p>
+                            <h3 className="font-semibold text-gray-900 text-sm truncate">{p.nombre}</h3>
+                            {(p.rubro || p.subrubro) && (
+                              <p className="text-xs text-gray-400">{[p.rubro, p.subrubro].filter(Boolean).join(" › ")}</p>
+                            )}
+                          </div>
+                          <div className="text-right flex-shrink-0 ml-2">
+                            {precioDisplay
+                              ? <p className="font-bold text-gray-900 text-sm">{precioDisplay}</p>
+                              : <p className="text-xs text-gray-400 italic">Consultar</p>
+                            }
+                            <p className="text-xs text-gray-400">Mín: {p.compra_minima} {p.unidad}</p>
+                          </div>
+                          {p.acceso.mostrarPrecio && p.precio != null && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                addItem({ producto_id: p.id, nombre: p.nombre, sku: p.sku || null, ean: p.ean || null, precio_unitario: p.precio!, alicuota_iva: p.alicuota_iva, cantidad: p.compra_minima || 1, unidad: p.unidad, imagen_url: p.imagen_url, mayorista_id: p.mayorista.id, mayorista_nombre: p.mayorista.nombre })
+                              }}
+                              className="ml-2 bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0">
+                              + Agregar
+                            </button>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5">Mín: {p.compra_minima} {p.unidad}{p.compra_minima !== 1 ? "s" : ""}</p>
+                      )
+                    })}
+                  </div>
+                )}
 
-                        {p.acceso.mostrarPrecio && p.precio != null && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              addItem({
-                                producto_id: p.id,
-                                nombre: p.nombre,
-                                sku: p.sku || null,
-                                ean: p.ean || null,
-                                precio_unitario: p.precio!,
-                                alicuota_iva: p.alicuota_iva,
-                                cantidad: p.compra_minima || 1,
-                                unidad: p.unidad,
-                                imagen_url: p.imagen_url,
-                                mayorista_id: p.mayorista.id,
-                                mayorista_nombre: p.mayorista.nombre,
-                              })
-                            }}
-                            className="mt-2 w-full bg-blue-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-blue-700 transition-colors">
-                            + Agregar
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                {/* ── VISTA GRILLA PEQUEÑA ── */}
+                {vista === "grilla-chica" && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                    {items.map((p) => {
+                      const imgSrc = p.imagen_url
+                        ? (p.imagen_url.startsWith("data:") ? p.imagen_url : `${BACKEND_URL}${p.imagen_url}`)
+                        : null
+                      return (
+                        <div key={p.id}
+                          className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer"
+                          onClick={() => abrirDetalle(p)}>
+                          <div className="aspect-square bg-gray-50 overflow-hidden">
+                            {imgSrc
+                              ? <img src={imgSrc} alt={p.nombre} className="w-full h-full object-cover" />
+                              : <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+                            }
+                          </div>
+                          <div className="p-2">
+                            <h3 className="font-semibold text-gray-900 text-xs leading-tight line-clamp-2">{p.nombre}</h3>
+                            <p className="text-xs text-blue-600 mt-0.5 truncate">{p.mayorista?.nombre}</p>
+                            {p.precio != null
+                              ? <p className="text-sm font-bold text-gray-900 mt-1">${(p.acceso.mostrarDesglosado ? p.precio : p.precio * (1 + p.alicuota_iva / 100)).toLocaleString("es-AR")}</p>
+                              : <p className="text-xs text-gray-400 italic mt-1">Consultar</p>
+                            }
+                            {p.acceso.mostrarPrecio && p.precio != null && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  addItem({ producto_id: p.id, nombre: p.nombre, sku: p.sku || null, ean: p.ean || null, precio_unitario: p.precio!, alicuota_iva: p.alicuota_iva, cantidad: p.compra_minima || 1, unidad: p.unidad, imagen_url: p.imagen_url, mayorista_id: p.mayorista.id, mayorista_nombre: p.mayorista.nombre })
+                                }}
+                                className="mt-1.5 w-full bg-blue-600 text-white text-xs font-semibold py-1 rounded-md hover:bg-blue-700 transition-colors">
+                                + Agregar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* ── VISTA GRILLA GRANDE (default) ── */}
+                {vista === "grilla-grande" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {items.map((p) => {
+                      const imgSrc = p.imagen_url
+                        ? (p.imagen_url.startsWith("data:") ? p.imagen_url : `${BACKEND_URL}${p.imagen_url}`)
+                        : null
+                      return (
+                        <div key={p.id}
+                          className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer"
+                          onClick={() => abrirDetalle(p)}>
+                          <div className="aspect-video bg-gray-50 overflow-hidden">
+                            {imgSrc
+                              ? <img src={imgSrc} alt={p.nombre} className="w-full h-full object-cover" />
+                              : <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
+                            }
+                          </div>
+                          <div className="p-3">
+                            <p className="text-xs text-blue-600 font-medium mb-0.5">{p.mayorista?.nombre}</p>
+                            {(p.rubro || p.subrubro) && (
+                              <p className="text-xs text-gray-400 mb-0.5">{[p.rubro, p.subrubro].filter(Boolean).join(" › ")}</p>
+                            )}
+                            <h3 className="font-semibold text-gray-900 text-sm leading-tight">{p.nombre}</h3>
+                            <div className="mt-1">
+                              {p.precio != null ? (
+                                p.acceso.mostrarDesglosado ? (
+                                  <div className="text-xs space-y-0.5">
+                                    <div className="flex items-baseline gap-1">
+                                      <span className="text-base font-bold text-gray-900">${p.precio.toLocaleString("es-AR")}</span>
+                                      <span className="text-gray-400">neto</span>
+                                    </div>
+                                    {p.alicuota_iva > 0 && (
+                                      <div className="text-gray-500">
+                                        + IVA {p.alicuota_iva}% = <strong className="text-gray-700">${(p.precio * (1 + p.alicuota_iva / 100)).toLocaleString("es-AR")}</strong>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-baseline gap-1">
+                                    <span className="text-base font-bold text-gray-900">
+                                      ${(p.precio * (1 + p.alicuota_iva / 100)).toLocaleString("es-AR")}
+                                    </span>
+                                    <span className="text-xs text-gray-400">/ {p.unidad}</span>
+                                  </div>
+                                )
+                              ) : (
+                                <span className="text-xs text-gray-400 italic">Precio bajo solicitud</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5">Mín: {p.compra_minima} {p.unidad}{p.compra_minima !== 1 ? "s" : ""}</p>
+                            {p.acceso.mostrarPrecio && p.precio != null && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  addItem({ producto_id: p.id, nombre: p.nombre, sku: p.sku || null, ean: p.ean || null, precio_unitario: p.precio!, alicuota_iva: p.alicuota_iva, cantidad: p.compra_minima || 1, unidad: p.unidad, imagen_url: p.imagen_url, mayorista_id: p.mayorista.id, mayorista_nombre: p.mayorista.nombre })
+                                }}
+                                className="mt-2 w-full bg-blue-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-blue-700 transition-colors">
+                                + Agregar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
