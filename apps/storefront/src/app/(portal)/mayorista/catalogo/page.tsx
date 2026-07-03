@@ -41,7 +41,8 @@ export default function CatalogoMayoristaPage() {
   // Modal presentaciones
   const [showPres, setShowPres] = useState<Listing | null>(null)
   const [precioEdit, setPrecioEdit] = useState<Record<string, { precio: string; precio_lista: string; stock: string; cantidad_minima: string }>>({})
-  const [saving, setSaving] = useState(false)
+  const [savingRow, setSavingRow] = useState<Record<string, boolean>>({})
+  const [savedRow, setSavedRow] = useState<Record<string, boolean>>({})
 
   // Modal proponer nuevo
   const [showNuevo, setShowNuevo] = useState(false)
@@ -117,24 +118,34 @@ export default function CatalogoMayoristaPage() {
   const guardarPresentacion = async (listing_id: string, presentacion_id: string, mp_id: string | null) => {
     const vals = precioEdit[presentacion_id]
     if (!vals?.precio) return
-    setSaving(true)
+    setSavingRow(v => ({ ...v, [presentacion_id]: true }))
+    setSavedRow(v => ({ ...v, [presentacion_id]: false }))
     try {
       if (mp_id) {
-        // Actualizar existente
         await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/${listing_id}/presentaciones/${mp_id}`, {
           method: "PUT", headers: headers(),
           body: JSON.stringify({ precio: parseFloat(vals.precio), precio_lista: vals.precio_lista ? parseFloat(vals.precio_lista) : null, stock: parseInt(vals.stock || "0"), cantidad_minima: parseInt(vals.cantidad_minima || "1") }),
         })
       } else {
-        // Crear nueva
-        await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/${listing_id}/presentaciones`, {
+        const r = await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/${listing_id}/presentaciones`, {
           method: "POST", headers: headers(),
           body: JSON.stringify({ presentacion_id, precio: parseFloat(vals.precio), precio_lista: vals.precio_lista ? parseFloat(vals.precio_lista) : null, stock: parseInt(vals.stock || "0"), cantidad_minima: parseInt(vals.cantidad_minima || "1") }),
         })
+        // Actualizar el mp_id local para que futuras ediciones usen PUT
+        const data = await r.json()
+        if (showPres && data.presentacion?.id) {
+          setShowPres(prev => prev ? {
+            ...prev,
+            presentaciones: prev.presentaciones.map(p =>
+              p.presentacion_id === presentacion_id ? { ...p, mp_id: data.presentacion.id } : p
+            )
+          } : prev)
+        }
       }
-      cargar()
+      setSavedRow(v => ({ ...v, [presentacion_id]: true }))
+      setTimeout(() => setSavedRow(v => ({ ...v, [presentacion_id]: false })), 2000)
     } catch (e: any) { setError(e.message) }
-    finally { setSaving(false) }
+    finally { setSavingRow(v => ({ ...v, [presentacion_id]: false })) }
   }
 
   const quitarProducto = async (listing_id: string) => {
@@ -321,35 +332,41 @@ export default function CatalogoMayoristaPage() {
                       <div className="grid grid-cols-2 gap-3">
                         <label className="text-xs font-medium text-gray-600">
                           Precio *
-                          <input type="number" value={vals.precio} onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, precio: e.target.value } }))}
+                          <input type="number" value={vals.precio}
+                            onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, precio: e.target.value } }))}
+                            onBlur={() => guardarPresentacion(showPres.id, p.presentacion_id, p.mp_id || null)}
                             placeholder="0.00"
                             className="mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                         </label>
                         <label className="text-xs font-medium text-gray-600">
                           Precio lista (tachado)
-                          <input type="number" value={vals.precio_lista} onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, precio_lista: e.target.value } }))}
+                          <input type="number" value={vals.precio_lista}
+                            onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, precio_lista: e.target.value } }))}
+                            onBlur={() => guardarPresentacion(showPres.id, p.presentacion_id, p.mp_id || null)}
                             placeholder="0.00"
                             className="mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                         </label>
                         <label className="text-xs font-medium text-gray-600">
                           Stock disponible
-                          <input type="number" value={vals.stock} onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, stock: e.target.value } }))}
+                          <input type="number" value={vals.stock}
+                            onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, stock: e.target.value } }))}
+                            onBlur={() => guardarPresentacion(showPres.id, p.presentacion_id, p.mp_id || null)}
                             min={0}
                             className="mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                         </label>
                         <label className="text-xs font-medium text-gray-600">
                           Cant. mínima de venta
-                          <input type="number" value={vals.cantidad_minima} onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, cantidad_minima: e.target.value } }))}
+                          <input type="number" value={vals.cantidad_minima}
+                            onChange={e => setPrecioEdit(v => ({ ...v, [p.presentacion_id]: { ...vals, cantidad_minima: e.target.value } }))}
+                            onBlur={() => guardarPresentacion(showPres.id, p.presentacion_id, p.mp_id || null)}
                             min={1}
                             className="mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                         </label>
                       </div>
-                      <button
-                        onClick={() => guardarPresentacion(showPres.id, p.presentacion_id, p.mp_id || null)}
-                        disabled={saving || !vals.precio}
-                        className="mt-3 w-full py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60">
-                        {saving ? "Guardando..." : "Guardar"}
-                      </button>
+                      <div className="mt-2 h-5 text-right text-xs">
+                        {savingRow[p.presentacion_id] && <span className="text-gray-400">Guardando...</span>}
+                        {savedRow[p.presentacion_id] && <span className="text-green-600 font-medium">✓ Guardado</span>}
+                      </div>
                     </div>
                   )
                 })}
