@@ -156,16 +156,20 @@ export default function CarritoTab() {
         medio_pago_id: medioPagoId || undefined,
         transporte_id: transporteId || undefined,
         codigo_descuento_id: codigoDescuentoId || undefined,
-        items: activeItems.map((i) => ({
-          producto_id: i.producto_id,
-          nombre: i.nombre,
-          sku: i.sku,
-          ean: i.ean,
-          cantidad: i.cantidad,
-          precio_unitario: i.precio_unitario,
-          alicuota_iva: i.alicuota_iva,
-          unidad: i.unidad,
-        })),
+        items: activeItems.map((i) =>
+          i.presentacion_id
+            ? { presentacion_id: i.presentacion_id, cantidad: i.cantidad }
+            : {
+                producto_id: i.producto_id,
+                nombre: i.nombre,
+                sku: i.sku,
+                ean: i.ean,
+                cantidad: i.cantidad,
+                precio_unitario: i.precio_unitario,
+                alicuota_iva: i.alicuota_iva,
+                unidad: i.unidad,
+              }
+        ),
         notas,
       })
       clearCart(activeMayoristaId)

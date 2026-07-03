@@ -1,388 +1,412 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import {
   View, Text, FlatList, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, Image, Alert, ScrollView, Modal, Linking,
+  StyleSheet, ActivityIndicator, Image, ScrollView, Modal,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useAuth } from "../../lib/auth"
 import { useCart } from "../../lib/cart"
-import { getMayoristas, getCatalogoMayorista, solicitarAlta, ApiError } from "../../lib/api"
-import { BACKEND_URL } from "../../lib/config"
+import { getProductos, getTaxonomia, getComercioMe, ApiError } from "../../lib/api"
 
-type Mayorista = {
+// ── Tipos ──────────────────────────────────────────────────────────────────────
+
+type Presentacion = {
   id: string
+  presentacion_id: string
   nombre: string
-  ciudad?: string
-  provincia?: string
-  rubros: string[]
-  logo_url?: string | null
-  visibilidad?: string
-  solicitud: { id: string; estado: string } | null
-  contacto: { nombre: string; celular: string | null; email: string | null; es_vendedor: boolean }
+  factor: number
+  precio: number
+  precio_lista?: number
+  stock?: number
+  ean_propio?: string
+}
+
+type MayoristaEnProd = {
+  listing_id: string
+  mayorista_id: string
+  mayorista_nombre: string
+  tiene_alta: boolean | null
+  tiempo_entrega_dias?: number
+  presentaciones: Presentacion[]
 }
 
 type Producto = {
   id: string
+  ean: string
   nombre: string
   descripcion?: string
-  precio: number | null
+  marca?: string
+  unidad_base?: string
   alicuota_iva?: number
-  unidad: string
-  compra_minima: number
-  stock?: number
   imagen_url?: string
-  sku?: string
-  ean?: string
+  pasillo_nombre?: string
+  rubro_nombre?: string
+  subrubro_nombre?: string
+  mayoristas: MayoristaEnProd[]
 }
 
-type Acceso = { mostrarPrecio: boolean; puedeContactar: boolean; aceptado: boolean }
-type MayoristaInfo = { id: string; nombre: string; email: string; telefono?: string }
+type Pasillo = { id: string; nombre: string }
+type Rubro = { id: string; nombre: string; pasillo_id?: string }
+type Subrubro = { id: string; nombre: string; rubro_id: string }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmt(n: number) {
+  return "$" + n.toLocaleString("es-AR")
+}
+
+// ── Componente ────────────────────────────────────────────────────────────────
 
 export default function CatalogoTab() {
   const { token, logout } = useAuth()
-  const { addItem, totalItems } = useCart()
+  const { carts, addItem } = useCart()
 
-  const [vista, setVista] = useState<"lista" | "catalogo">("lista")
-
-  // ── Lista mayoristas ──────────────────────────────────────────────
-  const [mayoristas, setMayoristas] = useState<Mayorista[]>([])
-  const [loadingLista, setLoadingLista] = useState(true)
-  const [busquedaLista, setBusquedaLista] = useState("")
-  const [solicitando, setSolicitando] = useState<string | null>(null)
-
-  // ── Catálogo productos ────────────────────────────────────────────
-  const [mayoristaActual, setMayoristaActual] = useState<MayoristaInfo | null>(null)
+  // Productos
   const [productos, setProductos] = useState<Producto[]>([])
-  const [acceso, setAcceso] = useState<Acceso | null>(null)
-  const [loadingCat, setLoadingCat] = useState(false)
-  const [busquedaCat, setBusquedaCat] = useState("")
-  const [seleccionado, setSeleccionado] = useState<Producto | null>(null)
-  const [cantidad, setCantidad] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [comercioId, setComercioId] = useState<string | null>(null)
 
-  const cargarLista = useCallback(async () => {
+  // Búsqueda
+  const [busqueda, setBusqueda] = useState("")
+  const busquedaTimer = useRef<any>(null)
+
+  // Filtros taxonomía
+  const [pasillos, setPasillos] = useState<Pasillo[]>([])
+  const [rubros, setRubros] = useState<Rubro[]>([])
+  const [subrubros, setSubrubros] = useState<Subrubro[]>([])
+  const [pasilloId, setPasilloId] = useState<string | null>(null)
+  const [rubroId, setRubroId] = useState<string | null>(null)
+  const [subrubroId, setSubrubroId] = useState<string | null>(null)
+  const [soloConAlta, setSoloConAlta] = useState(false)
+
+  // Modal
+  const [modalProd, setModalProd] = useState<Producto | null>(null)
+  // Cantidades por presentacion en el modal
+  const [cantidades, setCantidades] = useState<Record<string, number>>({})
+
+  // ── Carga inicial ──────────────────────────────────────────────────────────
+
+  useEffect(() => {
     if (!token) return
-    setLoadingLista(true)
-    try {
-      const data = await getMayoristas(token)
-      setMayoristas(data.mayoristas || [])
-    } catch (e: any) {
-      if (e instanceof ApiError && e.status === 401) logout()
-    } finally {
-      setLoadingLista(false)
-    }
+    // Cargar comercio_id y taxonomía en paralelo
+    Promise.all([
+      getComercioMe(token).then(d => setComercioId(d.comercio?.id || null)).catch(() => {}),
+      getTaxonomia().then(d => {
+        setPasillos(d.pasillos || [])
+        setRubros(d.rubros || [])
+        setSubrubros(d.subrubros || [])
+      }).catch(() => {}),
+    ])
   }, [token])
 
-  useEffect(() => { cargarLista() }, [cargarLista])
+  // ── Cargar productos ──────────────────────────────────────────────────────
 
-  const abrirCatalogo = async (m: Mayorista) => {
+  const cargarProductos = useCallback(async () => {
     if (!token) return
-    setVista("catalogo")
-    setMayoristaActual(null)
-    setProductos([])
-    setAcceso(null)
-    setBusquedaCat("")
-    setLoadingCat(true)
+    setLoading(true)
     try {
-      const data = await getCatalogoMayorista(token, m.id)
-      setMayoristaActual(data.mayorista)
+      const params: Record<string, string> = {}
+      if (busqueda.trim()) params.q = busqueda.trim()
+      if (pasilloId) params.pasillo_id = pasilloId
+      if (rubroId) params.rubro_id = rubroId
+      if (subrubroId) params.subrubro_id = subrubroId
+      if (comercioId) params.comercio_id = comercioId
+      const data = await getProductos(token, params)
       setProductos(data.productos || [])
-      setAcceso(data.acceso)
     } catch (e: any) {
       if (e instanceof ApiError && e.status === 401) logout()
-      setVista("lista")
     } finally {
-      setLoadingCat(false)
+      setLoading(false)
     }
+  }, [token, busqueda, pasilloId, rubroId, subrubroId, comercioId])
+
+  useEffect(() => { cargarProductos() }, [cargarProductos])
+
+  // ── Búsqueda con debounce ─────────────────────────────────────────────────
+
+  const onBusqueda = (t: string) => {
+    setBusqueda(t)
+    clearTimeout(busquedaTimer.current)
+    busquedaTimer.current = setTimeout(() => {}, 0) // el cambio de estado dispara useEffect
   }
 
-  const handleSolicitar = async (mayoristaId: string) => {
-    if (!token) return
-    setSolicitando(mayoristaId)
-    try {
-      await solicitarAlta(token, mayoristaId)
-      cargarLista()
-    } catch (e: any) {
-      Alert.alert("Error", e.message)
-    } finally {
-      setSolicitando(null)
-    }
-  }
+  // ── Filtros client-side ───────────────────────────────────────────────────
 
-  const doAddItem = (p: Producto, qty: number) => {
-    if (!mayoristaActual || p.precio == null) return
+  const productosMostrados = soloConAlta
+    ? productos.filter(p => p.mayoristas.some(m => m.tiene_alta === true))
+    : productos
+
+  // ── Agregar al carrito ────────────────────────────────────────────────────
+
+  const agregarPresentacion = (prod: Producto, mayorista: MayoristaEnProd, pres: Presentacion, cant: number) => {
     addItem({
-      producto_id: p.id, nombre: p.nombre, sku: p.sku ?? null, ean: p.ean ?? null,
-      precio_unitario: p.precio, alicuota_iva: p.alicuota_iva ?? 21,
-      cantidad: qty, unidad: p.unidad, imagen_url: p.imagen_url,
-      mayorista_id: mayoristaActual.id, mayorista_nombre: mayoristaActual.nombre,
+      producto_id: pres.id,           // usa presentacion_id como key única
+      presentacion_id: pres.id,
+      nombre: `${prod.nombre} · ${pres.nombre}`,
+      sku: null,
+      ean: pres.ean_propio || prod.ean || null,
+      precio_unitario: pres.precio,
+      alicuota_iva: prod.alicuota_iva ?? 21,
+      cantidad: cant,
+      unidad: prod.unidad_base || "un",
+      imagen_url: prod.imagen_url,
+      mayorista_id: mayorista.mayorista_id,
+      mayorista_nombre: mayorista.mayorista_nombre,
     })
   }
 
-  const agregarDirecto = (p: Producto) => {
-    doAddItem(p, p.compra_minima || 1)
-  }
+  // ── Render chips de filtro ────────────────────────────────────────────────
 
-  const agregarDesdeModal = () => {
-    if (!seleccionado) return
-    const prod = seleccionado
-    doAddItem(prod, cantidad)
-    setSeleccionado(null)
-    Alert.alert("✓ Agregado", `${prod.nombre} en tu carrito`)
-  }
+  const rubrosDelPasillo = pasilloId
+    ? rubros.filter(r => (r as any).pasillo_id === pasilloId || !(r as any).pasillo_id)
+    : rubros
+  const subrubrosDelRubro = rubroId
+    ? subrubros.filter(s => s.rubro_id === rubroId)
+    : []
 
-  // ══ VISTA LISTA MAYORISTAS ════════════════════════════════════════
-  if (vista === "lista") {
+  // ── Producto card ─────────────────────────────────────────────────────────
+
+  const renderProducto = ({ item: prod }: { item: Producto }) => {
+    const mejorPrecio = prod.mayoristas
+      .flatMap(m => m.presentaciones)
+      .reduce<number | null>((min, p) => min === null ? p.precio : Math.min(min, p.precio), null)
+    const nMayoristas = prod.mayoristas.length
+    const nConAlta = prod.mayoristas.filter(m => m.tiene_alta === true).length
+
     return (
-      <SafeAreaView style={sL.root} edges={["top"]}>
-        <View style={sL.nav}>
-          <Text style={sL.navTitle}>Catálogo</Text>
+      <TouchableOpacity
+        style={s.prodCard}
+        onPress={() => {
+          const caps: Record<string, number> = {}
+          prod.mayoristas.flatMap(m => m.presentaciones).forEach(p => { caps[p.id] = 1 })
+          setCantidades(caps)
+          setModalProd(prod)
+        }}
+        activeOpacity={0.8}
+      >
+        <View style={s.prodImgBox}>
+          {prod.imagen_url
+            ? <Image source={{ uri: prod.imagen_url }} style={s.prodImg} resizeMode="cover" />
+            : <Text style={{ fontSize: 36 }}>📦</Text>
+          }
         </View>
-        <View style={sL.searchRow}>
-          <TextInput style={sL.search} placeholder="Buscar mayorista o rubro..."
-            placeholderTextColor="#9ca3af" value={busquedaLista} onChangeText={setBusquedaLista} />
+        <View style={s.prodInfo}>
+          <Text style={s.prodNombre} numberOfLines={2}>{prod.nombre}</Text>
+          {prod.marca && <Text style={s.prodMarca} numberOfLines={1}>{prod.marca}</Text>}
+          {mejorPrecio != null
+            ? <Text style={s.prodPrecio}>desde {fmt(mejorPrecio)}</Text>
+            : <Text style={s.prodSinPrecio}>Consultar</Text>
+          }
+          <Text style={s.prodMeta}>
+            {nMayoristas} mayorista{nMayoristas !== 1 ? "s" : ""}
+            {nConAlta > 0 && ` · ${nConAlta} con alta`}
+          </Text>
         </View>
-        {loadingLista
-          ? <ActivityIndicator style={{ marginTop: 40 }} color="#2563eb" size="large" />
-          : <FlatList
-              data={mayoristas.filter(m =>
-                !busquedaLista ||
-                m.nombre.toLowerCase().includes(busquedaLista.toLowerCase()) ||
-                m.rubros?.some(r => r.toLowerCase().includes(busquedaLista.toLowerCase()))
-              )}
-              keyExtractor={m => m.id}
-              contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-              refreshing={loadingLista}
-              onRefresh={cargarLista}
-              ListEmptyComponent={
-                <View style={{ alignItems: "center", paddingTop: 60 }}>
-                  <Text style={{ fontSize: 48, marginBottom: 12 }}>🏪</Text>
-                  <Text style={{ color: "#9ca3af", fontSize: 15 }}>No hay mayoristas disponibles</Text>
-                </View>
-              }
-              renderItem={({ item: m }) => {
-                const estado = m.solicitud?.estado
-                const aceptado = estado === "aceptado"
-                return (
-                  <TouchableOpacity style={sL.card} onPress={() => aceptado && abrirCatalogo(m)} activeOpacity={aceptado ? 0.7 : 1}>
-                    <View style={sL.cardInner}>
-                      <View style={sL.logoBox}>
-                        {m.logo_url
-                          ? <Image source={{ uri: `${BACKEND_URL}${m.logo_url}` }} style={sL.logo} resizeMode="contain" />
-                          : <Text style={sL.logoInitial}>{m.nombre[0]}</Text>
-                        }
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={sL.nombre}>{m.nombre}</Text>
-                        {(m.ciudad || m.provincia) && (
-                          <Text style={sL.ubicacion}>{[m.ciudad, m.provincia].filter(Boolean).join(", ")}</Text>
-                        )}
-                        {m.rubros?.length > 0 && (
-                          <Text style={sL.rubros} numberOfLines={1}>{m.rubros.slice(0, 3).join(" · ")}</Text>
-                        )}
-                      </View>
-                      <View style={sL.accion}>
-                        {aceptado
-                          ? <View style={sL.badgeOk}><Text style={sL.badgeOkText}>Ver →</Text></View>
-                          : estado === "pendiente"
-                            ? <View style={sL.badgePend}><Text style={sL.badgePendText}>Pendiente</Text></View>
-                            : <TouchableOpacity
-                                style={[sL.btnSolicitar, solicitando === m.id && { opacity: 0.6 }]}
-                                onPress={() => handleSolicitar(m.id)}
-                                disabled={solicitando === m.id}
-                              >
-                                {solicitando === m.id
-                                  ? <ActivityIndicator size="small" color="#fff" />
-                                  : <Text style={sL.btnSolicitarText}>Solicitar</Text>
-                                }
-                              </TouchableOpacity>
-                        }
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                )
-              }}
-            />
-        }
-      </SafeAreaView>
+      </TouchableOpacity>
     )
   }
 
-  // ══ VISTA CATÁLOGO PRODUCTOS ══════════════════════════════════════
+  // ── Render total items del carrito ────────────────────────────────────────
+  const totalItems = Object.values(carts).flat().reduce((s, i) => s + i.cantidad, 0)
+
+  // ── Vista ─────────────────────────────────────────────────────────────────
+
   return (
-    <SafeAreaView style={sC.root} edges={["top"]}>
-      {/* Nav con back y badge carrito */}
-      <View style={sC.nav}>
-        <TouchableOpacity onPress={() => setVista("lista")} style={sC.backBtn}>
-          <Text style={sC.backIcon}>‹</Text>
-        </TouchableOpacity>
-        <Text style={sC.navTitle} numberOfLines={1}>{mayoristaActual?.nombre || "Catálogo"}</Text>
-        <View style={sC.cartWrap}>
-          <Text style={{ fontSize: 22 }}>🛒</Text>
-          {totalItems > 0 && (
-            <View style={sC.badge}><Text style={sC.badgeText}>{totalItems}</Text></View>
+    <SafeAreaView style={s.root} edges={["top"]}>
+      {/* Nav */}
+      <View style={s.nav}>
+        <Text style={s.navTitle}>Catálogo</Text>
+        {totalItems > 0 && (
+          <View style={s.cartBadge}><Text style={s.cartBadgeText}>🛒 {totalItems}</Text></View>
+        )}
+      </View>
+
+      {/* Buscador */}
+      <View style={s.searchBox}>
+        <TextInput
+          style={s.search}
+          placeholder="Buscar producto, marca o EAN..."
+          placeholderTextColor="#9ca3af"
+          value={busqueda}
+          onChangeText={onBusqueda}
+          returnKeyType="search"
+        />
+      </View>
+
+      {/* Chips de filtro */}
+      {pasillos.length > 0 && (
+        <>
+          {/* Pasillos */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow} contentContainerStyle={s.chipRowContent}>
+            {pasillos.map(p => (
+              <TouchableOpacity key={p.id} onPress={() => { setPasilloId(pasilloId === p.id ? null : p.id); setRubroId(null); setSubrubroId(null) }}
+                style={[s.chip, pasilloId === p.id && s.chipActive]}>
+                <Text style={[s.chipText, pasilloId === p.id && s.chipTextActive]}>{p.nombre}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Rubros (si hay pasillo seleccionado o rubros disponibles) */}
+          {rubros.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.chipRow, { marginTop: 0 }]} contentContainerStyle={s.chipRowContent}>
+              {rubrosDelPasillo.map(r => (
+                <TouchableOpacity key={r.id} onPress={() => { setRubroId(rubroId === r.id ? null : r.id); setSubrubroId(null) }}
+                  style={[s.chip, s.chipBlue, rubroId === r.id && s.chipBlueActive]}>
+                  <Text style={[s.chipText, s.chipTextBlue, rubroId === r.id && s.chipTextActive]}>{r.nombre}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           )}
-        </View>
-      </View>
 
-      <View style={sC.searchBox}>
-        <TextInput style={sC.search} placeholder="Buscar en el catálogo..."
-          placeholderTextColor="#9ca3af" value={busquedaCat} onChangeText={setBusquedaCat} />
-      </View>
+          {/* Subrubros (si hay rubro seleccionado) */}
+          {rubroId && subrubrosDelRubro.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.chipRow, { marginTop: 0 }]} contentContainerStyle={s.chipRowContent}>
+              {subrubrosDelRubro.map(sr => (
+                <TouchableOpacity key={sr.id} onPress={() => setSubrubroId(subrubroId === sr.id ? null : sr.id)}
+                  style={[s.chip, s.chipIndigo, subrubroId === sr.id && s.chipIndigoActive]}>
+                  <Text style={[s.chipText, s.chipTextIndigo, subrubroId === sr.id && s.chipTextActive]}>{sr.nombre}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
-      {loadingCat
-        ? <ActivityIndicator style={{ marginTop: 40 }} color="#2563eb" size="large" />
+          {/* Toggle solo con alta + limpiar */}
+          <View style={s.toggleRow}>
+            <TouchableOpacity onPress={() => setSoloConAlta(v => !v)} style={[s.toggleBtn, soloConAlta && s.toggleBtnActive]}>
+              <Text style={[s.toggleText, soloConAlta && s.toggleTextActive]}>✓ Solo con alta</Text>
+            </TouchableOpacity>
+            {(pasilloId || rubroId || subrubroId || soloConAlta) && (
+              <TouchableOpacity onPress={() => { setPasilloId(null); setRubroId(null); setSubrubroId(null); setSoloConAlta(false) }}>
+                <Text style={s.limpiar}>✕ Limpiar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </>
+      )}
+
+      {/* Lista */}
+      {loading
+        ? <ActivityIndicator style={{ marginTop: 48 }} color="#2563eb" size="large" />
         : <FlatList
-            data={productos.filter(p => !busquedaCat || p.nombre.toLowerCase().includes(busquedaCat.toLowerCase()))}
+            data={productosMostrados}
             keyExtractor={p => p.id}
             numColumns={2}
             columnWrapperStyle={{ gap: 10 }}
-            contentContainerStyle={{ padding: 12, paddingBottom: 40, gap: 10 }}
+            contentContainerStyle={{ padding: 10, gap: 10, paddingBottom: 40 }}
+            refreshing={loading}
+            onRefresh={cargarProductos}
+            renderItem={renderProducto}
             ListEmptyComponent={
-              <View style={{ alignItems: "center", paddingTop: 60 }}>
-                <Text style={{ fontSize: 40 }}>📦</Text>
-                <Text style={{ color: "#9ca3af", fontSize: 15, marginTop: 10 }}>Sin productos</Text>
+              <View style={s.empty}>
+                <Text style={{ fontSize: 42 }}>🔍</Text>
+                <Text style={s.emptyText}>Sin productos con ese filtro</Text>
               </View>
             }
-            renderItem={({ item: p }) => (
-              <View style={sC.prodCard}>
-                <TouchableOpacity
-                  onPress={() => { setSeleccionado(p); setCantidad(p.compra_minima || 1) }}
-                  activeOpacity={0.7}
-                >
-                  <View style={sC.prodImgBox}>
-                    {p.imagen_url
-                      ? <Image source={{ uri: `${BACKEND_URL}${p.imagen_url}` }} style={sC.prodImg} resizeMode="cover" />
-                      : <Text style={{ fontSize: 32 }}>📦</Text>
-                    }
-                  </View>
-                  <View style={sC.prodInfo}>
-                    <Text style={sC.prodNombre} numberOfLines={2}>{p.nombre}</Text>
-                    {p.precio != null
-                      ? <Text style={sC.prodPrecio}>${p.precio.toLocaleString("es-AR")} / {p.unidad}</Text>
-                      : <Text style={sC.prodSinPrecio}>Precio bajo solicitud</Text>
-                    }
-                    <Text style={sC.prodMin}>Mín: {p.compra_minima} {p.unidad}</Text>
-                  </View>
-                </TouchableOpacity>
-                {acceso?.mostrarPrecio && p.precio != null && (
-                  <TouchableOpacity style={sC.btnAgregar} onPress={() => agregarDirecto(p)}>
-                    <Text style={sC.btnAgregarText}>+</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
           />
       }
 
-      {/* Modal detalle producto */}
+      {/* ── MODAL DETALLE ────────────────────────────────────────────────────── */}
       <Modal
-        visible={!!seleccionado}
+        visible={!!modalProd}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setSeleccionado(null)}
+        onRequestClose={() => setModalProd(null)}
       >
-        {seleccionado && (
-          <ScrollView style={{ flex: 1, backgroundColor: "#fff" }} contentContainerStyle={{ paddingBottom: 40 }}>
-            {seleccionado.imagen_url && (
-              <Image
-                source={{ uri: `${BACKEND_URL}${seleccionado.imagen_url}` }}
-                style={{ width: "100%", aspectRatio: 16 / 9 }}
-                resizeMode="cover"
-              />
-            )}
-            <View style={{ padding: 20 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                <Text style={{ fontSize: 20, fontWeight: "800", color: "#111827", flex: 1, paddingRight: 12 }}>
-                  {seleccionado.nombre}
-                </Text>
-                <TouchableOpacity onPress={() => setSeleccionado(null)} style={{ padding: 4 }}>
+        {modalProd && (
+          <ScrollView style={s.modal} contentContainerStyle={{ paddingBottom: 48 }}>
+            {/* Imagen */}
+            {modalProd.imagen_url
+              ? <Image source={{ uri: modalProd.imagen_url }} style={s.modalImg} resizeMode="cover" />
+              : <View style={s.modalImgPlaceholder}><Text style={{ fontSize: 60 }}>📦</Text></View>
+            }
+
+            <View style={s.modalBody}>
+              {/* Header */}
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={s.modalNombre}>{modalProd.nombre}</Text>
+                  {modalProd.marca && <Text style={s.modalMarca}>{modalProd.marca}</Text>}
+                  {modalProd.pasillo_nombre && (
+                    <Text style={s.modalCat}>
+                      {[modalProd.pasillo_nombre, modalProd.rubro_nombre].filter(Boolean).join(" › ")}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={() => setModalProd(null)} style={{ padding: 4 }}>
                   <Text style={{ fontSize: 18, color: "#9ca3af" }}>✕</Text>
                 </TouchableOpacity>
               </View>
 
-              {seleccionado.descripcion && (
-                <Text style={{ fontSize: 14, color: "#6b7280", marginBottom: 16, lineHeight: 20 }}>
-                  {seleccionado.descripcion}
-                </Text>
+              {modalProd.descripcion && (
+                <Text style={s.modalDesc}>{modalProd.descripcion}</Text>
               )}
 
-              <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
-                <View style={{ flex: 1, backgroundColor: "#f9fafb", borderRadius: 12, padding: 12 }}>
-                  <Text style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, textTransform: "uppercase" }}>Precio</Text>
-                  {seleccionado.precio != null
-                    ? <>
-                        <Text style={{ fontSize: 20, fontWeight: "800", color: "#111827" }}>
-                          ${seleccionado.precio.toLocaleString("es-AR")}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: "#6b7280" }}>/ {seleccionado.unidad}</Text>
-                      </>
-                    : <Text style={{ fontSize: 12, color: "#6b7280" }}>Bajo solicitud</Text>
-                  }
-                </View>
-                <View style={{ flex: 1, backgroundColor: "#f9fafb", borderRadius: 12, padding: 12 }}>
-                  <Text style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, textTransform: "uppercase" }}>Mín.</Text>
-                  <Text style={{ fontSize: 20, fontWeight: "800", color: "#111827" }}>{seleccionado.compra_minima}</Text>
-                  <Text style={{ fontSize: 12, color: "#6b7280" }}>{seleccionado.unidad}s</Text>
-                </View>
-              </View>
-
-              {acceso?.mostrarPrecio && seleccionado.precio != null && (
-                <View style={{ backgroundColor: "#eff6ff", borderRadius: 14, padding: 14, marginBottom: 16 }}>
-                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#1d4ed8", marginBottom: 10 }}>Cantidad</Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                    <TouchableOpacity
-                      style={{ width: 36, height: 36, backgroundColor: "#fff", borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#bfdbfe" }}
-                      onPress={() => setCantidad(q => Math.max(seleccionado.compra_minima || 1, q - 1))}
-                    >
-                      <Text style={{ fontSize: 20, fontWeight: "700", color: "#2563eb" }}>−</Text>
-                    </TouchableOpacity>
-                    <Text style={{ fontSize: 20, fontWeight: "800", color: "#111827", minWidth: 32, textAlign: "center" }}>{cantidad}</Text>
-                    <TouchableOpacity
-                      style={{ width: 36, height: 36, backgroundColor: "#fff", borderRadius: 10, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#bfdbfe" }}
-                      onPress={() => setCantidad(q => q + 1)}
-                    >
-                      <Text style={{ fontSize: 20, fontWeight: "700", color: "#2563eb" }}>+</Text>
-                    </TouchableOpacity>
-                    <Text style={{ fontSize: 13, color: "#6b7280" }}>{seleccionado.unidad}s</Text>
-                    {cantidad > 1 && (
-                      <Text style={{ fontSize: 15, fontWeight: "700", color: "#2563eb", marginLeft: "auto" }}>
-                        ${(seleccionado.precio * cantidad).toLocaleString("es-AR")}
-                      </Text>
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    style={{ backgroundColor: "#2563eb", borderRadius: 12, padding: 14, alignItems: "center" }}
-                    onPress={agregarDesdeModal}
-                  >
-                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
-                      Agregar al carrito · {cantidad} {seleccionado.unidad}{cantidad !== 1 ? "s" : ""}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {acceso?.puedeContactar && mayoristaActual && (
-                <View style={{ gap: 10 }}>
-                  {mayoristaActual.telefono && (
-                    <TouchableOpacity
-                      style={{ backgroundColor: "#22c55e", borderRadius: 12, padding: 14, alignItems: "center" }}
-                      onPress={() => Linking.openURL(
-                        `https://wa.me/${mayoristaActual.telefono!.replace(/\D/g, "")}?text=${encodeURIComponent(`Hola! Vi *${seleccionado.nombre}* en Nexo B2B y quiero pedirlo.`)}`
+              {/* Mayoristas y presentaciones */}
+              <Text style={s.mayoristasTitle}>Disponible en:</Text>
+              {modalProd.mayoristas.map(m => {
+                const carritoM = carts[m.mayorista_id] || []
+                return (
+                  <View key={m.listing_id} style={s.mayorCard}>
+                    {/* Header mayorista */}
+                    <View style={s.mayorHeader}>
+                      <View style={s.mayorAvatar}>
+                        <Text style={s.mayorAvatarText}>{m.mayorista_nombre[0]}</Text>
+                      </View>
+                      <Text style={s.mayorNombre}>{m.mayorista_nombre}</Text>
+                      {m.tiene_alta === true && (
+                        <View style={s.altaBadge}><Text style={s.altaBadgeText}>✓ Alta</Text></View>
                       )}
-                    >
-                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>💬 Pedir por WhatsApp</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={{ backgroundColor: "#f3f4f6", borderRadius: 12, padding: 14, alignItems: "center" }}
-                    onPress={() => Linking.openURL(
-                      `mailto:${mayoristaActual.email}?subject=${encodeURIComponent(`Pedido: ${seleccionado.nombre}`)}`
-                    )}
-                  >
-                    <Text style={{ color: "#374151", fontWeight: "600", fontSize: 15 }}>✉️ Enviar email</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+                      {m.tiene_alta === false && (
+                        <View style={s.sinAltaBadge}><Text style={s.sinAltaBadgeText}>Sin alta</Text></View>
+                      )}
+                    </View>
+
+                    {/* Presentaciones */}
+                    {m.presentaciones.map(pres => {
+                      const enCarrito = carritoM.find(c => c.producto_id === pres.id)?.cantidad || 0
+                      const cant = cantidades[pres.id] ?? 1
+                      return (
+                        <View key={pres.id} style={s.presRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.presNombre}>{pres.nombre}</Text>
+                            <Text style={s.presPrecio}>{fmt(pres.precio)}</Text>
+                            {pres.stock != null && <Text style={s.presStock}>Stock: {pres.stock}</Text>}
+                          </View>
+                          <View style={s.presActions}>
+                            {enCarrito > 0 && (
+                              <Text style={s.enCarrito}>{enCarrito} en carrito</Text>
+                            )}
+                            <View style={s.stepper}>
+                              <TouchableOpacity
+                                style={s.stepBtn}
+                                onPress={() => setCantidades(p => ({ ...p, [pres.id]: Math.max(1, (p[pres.id] ?? 1) - 1) }))}
+                              >
+                                <Text style={s.stepBtnText}>−</Text>
+                              </TouchableOpacity>
+                              <Text style={s.stepVal}>{cant}</Text>
+                              <TouchableOpacity
+                                style={s.stepBtn}
+                                onPress={() => setCantidades(p => ({ ...p, [pres.id]: (p[pres.id] ?? 1) + 1 }))}
+                              >
+                                <Text style={s.stepBtnText}>+</Text>
+                              </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity
+                              style={s.btnAgregar}
+                              onPress={() => {
+                                agregarPresentacion(modalProd, m, pres, cant)
+                                setCantidades(p => ({ ...p, [pres.id]: 1 }))
+                              }}
+                            >
+                              <Text style={s.btnAgregarText}>Agregar</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )
+                    })}
+                  </View>
+                )
+              })}
             </View>
           </ScrollView>
         )}
@@ -391,50 +415,83 @@ export default function CatalogoTab() {
   )
 }
 
-// ── Estilos lista ──────────────────────────────────────────────────
-const sL = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#f9fafb" },
-  nav: { paddingHorizontal: 20, paddingVertical: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
-  navTitle: { fontSize: 22, fontWeight: "800", color: "#111827" },
-  searchRow: { padding: 12, backgroundColor: "#fff" },
-  search: { backgroundColor: "#f3f4f6", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: "#111827" },
-  card: { backgroundColor: "#fff", borderRadius: 16, marginBottom: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  cardInner: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
-  logoBox: { width: 48, height: 48, borderRadius: 12, backgroundColor: "#eff6ff", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 },
-  logo: { width: 48, height: 48 },
-  logoInitial: { fontSize: 22, fontWeight: "700", color: "#2563eb" },
-  nombre: { fontSize: 15, fontWeight: "700", color: "#111827" },
-  ubicacion: { fontSize: 12, color: "#6b7280", marginTop: 2 },
-  rubros: { fontSize: 11, color: "#9ca3af", marginTop: 3 },
-  accion: { flexShrink: 0 },
-  badgeOk: { backgroundColor: "#eff6ff", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  badgeOkText: { color: "#2563eb", fontWeight: "700", fontSize: 13 },
-  badgePend: { backgroundColor: "#fef3c7", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-  badgePendText: { color: "#92400e", fontWeight: "600", fontSize: 12 },
-  btnSolicitar: { backgroundColor: "#2563eb", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, minWidth: 80, alignItems: "center" },
-  btnSolicitarText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-})
+// ── Estilos ───────────────────────────────────────────────────────────────────
 
-// ── Estilos catálogo ───────────────────────────────────────────────
-const sC = StyleSheet.create({
+const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#f9fafb" },
-  nav: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
-  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  backIcon: { fontSize: 32, color: "#2563eb", lineHeight: 36 },
-  navTitle: { flex: 1, textAlign: "center", fontSize: 17, fontWeight: "700", color: "#111827" },
-  cartWrap: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  badge: { position: "absolute", top: 0, right: 0, backgroundColor: "#2563eb", borderRadius: 8, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  nav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
+  navTitle: { fontSize: 22, fontWeight: "800", color: "#111827" },
+  cartBadge: { backgroundColor: "#eff6ff", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  cartBadgeText: { color: "#2563eb", fontWeight: "700", fontSize: 13 },
   searchBox: { backgroundColor: "#fff", padding: 10 },
-  search: { backgroundColor: "#f3f4f6", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9, fontSize: 14, color: "#111827" },
-  prodCard: { flex: 1, backgroundColor: "#fff", borderRadius: 14, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  search: { backgroundColor: "#f3f4f6", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: "#111827" },
+
+  // Chips
+  chipRow: { backgroundColor: "#fff", paddingTop: 6 },
+  chipRowContent: { paddingHorizontal: 10, paddingBottom: 6, gap: 6 },
+  chip: { backgroundColor: "#f3f4f6", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: "#e5e7eb" },
+  chipActive: { backgroundColor: "#059669", borderColor: "#059669" },
+  chipBlue: { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" },
+  chipBlueActive: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
+  chipIndigo: { backgroundColor: "#eef2ff", borderColor: "#c7d2fe" },
+  chipIndigoActive: { backgroundColor: "#4f46e5", borderColor: "#4f46e5" },
+  chipText: { fontSize: 13, color: "#374151", fontWeight: "500" },
+  chipTextBlue: { color: "#2563eb" },
+  chipTextIndigo: { color: "#4f46e5" },
+  chipTextActive: { color: "#fff" },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
+  toggleBtn: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#f3f4f6", borderWidth: 1, borderColor: "#e5e7eb" },
+  toggleBtnActive: { backgroundColor: "#16a34a", borderColor: "#16a34a" },
+  toggleText: { fontSize: 13, color: "#374151", fontWeight: "500" },
+  toggleTextActive: { color: "#fff" },
+  limpiar: { fontSize: 13, color: "#6b7280" },
+
+  // Grid
+  prodCard: { flex: 1, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
   prodImgBox: { aspectRatio: 1, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   prodImg: { width: "100%", height: "100%" },
   prodInfo: { padding: 10 },
   prodNombre: { fontSize: 13, fontWeight: "700", color: "#111827", lineHeight: 18 },
-  prodPrecio: { fontSize: 14, fontWeight: "800", color: "#2563eb", marginTop: 4 },
-  prodSinPrecio: { fontSize: 12, color: "#9ca3af", fontStyle: "italic", marginTop: 4 },
-  prodMin: { fontSize: 11, color: "#9ca3af", marginTop: 2 },
-  btnAgregar: { backgroundColor: "#2563eb", margin: 8, marginTop: 0, borderRadius: 10, alignItems: "center", paddingVertical: 7 },
-  btnAgregarText: { color: "#fff", fontWeight: "800", fontSize: 18 },
+  prodMarca: { fontSize: 11, color: "#9ca3af", marginTop: 2 },
+  prodPrecio: { fontSize: 13, fontWeight: "800", color: "#2563eb", marginTop: 4 },
+  prodSinPrecio: { fontSize: 11, color: "#9ca3af", fontStyle: "italic", marginTop: 4 },
+  prodMeta: { fontSize: 11, color: "#9ca3af", marginTop: 2 },
+  empty: { alignItems: "center", paddingTop: 60 },
+  emptyText: { color: "#9ca3af", fontSize: 15, marginTop: 10 },
+
+  // Modal
+  modal: { flex: 1, backgroundColor: "#fff" },
+  modalImg: { width: "100%", aspectRatio: 16 / 9 },
+  modalImgPlaceholder: { height: 160, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  modalBody: { padding: 16 },
+  modalNombre: { fontSize: 20, fontWeight: "800", color: "#111827" },
+  modalMarca: { fontSize: 13, color: "#9ca3af", marginTop: 2 },
+  modalCat: { fontSize: 12, color: "#6b7280", marginTop: 3 },
+  modalDesc: { fontSize: 14, color: "#6b7280", lineHeight: 20, marginTop: 8, marginBottom: 4 },
+  mayoristasTitle: { fontSize: 13, fontWeight: "700", color: "#374151", marginTop: 12, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 },
+
+  // Mayorista card
+  mayorCard: { backgroundColor: "#f9fafb", borderRadius: 14, marginBottom: 10, overflow: "hidden", borderWidth: 1, borderColor: "#f0f0f0" },
+  mayorHeader: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, backgroundColor: "#f3f4f6" },
+  mayorAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#dbeafe", alignItems: "center", justifyContent: "center" },
+  mayorAvatarText: { fontSize: 13, fontWeight: "700", color: "#2563eb" },
+  mayorNombre: { flex: 1, fontSize: 14, fontWeight: "700", color: "#111827" },
+  altaBadge: { backgroundColor: "#dcfce7", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
+  altaBadgeText: { fontSize: 11, color: "#16a34a", fontWeight: "600" },
+  sinAltaBadge: { backgroundColor: "#f3f4f6", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
+  sinAltaBadgeText: { fontSize: 11, color: "#9ca3af", fontWeight: "500" },
+
+  // Presentacion row
+  presRow: { flexDirection: "row", alignItems: "center", padding: 10, borderTopWidth: 1, borderTopColor: "#e5e7eb", gap: 8 },
+  presNombre: { fontSize: 13, fontWeight: "600", color: "#374151" },
+  presPrecio: { fontSize: 15, fontWeight: "800", color: "#111827", marginTop: 2 },
+  presStock: { fontSize: 11, color: "#9ca3af", marginTop: 1 },
+  presActions: { alignItems: "flex-end", gap: 4 },
+  enCarrito: { fontSize: 10, color: "#16a34a", fontWeight: "600" },
+  stepper: { flexDirection: "row", alignItems: "center", gap: 6 },
+  stepBtn: { width: 28, height: 28, backgroundColor: "#eff6ff", borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  stepBtnText: { fontSize: 18, fontWeight: "700", color: "#2563eb", lineHeight: 22 },
+  stepVal: { fontSize: 15, fontWeight: "800", color: "#111827", minWidth: 24, textAlign: "center" },
+  btnAgregar: { backgroundColor: "#2563eb", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, marginTop: 2 },
+  btnAgregarText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 })

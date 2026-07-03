@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useCallback } from "react"
 
 export type CartItem = {
-  producto_id: string
+  producto_id: string          // clave única (para nuevo catálogo = presentacion_id)
+  presentacion_id?: string     // nuevo catálogo: producto_mayorista_presentacion.id
   nombre: string
   sku?: string | null
   ean?: string | null

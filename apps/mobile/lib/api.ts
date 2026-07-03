@@ -91,6 +91,21 @@ export async function getCatalogoMayorista(token: string, mayoristaId: string) {
   })
 }
 
+// ── Catálogo nuevo (producto_maestro) ─────────────────────────────────────────
+
+export async function getProductos(token: string, params: Record<string, string> = {}) {
+  const qs = new URLSearchParams(params).toString()
+  return req(`/store/productos${qs ? `?${qs}` : ""}`, { headers: authHeaders(token) })
+}
+
+export async function getTaxonomia() {
+  return req("/store/taxonomia")
+}
+
+export async function getComercioMe(token: string) {
+  return req("/store/comercios/me", { headers: authHeaders(token) })
+}
+
 export async function solicitarAlta(token: string, mayoristaId: string) {
   return req("/store/solicitudes", {
     method: "POST",
