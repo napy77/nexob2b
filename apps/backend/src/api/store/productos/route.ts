@@ -14,8 +14,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     "pml.deleted_at IS NULL",
     "pml.activo = true",
     "pml.aprobado = true",
-    "pmp.deleted_at IS NULL",
-    "pmp.activo = true",
+    `EXISTS (
+      SELECT 1 FROM producto_mayorista_presentacion pmp
+      WHERE pmp.listing_id = pml.id AND pmp.deleted_at IS NULL AND pmp.activo = true
+    )`,
   ]
   const params: any[] = []
   let i = 1
@@ -103,7 +105,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       ) AS mayoristas
     FROM producto_maestro p
     JOIN producto_mayorista_listing pml ON pml.producto_id = p.id
-    JOIN producto_mayorista_presentacion pmp ON pmp.listing_id = pml.id
     JOIN mayorista m ON m.id = pml.mayorista_id AND m.deleted_at IS NULL
     LEFT JOIN pasillo pa ON pa.id = p.pasillo_id
     LEFT JOIN rubro ru ON ru.id = p.rubro_id
