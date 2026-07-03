@@ -182,32 +182,32 @@ export default function CatalogoProductosPage() {
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-400">{filtrados.length} productos</span>
             {/* Toggle de vista */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5 gap-0.5">
-              {/* Lista */}
+            <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
               <button onClick={() => cambiarVista("lista")} title="Vista lista"
-                className={`p-1.5 rounded-md transition-colors ${vista === "lista" ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${vista === "lista" ? "bg-white shadow text-blue-600" : "text-gray-500 hover:text-gray-700"}`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                 </svg>
+                Lista
               </button>
-              {/* Grilla chica */}
               <button onClick={() => cambiarVista("grilla-chica")} title="Grilla pequeña"
-                className={`p-1.5 rounded-md transition-colors ${vista === "grilla-chica" ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}>
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${vista === "grilla-chica" ? "bg-white shadow text-blue-600" : "text-gray-500 hover:text-gray-700"}`}>
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
                   <rect x="1" y="1" width="4" height="4" rx="0.5"/><rect x="6" y="1" width="4" height="4" rx="0.5"/>
                   <rect x="11" y="1" width="4" height="4" rx="0.5"/><rect x="1" y="6" width="4" height="4" rx="0.5"/>
                   <rect x="6" y="6" width="4" height="4" rx="0.5"/><rect x="11" y="6" width="4" height="4" rx="0.5"/>
                   <rect x="1" y="11" width="4" height="4" rx="0.5"/><rect x="6" y="11" width="4" height="4" rx="0.5"/>
                   <rect x="11" y="11" width="4" height="4" rx="0.5"/>
                 </svg>
+                Chica
               </button>
-              {/* Grilla grande */}
               <button onClick={() => cambiarVista("grilla-grande")} title="Grilla grande"
-                className={`p-1.5 rounded-md transition-colors ${vista === "grilla-grande" ? "bg-white shadow-sm text-blue-600" : "text-gray-400 hover:text-gray-600"}`}>
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${vista === "grilla-grande" ? "bg-white shadow text-blue-600" : "text-gray-500 hover:text-gray-700"}`}>
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
                   <rect x="1" y="1" width="6.5" height="6.5" rx="0.5"/><rect x="8.5" y="1" width="6.5" height="6.5" rx="0.5"/>
                   <rect x="1" y="8.5" width="6.5" height="6.5" rx="0.5"/><rect x="8.5" y="8.5" width="6.5" height="6.5" rx="0.5"/>
                 </svg>
+                Grande
               </button>
             </div>
           </div>
