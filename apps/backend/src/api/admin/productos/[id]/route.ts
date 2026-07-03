@@ -44,24 +44,56 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
   const body = req.body as any
 
-  const updates: Record<string, any> = {}
-  const campos = ["nombre", "descripcion", "marca", "unidad_base", "alicuota_iva", "pasillo_id", "rubro_id", "subrubro_id", "ean"]
-  for (const c of campos) {
-    if (body[c] !== undefined) updates[c] = body[c]
+  // Campos que el servicio Medusa maneja (están en el modelo)
+  const camposMedusa = ["nombre", "descripcion", "marca", "unidad_base", "alicuota_iva", "ean"]
+  const updatesMedusa: Record<string, any> = {}
+  for (const c of camposMedusa) {
+    if (body[c] !== undefined) updatesMedusa[c] = body[c]
+  }
+  if (Object.keys(updatesMedusa).length > 0) {
+    await svc.updateProductos({ id }, updatesMedusa)
   }
 
-  // Actualizar campos normales con el servicio Medusa
-  const producto = await svc.updateProductos({ id }, updates)
+  // Campos que el servicio Medusa ignora → SQL directo
+  const setClauses: string[] = ["updated_at = now()"]
+  const sqlParams: any[] = []
+  let pi = 1
 
-  // Guardar imagen base64 directo en SQL (el servicio Medusa ignora campos nuevos)
+  if (body.pasillo_id !== undefined) {
+    setClauses.push(`pasillo_id = $${pi++}`)
+    sqlParams.push(body.pasillo_id || null)
+  }
+  if (body.rubro_id !== undefined) {
+    setClauses.push(`rubro_id = $${pi++}`)
+    sqlParams.push(body.rubro_id || null)
+  }
+  if (body.subrubro_id !== undefined) {
+    setClauses.push(`subrubro_id = $${pi++}`)
+    sqlParams.push(body.subrubro_id || null)
+  }
   if (body.imagen_url_base64) {
-    await pool.query(
-      `UPDATE producto_maestro SET imagen_url = $1, updated_at = now() WHERE id = $2`,
-      [body.imagen_url_base64, id]
-    )
-    res.json({ producto: { ...producto, imagen_url: body.imagen_url_base64 } })
-    return
+    setClauses.push(`imagen_url = $${pi++}`)
+    sqlParams.push(body.imagen_url_base64)
   }
+
+  sqlParams.push(id)
+  await pool.query(
+    `UPDATE producto_maestro SET ${setClauses.join(", ")} WHERE id = $${pi}`,
+    sqlParams
+  )
+
+  // Releer el producto actualizado
+  const { rows: [producto] } = await pool.query(`
+    SELECT p.*,
+      pa.nombre AS pasillo_nombre,
+      ru.nombre AS rubro_nombre,
+      sr.nombre AS subrubro_nombre
+    FROM producto_maestro p
+    LEFT JOIN pasillo pa ON pa.id = p.pasillo_id
+    LEFT JOIN rubro ru ON ru.id = p.rubro_id
+    LEFT JOIN subrubro sr ON sr.id = p.subrubro_id
+    WHERE p.id = $1
+  `, [id])
 
   res.json({ producto })
 }
