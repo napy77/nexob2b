@@ -85,9 +85,20 @@ export default function ProductosPage() {
     if (!file) return
     const reader = new FileReader()
     reader.onload = ev => {
-      const b64 = ev.target?.result as string
-      setImagenBase64(b64)
-      setImagenPreview(b64)
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 400
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height))
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement("canvas")
+        canvas.width = w; canvas.height = h
+        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h)
+        const b64 = canvas.toDataURL("image/jpeg", 0.75)
+        setImagenBase64(b64)
+        setImagenPreview(b64)
+      }
+      img.src = ev.target?.result as string
     }
     reader.readAsDataURL(file)
   }
