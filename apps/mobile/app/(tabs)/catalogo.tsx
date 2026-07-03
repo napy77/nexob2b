@@ -55,6 +55,21 @@ function fmt(n: number) {
   return "$" + n.toLocaleString("es-AR")
 }
 
+// Presentacion más barata priorizando mayoristas con alta
+function getBestPresentacion(prod: { mayoristas: MayoristaEnProd[] }): { mayorista: MayoristaEnProd; pres: Presentacion } | null {
+  const conAlta = prod.mayoristas.filter(m => m.tiene_alta === true)
+  const fuente = conAlta.length > 0 ? conAlta : prod.mayoristas
+  let bestMayorista: MayoristaEnProd | null = null
+  let bestPres: Presentacion | null = null
+  let bestPrecio = Infinity
+  for (const m of fuente) {
+    for (const p of m.presentaciones) {
+      if (p.precio < bestPrecio) { bestPrecio = p.precio; bestPres = p; bestMayorista = m }
+    }
+  }
+  return bestPres && bestMayorista ? { mayorista: bestMayorista, pres: bestPres } : null
+}
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function CatalogoTab() {
@@ -172,37 +187,47 @@ export default function CatalogoTab() {
       .reduce<number | null>((min, p) => min === null ? p.precio : Math.min(min, p.precio), null)
     const nMayoristas = prod.mayoristas.length
     const nConAlta = prod.mayoristas.filter(m => m.tiene_alta === true).length
+    const best = getBestPresentacion(prod)
 
     return (
-      <TouchableOpacity
-        style={s.prodCard}
-        onPress={() => {
-          const caps: Record<string, number> = {}
-          prod.mayoristas.flatMap(m => m.presentaciones).forEach(p => { caps[p.id] = 1 })
-          setCantidades(caps)
-          setModalProd(prod)
-        }}
-        activeOpacity={0.8}
-      >
-        <View style={s.prodImgBox}>
-          {prod.imagen_url
-            ? <Image source={{ uri: prod.imagen_url }} style={s.prodImg} resizeMode="cover" />
-            : <Text style={{ fontSize: 36 }}>📦</Text>
-          }
-        </View>
-        <View style={s.prodInfo}>
-          <Text style={s.prodNombre} numberOfLines={2}>{prod.nombre}</Text>
-          {prod.marca && <Text style={s.prodMarca} numberOfLines={1}>{prod.marca}</Text>}
-          {mejorPrecio != null
-            ? <Text style={s.prodPrecio}>desde {fmt(mejorPrecio)}</Text>
-            : <Text style={s.prodSinPrecio}>Consultar</Text>
-          }
-          <Text style={s.prodMeta}>
-            {nMayoristas} mayorista{nMayoristas !== 1 ? "s" : ""}
-            {nConAlta > 0 && ` · ${nConAlta} con alta`}
-          </Text>
-        </View>
-      </TouchableOpacity>
+      <View style={s.prodCard}>
+        <TouchableOpacity
+          onPress={() => {
+            const caps: Record<string, number> = {}
+            prod.mayoristas.flatMap(m => m.presentaciones).forEach(p => { caps[p.id] = 1 })
+            setCantidades(caps)
+            setModalProd(prod)
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={s.prodImgBox}>
+            {prod.imagen_url
+              ? <Image source={{ uri: prod.imagen_url }} style={s.prodImg} resizeMode="cover" />
+              : <Text style={{ fontSize: 36 }}>📦</Text>
+            }
+          </View>
+          <View style={s.prodInfo}>
+            <Text style={s.prodNombre} numberOfLines={2}>{prod.nombre}</Text>
+            {prod.marca && <Text style={s.prodMarca} numberOfLines={1}>{prod.marca}</Text>}
+            {mejorPrecio != null
+              ? <Text style={s.prodPrecio}>desde {fmt(mejorPrecio)}</Text>
+              : <Text style={s.prodSinPrecio}>Consultar</Text>
+            }
+            <Text style={s.prodMeta}>
+              {nMayoristas} mayorista{nMayoristas !== 1 ? "s" : ""}
+              {nConAlta > 0 && ` · ${nConAlta} con alta`}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        {best && (
+          <TouchableOpacity
+            style={s.btnQuickAdd}
+            onPress={() => agregarPresentacion(prod, best.mayorista, best.pres, 1)}
+          >
+            <Text style={s.btnQuickAddText}>+</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     )
   }
 
@@ -447,7 +472,7 @@ const s = StyleSheet.create({
   limpiar: { fontSize: 13, color: "#6b7280" },
 
   // Grid
-  prodCard: { flex: 1, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
+  prodCard: { flex: 1, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, justifyContent: "space-between" },
   prodImgBox: { aspectRatio: 1, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   prodImg: { width: "100%", height: "100%" },
   prodInfo: { padding: 10 },
@@ -456,6 +481,8 @@ const s = StyleSheet.create({
   prodPrecio: { fontSize: 13, fontWeight: "800", color: "#2563eb", marginTop: 4 },
   prodSinPrecio: { fontSize: 11, color: "#9ca3af", fontStyle: "italic", marginTop: 4 },
   prodMeta: { fontSize: 11, color: "#9ca3af", marginTop: 2 },
+  btnQuickAdd: { backgroundColor: "#2563eb", margin: 8, marginTop: 0, borderRadius: 10, alignItems: "center", paddingVertical: 7 },
+  btnQuickAddText: { color: "#fff", fontWeight: "800", fontSize: 18 },
   empty: { alignItems: "center", paddingTop: 60 },
   emptyText: { color: "#9ca3af", fontSize: 15, marginTop: 10 },
 

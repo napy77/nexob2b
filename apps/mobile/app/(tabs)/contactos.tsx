@@ -69,7 +69,7 @@ export default function ContactosTab() {
         </View>
         <TouchableOpacity
           style={styles.btnCatalogo}
-          onPress={() => router.push(`/catalogo/${m.id}`)}
+          onPress={() => router.push(`/catalogo/${m.id}?nombre=${encodeURIComponent(m.nombre)}`)}
         >
           <Text style={styles.btnCatalogoText}>Ver catálogo</Text>
         </TouchableOpacity>
