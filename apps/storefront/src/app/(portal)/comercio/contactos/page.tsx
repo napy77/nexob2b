@@ -191,7 +191,7 @@ export default function ComercioContactosPage() {
                   <div className="flex flex-col gap-2 flex-shrink-0">
                     {tab === "aceptado" && (
                       <button
-                        onClick={() => router.push(`/comercio/catalogo/${m.id}`)}
+                        onClick={() => router.push(`/comercio/productos?mayorista_id=${m.id}`)}
                         className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors whitespace-nowrap">
                         Ver catálogo
                       </button>
