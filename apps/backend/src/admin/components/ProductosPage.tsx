@@ -2,7 +2,20 @@
 import { useState, useEffect } from "react"
 
 const API = "/admin/productos"
-const IVA_OPTS = [0, 10.5, 21, 27]
+const TAX = "/admin/taxonomia"
+
+// Leer token admin de Medusa
+function adminHeaders() {
+  const token = typeof window !== "undefined"
+    ? (localStorage.getItem("medusa_auth_token") ||
+       localStorage.getItem("_medusa_auth_token") ||
+       localStorage.getItem("medusa-auth-token") || "")
+    : ""
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+}
 
 type Presentacion = {
   id?: string
@@ -26,11 +39,20 @@ type Producto = {
   alicuota_iva: number
   estado: string
   imagen_url?: string
+  pasillo_id?: string
   pasillo_nombre?: string
+  rubro_id?: string
+  rubro_nombre?: string
+  subrubro_id?: string
+  subrubro_nombre?: string
   total_presentaciones: number
   total_mayoristas: number
   presentaciones?: Presentacion[]
 }
+
+type TaxItem = { id: string; nombre: string; activo: boolean }
+type Subrubro = TaxItem & { rubro_id: string }
+type Alicuota = TaxItem & { porcentaje: number }
 
 const EMPTY_PRES = (): Presentacion => ({
   nombre: "", factor: 1, unidades_nivel_anterior: null,
@@ -44,19 +66,45 @@ export default function ProductosPage() {
   const [estadoFiltro, setEstadoFiltro] = useState("")
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Producto | null>(null)
-  const [showPresModal, setShowPresModal] = useState<string | null>(null) // producto_id
+  const [showPresModal, setShowPresModal] = useState<string | null>(null)
   const [presentaciones, setPresentaciones] = useState<Presentacion[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [imagenBase64, setImagenBase64] = useState<string | null>(null)
   const [imagenPreview, setImagenPreview] = useState<string | null>(null)
 
+  // Taxonomía
+  const [pasillos, setPasillos] = useState<TaxItem[]>([])
+  const [rubros, setRubros] = useState<TaxItem[]>([])
+  const [subrubros, setSubrubros] = useState<Subrubro[]>([])
+  const [alicuotas, setAlicuotas] = useState<Alicuota[]>([])
+
   // Formulario producto
-  const [form, setForm] = useState({
+  const emptyForm = () => ({
     ean: "", nombre: "", marca: "", descripcion: "",
     unidad_base: "unidad", alicuota_iva: 21,
     pasillo_id: "", rubro_id: "", subrubro_id: "",
   })
+  const [form, setForm] = useState(emptyForm())
+
+  // Subrubros filtrados por rubro seleccionado
+  const subrubrosDelRubro = subrubros.filter(s => s.rubro_id === form.rubro_id && s.activo)
+
+  // Cargar taxonomía una sola vez
+  useEffect(() => {
+    const h = { headers: { ...adminHeaders(), "Content-Type": "application/json" }, credentials: "include" as RequestCredentials }
+    Promise.all([
+      fetch(`${TAX}/pasillos`, h).then(r => r.json()),
+      fetch(`${TAX}/rubros`, h).then(r => r.json()),
+      fetch(`${TAX}/subrubros`, h).then(r => r.json()),
+      fetch(`${TAX}/alicuotas`, h).then(r => r.json()),
+    ]).then(([p, r, s, a]) => {
+      setPasillos((p.pasillos || []).filter((x: TaxItem) => x.activo))
+      setRubros((r.rubros || []).filter((x: TaxItem) => x.activo))
+      setSubrubros(s.subrubros || [])
+      setAlicuotas(a.alicuotas || [])
+    }).catch(() => {})
+  }, [])
 
   const cargar = async () => {
     setLoading(true)
@@ -64,7 +112,7 @@ export default function ProductosPage() {
       const params = new URLSearchParams()
       if (q) params.set("q", q)
       if (estadoFiltro) params.set("estado", estadoFiltro)
-      const res = await fetch(`${API}?${params}`)
+      const res = await fetch(`${API}?${params}`, { headers: adminHeaders(), credentials: "include" })
       const data = await res.json()
       setProductos(data.productos || [])
     } catch (e: any) { setError(e.message) }
@@ -74,7 +122,7 @@ export default function ProductosPage() {
   useEffect(() => { cargar() }, [q, estadoFiltro])
 
   const cargarPresentaciones = async (producto_id: string) => {
-    const res = await fetch(`${API}/${producto_id}`)
+    const res = await fetch(`${API}/${producto_id}`, { headers: adminHeaders(), credentials: "include" })
     const data = await res.json()
     setPresentaciones(data.producto?.presentaciones || [])
     setShowPresModal(producto_id)
@@ -111,7 +159,7 @@ export default function ProductosPage() {
       const body: any = { ...form }
       if (imagenBase64) body.imagen_url_base64 = imagenBase64
       const res = await fetch(url, {
-        method, headers: { "Content-Type": "application/json" },
+        method, headers: adminHeaders(), credentials: "include",
         body: JSON.stringify(body),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
@@ -122,17 +170,17 @@ export default function ProductosPage() {
   }
 
   const aprobar = async (id: string) => {
-    await fetch(`${API}/${id}/aprobar`, { method: "PUT" })
+    await fetch(`${API}/${id}/aprobar`, { method: "PUT", headers: adminHeaders(), credentials: "include" })
     cargar()
   }
   const rechazar = async (id: string) => {
     if (!confirm("¿Rechazar este producto?")) return
-    await fetch(`${API}/${id}/rechazar`, { method: "PUT" })
+    await fetch(`${API}/${id}/rechazar`, { method: "PUT", headers: adminHeaders(), credentials: "include" })
     cargar()
   }
   const eliminar = async (id: string) => {
     if (!confirm("¿Eliminar este producto del catálogo maestro?")) return
-    await fetch(`${API}/${id}`, { method: "DELETE" })
+    await fetch(`${API}/${id}`, { method: "DELETE", headers: adminHeaders(), credentials: "include" })
     cargar()
   }
 
@@ -151,11 +199,11 @@ export default function ProductosPage() {
       }
       if (p.id) {
         await fetch(`${API}/${showPresModal}/presentaciones/${p.id}`, {
-          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+          method: "PUT", headers: adminHeaders(), credentials: "include", body: JSON.stringify(body),
         })
       } else {
         await fetch(`${API}/${showPresModal}/presentaciones`, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+          method: "POST", headers: adminHeaders(), credentials: "include", body: JSON.stringify(body),
         })
       }
       cargarPresentaciones(showPresModal)
@@ -165,18 +213,18 @@ export default function ProductosPage() {
 
   const eliminarPresentacion = async (pid: string) => {
     if (!showPresModal || !confirm("¿Eliminar presentación?")) return
-    await fetch(`${API}/${showPresModal}/presentaciones/${pid}`, { method: "DELETE" })
+    await fetch(`${API}/${showPresModal}/presentaciones/${pid}`, { method: "DELETE", headers: adminHeaders(), credentials: "include" })
     cargarPresentaciones(showPresModal)
   }
 
   const abrirCrear = () => {
     setEditing(null)
-    setForm({ ean: "", nombre: "", marca: "", descripcion: "", unidad_base: "unidad", alicuota_iva: 21, pasillo_id: "", rubro_id: "", subrubro_id: "" })
+    setForm(emptyForm())
     setImagenBase64(null); setImagenPreview(null)
     setShowModal(true)
   }
   const abrirEditar = async (p: Producto) => {
-    const res = await fetch(`${API}/${p.id}`)
+    const res = await fetch(`${API}/${p.id}`, { headers: adminHeaders(), credentials: "include" })
     const data = await res.json()
     const prod = data.producto
     setEditing(prod)
@@ -191,6 +239,13 @@ export default function ProductosPage() {
     setShowModal(true)
   }
 
+  const sel: React.CSSProperties = {
+    display: "block", width: "100%", marginTop: 4, border: "1px solid #e5e7eb",
+    borderRadius: 8, padding: "8px 10px", fontSize: 14, boxSizing: "border-box",
+    background: "#fff",
+  }
+  const inp: React.CSSProperties = { ...sel }
+
   const ESTADO_BADGE: Record<string, { label: string; color: string }> = {
     aprobado: { label: "Aprobado", color: "#065f46" },
     pendiente: { label: "Pendiente", color: "#92400e" },
@@ -198,7 +253,7 @@ export default function ProductosPage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto", fontFamily: "system-ui, sans-serif" }}>
+    <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto", fontFamily: "system-ui, sans-serif" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>📦 Catálogo maestro de productos</h1>
         <button onClick={abrirCrear}
@@ -227,7 +282,7 @@ export default function ProductosPage() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: "2px solid #e5e7eb", background: "#f9fafb" }}>
-              {["", "EAN", "Nombre", "Marca", "Unidad base", "IVA", "Estado", "Presentaciones", "Mayoristas", ""].map(h => (
+              {["", "EAN", "Nombre / Taxonomía", "Marca", "Unidad", "IVA", "Estado", "Pres.", "May.", ""].map(h => (
                 <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#374151" }}>{h}</th>
               ))}
             </tr>
@@ -235,16 +290,20 @@ export default function ProductosPage() {
           <tbody>
             {productos.map(p => {
               const badge = ESTADO_BADGE[p.estado] || { label: p.estado, color: "#374151" }
+              const tax = [p.pasillo_nombre, p.rubro_nombre, p.subrubro_nombre].filter(Boolean).join(" › ")
               return (
                 <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "10px 12px", width: 48 }}>
                     {p.imagen_url
-                      ? <img src={p.imagen_url!} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }} />
+                      ? <img src={p.imagen_url} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, border: "1px solid #e5e7eb" }} />
                       : <div style={{ width: 40, height: 40, background: "#f3f4f6", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📦</div>
                     }
                   </td>
                   <td style={{ padding: "10px 12px", fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>{p.ean}</td>
-                  <td style={{ padding: "10px 12px", fontWeight: 600 }}>{p.nombre}</td>
+                  <td style={{ padding: "10px 12px" }}>
+                    <div style={{ fontWeight: 600 }}>{p.nombre}</div>
+                    {tax && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{tax}</div>}
+                  </td>
                   <td style={{ padding: "10px 12px", color: "#6b7280" }}>{p.marca || "—"}</td>
                   <td style={{ padding: "10px 12px", color: "#6b7280" }}>{p.unidad_base}</td>
                   <td style={{ padding: "10px 12px" }}>{p.alicuota_iva}%</td>
@@ -267,7 +326,7 @@ export default function ProductosPage() {
                       {p.estado === "pendiente" && (
                         <>
                           <button onClick={() => aprobar(p.id)}
-                            style={{ background: "#d1fae5", color: "#065f46", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>✓ Aprobar</button>
+                            style={{ background: "#d1fae5", color: "#065f46", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>✓</button>
                           <button onClick={() => rechazar(p.id)}
                             style={{ background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}>✗</button>
                         </>
@@ -283,37 +342,41 @@ export default function ProductosPage() {
         </table>
       )}
 
-      {/* Modal crear/editar producto */}
+      {/* ── Modal crear/editar ── */}
       {showModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: 520, maxHeight: "90vh", overflowY: "auto" }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: 560, maxHeight: "90vh", overflowY: "auto" }}>
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>{editing ? "Editar producto" : "Nuevo producto maestro"}</h2>
             <div style={{ display: "grid", gap: 14 }}>
+
+              {/* EAN + Marca */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
-                  EAN <span style={{ color: "#6b7280", fontWeight: 400 }}>(se genera NXB-xxx si vacío)</span>
+                <label style={lbl}>
+                  EAN <span style={{ color: "#9ca3af", fontWeight: 400 }}>(auto si vacío)</span>
                   <input value={form.ean} onChange={e => setForm(f => ({ ...f, ean: e.target.value }))}
-                    placeholder="7790123456789"
-                    style={{ display: "block", width: "100%", marginTop: 4, border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px", fontSize: 14, boxSizing: "border-box" }} />
+                    placeholder="7790123456789" style={inp} />
                 </label>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
+                <label style={lbl}>
                   Marca
-                  <input value={form.marca} onChange={e => setForm(f => ({ ...f, marca: e.target.value }))}
-                    style={{ display: "block", width: "100%", marginTop: 4, border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px", fontSize: 14, boxSizing: "border-box" }} />
+                  <input value={form.marca} onChange={e => setForm(f => ({ ...f, marca: e.target.value }))} style={inp} />
                 </label>
               </div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
+
+              {/* Nombre */}
+              <label style={lbl}>
                 Nombre *
-                <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                  style={{ display: "block", width: "100%", marginTop: 4, border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px", fontSize: 14, boxSizing: "border-box" }} />
+                <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} style={inp} />
               </label>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
+
+              {/* Descripción */}
+              <label style={lbl}>
                 Descripción
                 <textarea value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} rows={2}
-                  style={{ display: "block", width: "100%", marginTop: 4, border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px", fontSize: 14, resize: "vertical", boxSizing: "border-box" }} />
+                  style={{ ...inp, resize: "vertical" }} />
               </label>
+
               {/* Imagen */}
-              <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
+              <label style={lbl}>
                 Foto del producto
                 <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 12 }}>
                   {imagenPreview
@@ -336,21 +399,67 @@ export default function ProductosPage() {
                 </div>
               </label>
 
+              {/* Unidad base + Alícuota IVA */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
+                <label style={lbl}>
                   Unidad base
                   <input value={form.unidad_base} onChange={e => setForm(f => ({ ...f, unidad_base: e.target.value }))}
-                    placeholder="unidad, kg, litro..."
-                    style={{ display: "block", width: "100%", marginTop: 4, border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px", fontSize: 14, boxSizing: "border-box" }} />
+                    placeholder="unidad, kg, litro..." style={inp} />
                 </label>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>
-                  Alícuota IVA
-                  <select value={form.alicuota_iva} onChange={e => setForm(f => ({ ...f, alicuota_iva: parseFloat(e.target.value) }))}
-                    style={{ display: "block", width: "100%", marginTop: 4, border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px", fontSize: 14, boxSizing: "border-box" }}>
-                    {IVA_OPTS.map(v => <option key={v} value={v}>{v}%</option>)}
+                <label style={lbl}>
+                  Alícuota IVA *
+                  <select value={form.alicuota_iva} onChange={e => setForm(f => ({ ...f, alicuota_iva: parseFloat(e.target.value) }))} style={sel}>
+                    <option value="">— Seleccionar —</option>
+                    {alicuotas.filter(a => a.activo).map(a => (
+                      <option key={a.id} value={a.porcentaje}>{a.nombre} ({a.porcentaje}%)</option>
+                    ))}
+                    {/* fallback si no cargaron alícuotas */}
+                    {alicuotas.length === 0 && [0, 10.5, 21, 27].map(v => (
+                      <option key={v} value={v}>{v}%</option>
+                    ))}
                   </select>
                 </label>
               </div>
+
+              {/* ── Clasificación ── */}
+              <div style={{ borderTop: "1px solid #f3f4f6", paddingTop: 14 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+                  Clasificación
+                </p>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {/* Pasillo */}
+                  <label style={lbl}>
+                    Pasillo
+                    <select value={form.pasillo_id} onChange={e => setForm(f => ({ ...f, pasillo_id: e.target.value }))} style={sel}>
+                      <option value="">— Sin pasillo —</option>
+                      {pasillos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </select>
+                  </label>
+                  {/* Rubro */}
+                  <label style={lbl}>
+                    Rubro
+                    <select value={form.rubro_id}
+                      onChange={e => setForm(f => ({ ...f, rubro_id: e.target.value, subrubro_id: "" }))} style={sel}>
+                      <option value="">— Sin rubro —</option>
+                      {rubros.map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                    </select>
+                  </label>
+                  {/* Subrubro — solo si hay rubro seleccionado */}
+                  {form.rubro_id && (
+                    <label style={lbl}>
+                      Subrubro
+                      <select value={form.subrubro_id} onChange={e => setForm(f => ({ ...f, subrubro_id: e.target.value }))} style={sel}>
+                        <option value="">— Sin subrubro —</option>
+                        {subrubrosDelRubro.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                        {subrubrosDelRubro.length === 0 && (
+                          <option disabled value="">No hay subrubros para este rubro</option>
+                        )}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              </div>
+
             </div>
             {error && <div style={{ color: "#dc2626", fontSize: 13, marginTop: 12 }}>{error}</div>}
             <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
@@ -365,7 +474,7 @@ export default function ProductosPage() {
         </div>
       )}
 
-      {/* Modal presentaciones */}
+      {/* ── Modal presentaciones ── */}
       {showPresModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: 700, maxHeight: "90vh", overflowY: "auto" }}>
@@ -374,8 +483,6 @@ export default function ProductosPage() {
               <button onClick={() => setShowPresModal(null)}
                 style={{ border: "none", background: "none", fontSize: 20, cursor: "pointer", color: "#9ca3af" }}>✕</button>
             </div>
-
-            {/* Tabla de presentaciones */}
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 16 }}>
               <thead>
                 <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
@@ -390,8 +497,6 @@ export default function ProductosPage() {
                 ))}
               </tbody>
             </table>
-
-            {/* Agregar nueva */}
             <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 16 }}>
               <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: "#374151" }}>+ Agregar presentación</p>
               <NuevaPresentacionForm onSave={guardarPresentacion} saving={saving} />
@@ -401,6 +506,11 @@ export default function ProductosPage() {
       )}
     </div>
   )
+}
+
+const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "#374151" }
+const cellInput: React.CSSProperties = {
+  border: "1px solid #dbeafe", borderRadius: 4, padding: "4px 6px", fontSize: 12, width: "100%", boxSizing: "border-box",
 }
 
 function PresentacionRow({ p, onSave, onDelete }: { p: Presentacion; onSave: (p: Presentacion) => void; onDelete: () => void }) {
@@ -452,10 +562,6 @@ function PresentacionRow({ p, onSave, onDelete }: { p: Presentacion; onSave: (p:
       </td>
     </tr>
   )
-}
-
-const cellInput: React.CSSProperties = {
-  border: "1px solid #dbeafe", borderRadius: 4, padding: "4px 6px", fontSize: 12, width: "100%", boxSizing: "border-box",
 }
 
 function NuevaPresentacionForm({ onSave, saving }: { onSave: (p: Presentacion) => void; saving: boolean }) {
