@@ -51,6 +51,7 @@ type Producto = {
 }
 
 type Vista = "lista" | "grilla-chica" | "grilla-grande"
+type TaxItem = { id: string; nombre: string }
 
 type MayoristaInfo = {
   id: string
@@ -77,6 +78,30 @@ function ProductosComercioInner() {
   const [q, setQ] = useState("")
   const [error, setError] = useState("")
   const [mayoristaInfo, setMayoristaInfo] = useState<MayoristaInfo | null>(null)
+
+  // Taxonomía
+  const [pasillos, setPasillos] = useState<TaxItem[]>([])
+  const [rubros, setRubros] = useState<TaxItem[]>([])
+  const [subrubros, setSubrubros] = useState<(TaxItem & { rubro_id: string })[]>([])
+
+  // Filtros activos
+  const [pasilloId, setPasilloId] = useState<string | null>(null)
+  const [rubroId, setRubroId] = useState<string | null>(null)
+  const [subrubroId, setSubrubroId] = useState<string | null>(null)
+  const [soloConAlta, setSoloConAlta] = useState(false)
+
+  const hayFiltros = !!(pasilloId || rubroId || subrubroId || soloConAlta)
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/store/taxonomia`, { headers: { "x-publishable-api-key": PUB_KEY } })
+      .then(r => r.json())
+      .then(d => {
+        setPasillos(d.pasillos || [])
+        setRubros(d.rubros || [])
+        setSubrubros(d.subrubros || [])
+      })
+      .catch(() => {})
+  }, [])
 
   // Vista
   const [vista, setVista] = useState<Vista>("lista")
@@ -122,6 +147,9 @@ function ProductosComercioInner() {
       if (q) params.set("q", q)
       if (comercio_id) params.set("comercio_id", comercio_id)
       if (mayorista_id) params.set("mayorista_id", mayorista_id)
+      if (pasilloId) params.set("pasillo_id", pasilloId)
+      if (rubroId) params.set("rubro_id", rubroId)
+      if (subrubroId) params.set("subrubro_id", subrubroId)
 
       const res = await fetch(`${BACKEND_URL}/store/productos?${params}`, {
         headers: { "x-publishable-api-key": PUB_KEY },
@@ -133,7 +161,7 @@ function ProductosComercioInner() {
     } finally {
       setLoading(false)
     }
-  }, [q, mayorista_id, router])
+  }, [q, mayorista_id, pasilloId, rubroId, subrubroId, router])
 
   useEffect(() => { cargarProductos() }, [cargarProductos])
 
@@ -266,10 +294,85 @@ function ProductosComercioInner() {
             className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         </div>
 
+        {/* ── FILTROS ── */}
+        <div className="space-y-2 mb-4">
+
+          {/* Pasillos */}
+          {!mayorista_id && pasillos.length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs font-semibold text-gray-400 w-16 shrink-0">Pasillo</span>
+              {pasillos.map(p => (
+                <button key={p.id} onClick={() => setPasilloId(pasilloId === p.id ? null : p.id)}
+                  className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                    pasilloId === p.id ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
+                  }`}>
+                  {p.nombre}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Rubros */}
+          {!mayorista_id && rubros.length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs font-semibold text-gray-400 w-16 shrink-0">Rubro</span>
+              {rubros.map(r => (
+                <button key={r.id} onClick={() => {
+                  setRubroId(rubroId === r.id ? null : r.id)
+                  setSubrubroId(null)
+                }}
+                  className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                    rubroId === r.id ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+                  }`}>
+                  {r.nombre}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Subrubros — solo si hay rubro activo */}
+          {rubroId && subrubros.filter(s => s.rubro_id === rubroId).length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs font-semibold text-gray-400 w-16 shrink-0">Subrubro</span>
+              {subrubros.filter(s => s.rubro_id === rubroId).map(s => (
+                <button key={s.id} onClick={() => setSubrubroId(subrubroId === s.id ? null : s.id)}
+                  className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                    subrubroId === s.id ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300"
+                  }`}>
+                  {s.nombre}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Toggle solo con alta */}
+          <div className="flex items-center justify-between">
+            <button onClick={() => setSoloConAlta(v => !v)}
+              className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                soloConAlta ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-600 border-gray-200 hover:border-green-300"
+              }`}>
+              <span>{soloConAlta ? "✓" : "○"}</span>
+              Solo mayoristas con alta aprobada
+            </button>
+            {hayFiltros && (
+              <button onClick={() => { setPasilloId(null); setRubroId(null); setSubrubroId(null); setSoloConAlta(false) }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline">
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* ── CONTENIDO ── */}
-        {loading ? (
+        {(() => {
+          // Filtro client-side: soloConAlta
+          const productosMostrados = soloConAlta
+            ? productos.filter(p => p.mayoristas.some(m => m.tiene_alta === true))
+            : productos
+
+          return loading ? (
           <div className="text-center py-12 text-gray-400">Cargando catálogo...</div>
-        ) : productos.length === 0 ? (
+        ) : productosMostrados.length === 0 ? (
           <div className="text-center py-16">
             <span className="text-5xl block mb-3">🔍</span>
             <p className="text-gray-500 text-sm">No hay productos disponibles.</p>
@@ -278,7 +381,7 @@ function ProductosComercioInner() {
 
           /* ── VISTA LISTA (acordeón) ── */
           <div className="space-y-3">
-            {productos.map(prod => {
+            {productosMostrados.map(prod => {
               const isOpen = expandido === prod.id
               const mejorPrecio = prod.mayoristas.flatMap(m => m.presentaciones)
                 .reduce<number | null>((min, p) => min === null ? p.precio : Math.min(min, p.precio), null)
@@ -345,7 +448,7 @@ function ProductosComercioInner() {
             ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
             : "grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
           }>
-            {productos.map(prod => {
+            {productosMostrados.map(prod => {
               const mejorPrecio = prod.mayoristas.flatMap(m => m.presentaciones)
                 .reduce<number | null>((min, p) => min === null ? p.precio : Math.min(min, p.precio), null)
               const chica = vista === "grilla-chica"
@@ -372,7 +475,8 @@ function ProductosComercioInner() {
               )
             })}
           </div>
-        )}
+        )
+        })()}
       </div>
 
       {/* ── MODAL DETALLE (grilla) ── */}
