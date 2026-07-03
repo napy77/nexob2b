@@ -107,7 +107,7 @@ function ProductosComercioInner() {
       // Si estamos filtrando por mayorista, traer sus datos de contacto
       if (mayorista_id) {
         try {
-          const mRes = await fetch(`${BACKEND_URL}/store/comercios/mayoristas`, { headers: authHeaders() })
+          const mRes = await fetch(`${BACKEND_URL}/store/mayoristas/lista`, { headers: authHeaders() })
           if (mRes.ok) {
             const mData = await mRes.json()
             const found = (mData.mayoristas || []).find((m: any) => m.id === mayorista_id)
