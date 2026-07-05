@@ -55,28 +55,26 @@ function ApiKeysTab() {
   const [form, setForm] = useState(emptyApiForm())
   const [saving, setSaving] = useState(false)
   const [keyGenerada, setKeyGenerada] = useState<string | null>(null)
-  const [filtro, setFiltro] = useState<"" | "nexopos" | "mayorista">("")
 
   const cargar = async () => {
     setLoading(true)
     try {
-      const url = filtro ? `/admin/api-keys?tipo=${filtro}` : "/admin/api-keys"
-      const r = await fetch(url, OPTS)
+      const r = await fetch("/admin/api-keys", OPTS)
       const d = await r.json()
       setKeys(d.api_keys || [])
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { cargar() }, [filtro])
+  useEffect(() => { cargar() }, [])
 
   const crear = async () => {
-    if (!form.nombre || !form.entidad_id) return alert("Nombre y entidad_id son requeridos")
+    if (!form.nombre || !form.entidad_id) return alert("Nombre y mayorista_id son requeridos")
     setSaving(true)
     try {
       const r = await fetch("/admin/api-keys", {
         ...OPTS, method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: form.nombre, tipo: form.tipo, entidad_id: form.entidad_id, webhook_url: form.webhook_url || null }),
+        body: JSON.stringify({ nombre: form.nombre, entidad_id: form.entidad_id, webhook_url: form.webhook_url || null }),
       })
       const d = await r.json()
       if (d.api_key) {
@@ -129,29 +127,20 @@ function ApiKeysTab() {
       {/* Formulario nueva key */}
       {showForm && (
         <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 12, padding: 20 }}>
-          <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 14px" }}>Nueva API Key</p>
+          <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 14px" }}>Nueva API Key Mayorista</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
             <Field label="Nombre descriptivo *">
               <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                placeholder="NexoPOS Almacén Don Juan" style={inputStyle} />
+                placeholder="Distribuidora XYZ — ERP" style={inputStyle} />
             </Field>
-            <Field label="Tipo *">
-              <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value as any }))}
-                style={inputStyle}>
-                <option value="nexopos">NexoPOS (comercio)</option>
-                <option value="mayorista">Mayorista (ERP/WMS)</option>
-              </select>
-            </Field>
-            <Field label={form.tipo === "nexopos" ? "comercio_id *" : "mayorista_id *"}>
+            <Field label="mayorista_id *">
               <input value={form.entidad_id} onChange={e => setForm(f => ({ ...f, entidad_id: e.target.value }))}
-                placeholder={form.tipo === "nexopos" ? "com_xxxx" : "may_xxxx"} style={inputStyle} />
+                placeholder="may_xxxx" style={inputStyle} />
             </Field>
-            {form.tipo === "mayorista" && (
-              <Field label="Webhook URL (opcional)">
-                <input value={form.webhook_url} onChange={e => setForm(f => ({ ...f, webhook_url: e.target.value }))}
-                  placeholder="https://erp.ejemplo.com/webhooks/nexob2b" style={inputStyle} />
-              </Field>
-            )}
+            <Field label="Webhook URL (opcional)">
+              <input value={form.webhook_url} onChange={e => setForm(f => ({ ...f, webhook_url: e.target.value }))}
+                placeholder="https://erp.ejemplo.com/webhooks/nexob2b" style={inputStyle} />
+            </Field>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={crear} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
@@ -163,19 +152,8 @@ function ApiKeysTab() {
         </div>
       )}
 
-      {/* Barra: filtros + botón nueva */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {(["", "nexopos", "mayorista"] as const).map(t => (
-            <button key={t} onClick={() => setFiltro(t)}
-              style={{ padding: "6px 14px", borderRadius: 20, border: "1px solid", cursor: "pointer", fontSize: 13, fontWeight: 500,
-                background: filtro === t ? "#2563eb" : "#f3f4f6",
-                color: filtro === t ? "#fff" : "#374151",
-                borderColor: filtro === t ? "#2563eb" : "#e5e7eb" }}>
-              {t === "" ? "Todas" : t === "nexopos" ? "NexoPOS" : "Mayoristas"}
-            </button>
-          ))}
-        </div>
+      {/* Barra: botón nueva */}
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
         {!showForm && (
           <button onClick={() => { setShowForm(true); setKeyGenerada(null) }} style={btnPrimary}>
             + Nueva key
@@ -195,7 +173,7 @@ function ApiKeysTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
-                {["Nombre", "Tipo", "Entidad ID", "Key", "Estado", "Último uso", ""].map(h => (
+                {["Nombre", "Mayorista ID", "Key", "Estado", "Último uso", ""].map(h => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 12px", color: "#6b7280", fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -206,15 +184,6 @@ function ApiKeysTab() {
                   <td style={{ padding: "12px 12px" }}>
                     <div style={{ fontWeight: 600, color: "#111827" }}>{k.nombre}</div>
                     {k.webhook_url && <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>🔗 {k.webhook_url.slice(0, 38)}{k.webhook_url.length > 38 ? "…" : ""}</div>}
-                  </td>
-                  <td style={{ padding: "12px 12px" }}>
-                    <span style={{
-                      padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
-                      background: k.tipo === "nexopos" ? "#dbeafe" : "#d1fae5",
-                      color: k.tipo === "nexopos" ? "#1e40af" : "#065f46",
-                    }}>
-                      {k.tipo === "nexopos" ? "NexoPOS" : "Mayorista"}
-                    </span>
                   </td>
                   <td style={{ padding: "12px 12px", fontFamily: "monospace", color: "#374151" }}>{k.entidad_id}</td>
                   <td style={{ padding: "12px 12px", fontFamily: "monospace", color: "#374151" }}>{k.key_preview}</td>

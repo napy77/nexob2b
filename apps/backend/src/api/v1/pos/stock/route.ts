@@ -1,26 +1,31 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { verifyApiKey } from "../../../../lib/api-key"
+import jwt from "jsonwebtoken"
 import { getPool } from "../../../../lib/db-seq"
+
+function getComercioId(req: MedusaRequest): string | null {
+  const auth = req.headers.authorization
+  if (!auth?.startsWith("Bearer ")) return null
+  try {
+    const decoded: any = jwt.verify(auth.split(" ")[1], process.env.JWT_SECRET || "nexob2b_jwt_secret_2026")
+    return decoded.comercio_id || null
+  } catch { return null }
+}
 
 // PUT /api/v1/pos/stock
 // Body: { items: [{ ean: "7790...", cantidad: -1 }] }
 // Descuenta stock de las presentaciones del catálogo unificado.
-// Busca por EAN del producto maestro o EAN propio de la presentación.
-// Solo afecta listings de mayoristas con alta en el comercio de esta API key.
 export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
-  const apiKey = await verifyApiKey(req as any, "nexopos")
-  if (!apiKey) return res.status(401).json({ error: "API key inválida o inactiva" })
+  const comercio_id = getComercioId(req)
+  if (!comercio_id) return res.status(401).json({ error: "Token inválido o expirado" })
 
   const { items } = req.body as { items: { ean: string; cantidad: number }[] }
   if (!Array.isArray(items) || items.length === 0)
     return res.status(400).json({ error: "items requerido" })
 
   const pool = getPool()
-  const comercio_id = apiKey.entidad_id
   const resultados: any[] = []
 
   for (const item of items) {
-    // Buscar presentaciones activas de este EAN en mayoristas con alta del comercio
     const { rows } = await pool.query(`
       SELECT pmp.id, pmp.stock, pmp.precio, pp.nombre AS presentacion_nombre,
              p.nombre AS producto_nombre, pml.mayorista_id
@@ -43,7 +48,6 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
       continue
     }
 
-    // Actualizar todas las presentaciones que matchean (puede haber más de un mayorista)
     for (const row of rows) {
       const nuevoStock = Math.max(0, (row.stock || 0) + item.cantidad)
       await pool.query(

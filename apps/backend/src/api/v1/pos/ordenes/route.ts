@@ -1,11 +1,21 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { verifyApiKey, dispararWebhookMayorista } from "../../../../lib/api-key"
+import jwt from "jsonwebtoken"
+import { dispararWebhookMayorista } from "../../../../lib/api-key"
 import { getPool, nextOrdenNumero } from "../../../../lib/db-seq"
 
-// GET /api/v1/pos/ordenes — listado de órdenes del comercio
+function getComercioId(req: MedusaRequest): string | null {
+  const auth = req.headers.authorization
+  if (!auth?.startsWith("Bearer ")) return null
+  try {
+    const decoded: any = jwt.verify(auth.split(" ")[1], process.env.JWT_SECRET || "nexob2b_jwt_secret_2026")
+    return decoded.comercio_id || null
+  } catch { return null }
+}
+
+// GET /api/v1/pos/ordenes
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const apiKey = await verifyApiKey(req as any, "nexopos")
-  if (!apiKey) return res.status(401).json({ error: "API key inválida o inactiva" })
+  const comercio_id = getComercioId(req)
+  if (!comercio_id) return res.status(401).json({ error: "Token inválido o expirado" })
 
   const pool = getPool()
   const { rows } = await pool.query(`
@@ -22,24 +32,22 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     GROUP BY o.id, m.nombre
     ORDER BY o.created_at DESC
     LIMIT 100
-  `, [apiKey.entidad_id])
+  `, [comercio_id])
 
   res.json({ ordenes: rows })
 }
 
-// POST /api/v1/pos/ordenes — crear orden desde POS
+// POST /api/v1/pos/ordenes
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const apiKey = await verifyApiKey(req as any, "nexopos")
-  if (!apiKey) return res.status(401).json({ error: "API key inválida o inactiva" })
+  const comercio_id = getComercioId(req)
+  if (!comercio_id) return res.status(401).json({ error: "Token inválido o expirado" })
 
   const pool = getPool()
-  const comercio_id = apiKey.entidad_id
   const { mayorista_id, items, notas, medio_pago_id } = req.body as any
 
   if (!mayorista_id || !Array.isArray(items) || items.length === 0)
     return res.status(400).json({ error: "mayorista_id e items son requeridos" })
 
-  // Resolver items
   const itemsResueltos: any[] = []
   for (const item of items) {
     if (item.presentacion_id) {
@@ -78,7 +86,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const numero     = await nextOrdenNumero()
   const id         = crypto.randomUUID()
 
-  // INSERT directo — evita dependencias de tipos del servicio Medusa
   await pool.query(`
     INSERT INTO orden (id, numero, comercio_id, mayorista_id, estado,
       total_neto, total_iva, total, notas, medio_pago_id, costo_medio_pago,
