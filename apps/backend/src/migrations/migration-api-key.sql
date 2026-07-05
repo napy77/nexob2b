@@ -1,7 +1,7 @@
--- Migration: tabla api_key para integración NexoPOS y sistemas de mayoristas
+-- Migration: tabla nexo_api_key para integración NexoPOS y sistemas de mayoristas
 -- Ejecutar en producción: psql "postgres://nexob2b:nexob2b_secure_2026@localhost/nexob2b_db" -f migration-api-key.sql
 
-CREATE TABLE IF NOT EXISTS api_key (
+CREATE TABLE IF NOT EXISTS nexo_api_key (
   id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   key         TEXT NOT NULL UNIQUE,
   nombre      TEXT NOT NULL,
@@ -14,5 +14,5 @@ CREATE TABLE IF NOT EXISTS api_key (
   deleted_at  TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_api_key_key        ON api_key(key) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_api_key_entidad    ON api_key(entidad_id, tipo) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_nexo_api_key_key        ON nexo_api_key(key) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_nexo_api_key_entidad    ON nexo_api_key(entidad_id, tipo) WHERE deleted_at IS NULL;

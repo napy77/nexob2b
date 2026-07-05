@@ -82,7 +82,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const numero = await nextOrdenNumero()
 
   const ordenService = req.scope.resolve(ORDEN_MODULE)
-  const orden = await ordenService.createOrdenes({
+  const orden = await ordenService.createOrdens({
     numero, comercio_id, mayorista_id, total,
     estado: "pendiente", notas: notas || null,
     medio_pago_id: medio_pago_id || null,

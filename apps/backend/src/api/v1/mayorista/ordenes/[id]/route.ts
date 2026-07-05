@@ -45,7 +45,7 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!orden) return res.status(404).json({ error: "Orden no encontrada" })
 
   const ordenService = req.scope.resolve(ORDEN_MODULE)
-  await ordenService.updateOrdenes({ id: req.params.id, estado })
+  await ordenService.updateOrdens({ id: req.params.id, estado })
 
   res.json({ ok: true, id: req.params.id, estado })
 }

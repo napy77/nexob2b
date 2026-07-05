@@ -30,7 +30,7 @@ export async function verifyApiKey(
   const pool = getPool()
   const { rows } = await pool.query<ApiKeyRow>(
     `SELECT id, key, nombre, tipo, entidad_id, activa, webhook_url
-     FROM api_key
+     FROM nexo_api_key
      WHERE key = $1 AND activa = true AND deleted_at IS NULL
      LIMIT 1`,
     [key]
@@ -40,7 +40,7 @@ export async function verifyApiKey(
   if (tipo && row.tipo !== tipo) return null
 
   // Actualizar ultimo_uso sin await
-  pool.query("UPDATE api_key SET ultimo_uso = now() WHERE id = $1", [row.id]).catch(() => {})
+  pool.query("UPDATE nexo_api_key SET ultimo_uso = now() WHERE id = $1", [row.id]).catch(() => {})
 
   return row
 }
@@ -67,7 +67,7 @@ export function dispararWebhookMayorista(
 ): void {
   getPool()
     .query<{ webhook_url: string }>(
-      `SELECT webhook_url FROM api_key
+      `SELECT webhook_url FROM nexo_api_key
        WHERE entidad_id = $1 AND tipo = 'mayorista' AND activa = true
          AND webhook_url IS NOT NULL AND deleted_at IS NULL
        LIMIT 1`,

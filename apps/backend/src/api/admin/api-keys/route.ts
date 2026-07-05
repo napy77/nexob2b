@@ -14,11 +14,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     SELECT id, nombre, tipo, entidad_id, activa, webhook_url, ultimo_uso, created_at,
            -- mostrar solo primeros 12 chars de la key por seguridad
            left(key, 12) || '...' AS key_preview
-    FROM api_key WHERE ${conditions.join(" AND ")}
+    FROM nexo_api_key WHERE ${conditions.join(" AND ")}
     ORDER BY created_at DESC
   `, params)
 
-  res.json({ api_keys: rows })
+  res.json({ nexo_api_keys: rows })
 }
 
 // POST /api/admin/api-keys
@@ -35,11 +35,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const key = generarKey(tipo)
 
   const { rows: [row] } = await pool.query(`
-    INSERT INTO api_key (key, nombre, tipo, entidad_id, webhook_url)
+    INSERT INTO nexo_api_key (key, nombre, tipo, entidad_id, webhook_url)
     VALUES ($1, $2, $3, $4, $5)
     RETURNING id, key, nombre, tipo, entidad_id, activa, webhook_url, created_at
   `, [key, nombre, tipo, entidad_id, webhook_url || null])
 
   // ÚNICA vez que se devuelve la key completa — el admin debe copiarla ahora
-  res.status(201).json({ api_key: row, aviso: "Guarda esta key ahora, no se vuelve a mostrar completa." })
+  res.status(201).json({ nexo_api_key: row, aviso: "Guarda esta key ahora, no se vuelve a mostrar completa." })
 }

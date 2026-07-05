@@ -21,12 +21,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { rows: [row] } = await pool.query(`
     SELECT id, nombre, activa, webhook_url, ultimo_uso, created_at,
            left(key, 12) || repeat('*', 20) AS key_preview
-    FROM api_key
+    FROM nexo_api_key
     WHERE entidad_id = $1 AND tipo = 'mayorista' AND deleted_at IS NULL
     LIMIT 1
   `, [mayorista_id])
 
-  res.json({ api_key: row || null })
+  res.json({ nexo_api_key: row || null })
 }
 
 // POST /store/mayoristas/me/api-key — generar o regenerar key
@@ -42,18 +42,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Si ya tiene una, la reemplaza (soft delete + nueva)
   await pool.query(
-    `UPDATE api_key SET deleted_at = now(), activa = false WHERE entidad_id = $1 AND tipo = 'mayorista' AND deleted_at IS NULL`,
+    `UPDATE nexo_api_key SET deleted_at = now(), activa = false WHERE entidad_id = $1 AND tipo = 'mayorista' AND deleted_at IS NULL`,
     [mayorista_id]
   )
 
   const { rows: [row] } = await pool.query(`
-    INSERT INTO api_key (key, nombre, tipo, entidad_id, webhook_url)
+    INSERT INTO nexo_api_key (key, nombre, tipo, entidad_id, webhook_url)
     VALUES ($1, $2, 'mayorista', $3, $4)
     RETURNING id, key, nombre, activa, webhook_url, created_at
   `, [key, keyNombre, mayorista_id, webhook_url || null])
 
   res.status(201).json({
-    api_key: row,
+    nexo_api_key: row,
     aviso: "Guarda esta key ahora, no se vuelve a mostrar completa.",
   })
 }
@@ -66,11 +66,11 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   const pool = getPool()
   const { webhook_url } = req.body as any
   const { rows: [row] } = await pool.query(`
-    UPDATE api_key SET webhook_url = $1
+    UPDATE nexo_api_key SET webhook_url = $1
     WHERE entidad_id = $2 AND tipo = 'mayorista' AND deleted_at IS NULL
     RETURNING id, nombre, activa, webhook_url
   `, [webhook_url || null, mayorista_id])
 
   if (!row) return res.status(404).json({ error: "No tenés API key generada aún" })
-  res.json({ api_key: row })
+  res.json({ nexo_api_key: row })
 }
