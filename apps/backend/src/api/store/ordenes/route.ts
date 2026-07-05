@@ -6,6 +6,7 @@ import { TRANSPORTE_MODULE } from "../../../modules/transporte"
 import jwt from "jsonwebtoken"
 import { nextOrdenNumero } from "../../../lib/db-seq"
 import { notificarNuevaOrden } from "../../../lib/notifications"
+import { dispararWebhookMayorista } from "../../../lib/api-key"
 import { MAYORISTA_MODULE } from "../../../modules/mayorista"
 import { getPool } from "../../../lib/db-seq"
 
@@ -263,6 +264,16 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
         transporte_nombre: transporte_nombre || undefined,
       }).catch((e: any) => console.error("[notif] nueva orden:", e))
     }
+
+    // Webhook externo del mayorista (si tiene API key con webhook_url configurado)
+    dispararWebhookMayorista(mayorista_id, "orden.nueva", {
+      orden_id: orden.id,
+      numero,
+      total,
+      comercio_id: payload.comercio_id,
+      comercio_nombre: comercio?.nombre || null,
+      items: itemsCalc.length,
+    })
   } catch (e) {
     console.error("[notif] error preparando notificación:", e)
   }

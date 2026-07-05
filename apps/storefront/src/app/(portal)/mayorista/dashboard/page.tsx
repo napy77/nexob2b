@@ -294,6 +294,9 @@ export default function DashboardPage() {
           <NavCard href="/mayorista/estadisticas" icon="📊" title="Estadísticas"
             description="Ventas del mes, productos top, comercios y vendedores"
             disabled={mayorista.estado !== "aprobado"} />
+          <NavCard href="/mayorista/api" icon="🔌" title="Integración API"
+            description="Conectá tu ERP o WMS para sincronizar stock, precios y recibir órdenes"
+            disabled={mayorista.estado !== "aprobado"} />
           <NavCard href="/mayorista/perfil" icon="👤" title="Mi perfil"
             description="Actualizá los datos de tu empresa" />
         </div>
