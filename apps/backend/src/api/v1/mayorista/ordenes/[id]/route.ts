@@ -1,7 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { verifyApiKey } from "../../../../../lib/api-key"
 import { getPool } from "../../../../../lib/db-seq"
-import { ORDEN_MODULE } from "../../../../../modules/orden"
 
 const ESTADOS_VALIDOS = ["confirmado", "preparando", "despachado", "entregado", "cancelado"]
 
@@ -44,8 +43,10 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   )
   if (!orden) return res.status(404).json({ error: "Orden no encontrada" })
 
-  const ordenService = req.scope.resolve(ORDEN_MODULE)
-  await ordenService.updateOrdens({ id: req.params.id, estado })
+  await pool.query(
+    `UPDATE orden SET estado = $1, updated_at = now() WHERE id = $2`,
+    [estado, req.params.id]
+  )
 
   res.json({ ok: true, id: req.params.id, estado })
 }

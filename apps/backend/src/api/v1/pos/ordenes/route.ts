@@ -1,8 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { verifyApiKey } from "../../../../lib/api-key"
-import { dispararWebhookMayorista } from "../../../../lib/api-key"
+import { verifyApiKey, dispararWebhookMayorista } from "../../../../lib/api-key"
 import { getPool, nextOrdenNumero } from "../../../../lib/db-seq"
-import { ORDEN_MODULE } from "../../../../modules/orden"
 
 // GET /api/v1/pos/ordenes — listado de órdenes del comercio
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -41,13 +39,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!mayorista_id || !Array.isArray(items) || items.length === 0)
     return res.status(400).json({ error: "mayorista_id e items son requeridos" })
 
-  // Resolver items que vienen con presentacion_id
+  // Resolver items
   const itemsResueltos: any[] = []
   for (const item of items) {
     if (item.presentacion_id) {
       const { rows: [row] } = await pool.query(`
-        SELECT pp.nombre AS pres_nombre, pp.factor, p.nombre AS prod_nombre,
-               p.ean, p.unidad_base, p.alicuota_iva, pmp.precio
+        SELECT pp.nombre AS pres_nombre, p.nombre AS prod_nombre,
+               p.ean, p.alicuota_iva, pmp.precio
         FROM producto_mayorista_presentacion pmp
         JOIN producto_maestro_presentacion pp ON pp.id = pmp.presentacion_id
         JOIN producto_mayorista_listing pml ON pml.id = pmp.listing_id
@@ -56,7 +54,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       `, [item.presentacion_id])
       if (!row) return res.status(400).json({ error: `Presentacion ${item.presentacion_id} no encontrada` })
       const neto = row.precio * item.cantidad
-      const iva = neto * (row.alicuota_iva / 100)
+      const iva = neto * (parseFloat(row.alicuota_iva) / 100)
       itemsResueltos.push({
         presentacion_id: item.presentacion_id,
         nombre: `${row.prod_nombre} — ${row.pres_nombre}`,
@@ -68,36 +66,41 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         subtotal_neto: neto, subtotal_iva: iva, subtotal: neto + iva,
       })
     } else {
-      // Item legacy con precio explícito
       const neto = (item.precio_unitario || 0) * item.cantidad
       const iva = neto * ((item.alicuota_iva || 21) / 100)
-      itemsResueltos.push({
-        ...item,
-        subtotal_neto: neto, subtotal_iva: iva, subtotal: neto + iva,
-      })
+      itemsResueltos.push({ ...item, subtotal_neto: neto, subtotal_iva: iva, subtotal: neto + iva })
     }
   }
 
-  const total = itemsResueltos.reduce((s, i) => s + i.subtotal, 0)
-  const numero = await nextOrdenNumero()
+  const total_neto = itemsResueltos.reduce((s, i) => s + i.subtotal_neto, 0)
+  const total_iva  = itemsResueltos.reduce((s, i) => s + i.subtotal_iva,  0)
+  const total      = itemsResueltos.reduce((s, i) => s + i.subtotal,       0)
+  const numero     = await nextOrdenNumero()
+  const id         = crypto.randomUUID()
 
-  const ordenService = req.scope.resolve(ORDEN_MODULE)
-  const orden = await ordenService.createOrdens({
-    numero, comercio_id, mayorista_id, total,
-    estado: "pendiente", notas: notas || null,
-    medio_pago_id: medio_pago_id || null,
-    costo_medio_pago: 0,
-    origen: "nexopos",
-  })
+  // INSERT directo — evita dependencias de tipos del servicio Medusa
+  await pool.query(`
+    INSERT INTO orden (id, numero, comercio_id, mayorista_id, estado,
+      total_neto, total_iva, total, notas, medio_pago_id, costo_medio_pago,
+      porcentaje_costo_mp, transporte_id, transporte_nombre,
+      porcentaje_costo_transporte, costo_transporte, monto_descuento, created_at, updated_at)
+    VALUES ($1,$2,$3,$4,'cargada',$5,$6,$7,$8,$9,0,0,NULL,NULL,0,0,0,now(),now())
+  `, [id, numero, comercio_id, mayorista_id, total_neto, total_iva, total, notas || null, medio_pago_id || null])
 
   for (const it of itemsResueltos) {
-    await ordenService.createOrdenItems({ orden_id: orden.id, ...it })
+    const iid = crypto.randomUUID()
+    await pool.query(`
+      INSERT INTO orden_item (id, orden_id, presentacion_id, nombre, sku, ean,
+        precio_unitario, alicuota_iva, cantidad, unidad, subtotal_neto, subtotal_iva, subtotal, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now(),now())
+    `, [iid, id, it.presentacion_id || null, it.nombre, it.sku || null, it.ean || null,
+        it.precio_unitario, it.alicuota_iva, it.cantidad, it.unidad,
+        it.subtotal_neto, it.subtotal_iva, it.subtotal])
   }
 
-  // Disparar webhook del mayorista (async, best-effort)
   dispararWebhookMayorista(mayorista_id, "orden.nueva", {
-    orden_id: orden.id, numero, total, comercio_id, items: itemsResueltos.length,
+    orden_id: id, numero, total, comercio_id, items: itemsResueltos.length,
   })
 
-  res.status(201).json({ orden: { id: orden.id, numero, estado: "pendiente", total } })
+  res.status(201).json({ orden: { id, numero, estado: "cargada", total } })
 }
