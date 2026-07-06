@@ -11,6 +11,9 @@
 --     matchear con Coto/otras fuentes en la fase 2 de fotos+descripcion.
 --   - 2.497 filas son codigos "tipo balanza" (empiezan en 2, 13 digitos): productos pesables,
 --     el codigo embebe peso/precio y es propio de quien lo genero. Mismo caveat que arriba.
+--   - 1 fila (EAN 7798126071631) no tenia nombre en el sheet; se le puso un placeholder.
+--     data.csv ahora usa QUOTE_ALL para que un nombre vacio no se lea como NULL en el COPY,
+--     y ademas hay un COALESCE de resguardo en el INSERT por si aparece otro caso similar.
 --
 -- Uso (correr en el servidor, con el usuario nexob2b, desde este mismo directorio):
 --   psql "postgres://nexob2b:nexob2b_secure_2026@localhost/nexob2b_db" -f import.sql
@@ -30,7 +33,7 @@ INSERT INTO producto_maestro (id, ean, nombre, unidad_base, alicuota_iva, estado
 SELECT
   gen_random_uuid()::text,
   s.ean,
-  s.nombre,
+  COALESCE(NULLIF(trim(s.nombre), ''), '(sin nombre - EAN ' || s.ean || ')'),
   'unidad',
   21,
   'pendiente',
