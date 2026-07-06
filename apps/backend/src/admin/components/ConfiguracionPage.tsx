@@ -59,7 +59,7 @@ function ApiKeysTab() {
   const cargar = async () => {
     setLoading(true)
     try {
-      const r = await fetch("/admin/api-keys", OPTS)
+      const r = await fetch("/admin/nexo-api-keys", OPTS)
       const d = await r.json()
       setKeys(d.api_keys || [])
     } finally { setLoading(false) }
@@ -71,7 +71,7 @@ function ApiKeysTab() {
     if (!form.nombre || !form.entidad_id) return alert("Nombre y mayorista_id son requeridos")
     setSaving(true)
     try {
-      const r = await fetch("/admin/api-keys", {
+      const r = await fetch("/admin/nexo-api-keys", {
         ...OPTS, method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nombre: form.nombre, entidad_id: form.entidad_id, webhook_url: form.webhook_url || null }),
@@ -87,7 +87,7 @@ function ApiKeysTab() {
   }
 
   const toggleActiva = async (k: ApiKey) => {
-    await fetch(`/admin/api-keys/${k.id}`, {
+    await fetch(`/admin/nexo-api-keys/${k.id}`, {
       ...OPTS, method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ activa: !k.activa }),
     })
@@ -96,7 +96,7 @@ function ApiKeysTab() {
 
   const eliminar = async (k: ApiKey) => {
     if (!confirm(`¿Eliminar key "${k.nombre}"?`)) return
-    await fetch(`/admin/api-keys/${k.id}`, { ...OPTS, method: "DELETE" })
+    await fetch(`/admin/nexo-api-keys/${k.id}`, { ...OPTS, method: "DELETE" })
     cargar()
   }
 
