@@ -59,6 +59,9 @@ export default function CatalogoVendedorTab() {
 
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
 
   // Búsqueda
   const [busqueda, setBusqueda] = useState("")
@@ -88,25 +91,35 @@ export default function CatalogoVendedorTab() {
 
   // ── Cargar productos ──────────────────────────────────────────────────────
 
-  const cargarProductos = useCallback(async () => {
+  const cargarProductos = useCallback(async (targetPage = 1) => {
     if (!token || !mayorista_id) return
-    setLoading(true)
+    const append = targetPage > 1
+    if (append) setLoadingMore(true); else setLoading(true)
     try {
       const params: Record<string, string> = { mayorista_id }
       if (busqueda.trim()) params.q = busqueda.trim()
       if (pasilloId) params.pasillo_id = pasilloId
       if (rubroId) params.rubro_id = rubroId
       if (subrubroId) params.subrubro_id = subrubroId
+      params.page = String(targetPage)
+      params.pageSize = "50"
       const data = await getProductos(token, params)
-      setProductos(data.productos || [])
+      setProductos(prev => append ? [...prev, ...(data.productos || [])] : (data.productos || []))
+      setPage(data.page || targetPage)
+      setTotalPages(data.totalPages || 1)
     } catch (e: any) {
       if (e instanceof ApiError && e.status === 401) logout()
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }, [token, mayorista_id, busqueda, pasilloId, rubroId, subrubroId])
 
-  useEffect(() => { cargarProductos() }, [cargarProductos])
+  useEffect(() => { cargarProductos(1) }, [cargarProductos])
+
+  const cargarMas = () => {
+    if (!loading && !loadingMore && page < totalPages) cargarProductos(page + 1)
+  }
 
   // ── Agregar al carrito ────────────────────────────────────────────────────
 
@@ -255,8 +268,11 @@ export default function CatalogoVendedorTab() {
             columnWrapperStyle={{ gap: 10 }}
             contentContainerStyle={{ padding: 10, gap: 10, paddingBottom: 40 }}
             refreshing={loading}
-            onRefresh={cargarProductos}
+            onRefresh={() => cargarProductos(1)}
             renderItem={renderItem}
+            onEndReached={cargarMas}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 16 }} color="#059669" /> : null}
             ListEmptyComponent={
               <View style={s.empty}>
                 <Text style={{ fontSize: 42 }}>📦</Text>

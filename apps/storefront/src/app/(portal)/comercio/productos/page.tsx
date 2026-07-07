@@ -75,9 +75,14 @@ function ProductosComercioInner() {
   const { addItem, carts } = useCart()
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [q, setQ] = useState("")
   const [error, setError] = useState("")
   const [mayoristaInfo, setMayoristaInfo] = useState<MayoristaInfo | null>(null)
+  const PAGE_SIZE = 50
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
   // Taxonomía
   const [pasillos, setPasillos] = useState<TaxItem[]>([])
@@ -117,8 +122,9 @@ function ProductosComercioInner() {
   // Grilla: producto en modal
   const [modalProd, setModalProd] = useState<Producto | null>(null)
 
-  const cargarProductos = useCallback(async () => {
-    setLoading(true)
+  const cargarProductos = useCallback(async (targetPage = 1) => {
+    const append = targetPage > 1
+    if (append) setLoadingMore(true); else setLoading(true)
     try {
       const token = typeof localStorage !== "undefined" ? localStorage.getItem("comercio_token") : null
       if (!token) { router.replace("/comercio/login"); return }
@@ -129,18 +135,20 @@ function ProductosComercioInner() {
         if (me.ok) { const d = await me.json(); comercio_id = d.comercio?.id }
       } catch {}
 
-      // Si estamos filtrando por mayorista, traer sus datos de contacto
-      if (mayorista_id) {
-        try {
-          const mRes = await fetch(`${BACKEND_URL}/store/mayoristas/lista`, { headers: authHeaders() })
-          if (mRes.ok) {
-            const mData = await mRes.json()
-            const found = (mData.mayoristas || []).find((m: any) => m.id === mayorista_id)
-            if (found) setMayoristaInfo(found)
-          }
-        } catch {}
-      } else {
-        setMayoristaInfo(null)
+      // Si estamos filtrando por mayorista, traer sus datos de contacto (solo en la primera página)
+      if (!append) {
+        if (mayorista_id) {
+          try {
+            const mRes = await fetch(`${BACKEND_URL}/store/mayoristas/lista`, { headers: authHeaders() })
+            if (mRes.ok) {
+              const mData = await mRes.json()
+              const found = (mData.mayoristas || []).find((m: any) => m.id === mayorista_id)
+              if (found) setMayoristaInfo(found)
+            }
+          } catch {}
+        } else {
+          setMayoristaInfo(null)
+        }
       }
 
       const params = new URLSearchParams()
@@ -150,20 +158,26 @@ function ProductosComercioInner() {
       if (pasilloId) params.set("pasillo_id", pasilloId)
       if (rubroId) params.set("rubro_id", rubroId)
       if (subrubroId) params.set("subrubro_id", subrubroId)
+      params.set("page", String(targetPage))
+      params.set("pageSize", String(PAGE_SIZE))
 
       const res = await fetch(`${BACKEND_URL}/store/productos?${params}`, {
         headers: { "x-publishable-api-key": PUB_KEY },
       })
       const data = await res.json()
-      setProductos(data.productos || [])
+      setProductos(prev => append ? [...prev, ...(data.productos || [])] : (data.productos || []))
+      setPage(data.page || targetPage)
+      setTotalPages(data.totalPages || 1)
+      setTotal(data.total ?? (data.productos || []).length)
     } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }, [q, mayorista_id, pasilloId, rubroId, subrubroId, router])
 
-  useEffect(() => { cargarProductos() }, [cargarProductos])
+  useEffect(() => { cargarProductos(1) }, [cargarProductos])
 
   const fmt = (n: number) =>
     new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n)
@@ -208,7 +222,7 @@ function ProductosComercioInner() {
                 </p>
               )}
             </div>
-            <span className="text-sm text-gray-400">{productos.length} productos</span>
+            <span className="text-sm text-gray-400">{productos.length} de {total} productos</span>
           </div>
 
           {/* Toggle vista */}
@@ -477,6 +491,15 @@ function ProductosComercioInner() {
           </div>
         )
         })()}
+
+        {!loading && page < totalPages && (
+          <div className="flex justify-center mt-6">
+            <button onClick={() => cargarProductos(page + 1)} disabled={loadingMore}
+              className="text-sm font-medium text-blue-600 bg-white border border-blue-200 rounded-xl px-5 py-2.5 hover:bg-blue-50 disabled:opacity-50 transition-colors">
+              {loadingMore ? "Cargando..." : "Cargar más productos"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── MODAL DETALLE (grilla) ── */}

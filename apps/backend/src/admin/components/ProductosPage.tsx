@@ -64,6 +64,10 @@ export default function ProductosPage() {
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState("")
   const [estadoFiltro, setEstadoFiltro] = useState("")
+  const PAGE_SIZE = 50
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Producto | null>(null)
   const [showPresModal, setShowPresModal] = useState<string | null>(null)
@@ -106,20 +110,25 @@ export default function ProductosPage() {
     }).catch(() => {})
   }, [])
 
-  const cargar = async () => {
+  const cargar = async (targetPage = 1) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (q) params.set("q", q)
       if (estadoFiltro) params.set("estado", estadoFiltro)
+      params.set("page", String(targetPage))
+      params.set("pageSize", String(PAGE_SIZE))
       const res = await fetch(`${API}?${params}`, { headers: adminHeaders(), credentials: "include" })
       const data = await res.json()
       setProductos(data.productos || [])
+      setPage(data.page || targetPage)
+      setTotalPages(data.totalPages || 1)
+      setTotal(data.total ?? (data.productos || []).length)
     } catch (e: any) { setError(e.message) }
     finally { setLoading(false) }
   }
 
-  useEffect(() => { cargar() }, [q, estadoFiltro])
+  useEffect(() => { cargar(1) }, [q, estadoFiltro])
 
   const cargarPresentaciones = async (producto_id: string) => {
     const res = await fetch(`${API}/${producto_id}`, { headers: adminHeaders(), credentials: "include" })
@@ -164,24 +173,24 @@ export default function ProductosPage() {
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
       setShowModal(false); setEditing(null); setImagenBase64(null); setImagenPreview(null)
-      cargar()
+      cargar(editing ? page : 1)
     } catch (e: any) { setError(e.message) }
     finally { setSaving(false) }
   }
 
   const aprobar = async (id: string) => {
     await fetch(`${API}/${id}/aprobar`, { method: "PUT", headers: adminHeaders(), credentials: "include" })
-    cargar()
+    cargar(page)
   }
   const rechazar = async (id: string) => {
     if (!confirm("¿Rechazar este producto?")) return
     await fetch(`${API}/${id}/rechazar`, { method: "PUT", headers: adminHeaders(), credentials: "include" })
-    cargar()
+    cargar(page)
   }
   const eliminar = async (id: string) => {
     if (!confirm("¿Eliminar este producto del catálogo maestro?")) return
     await fetch(`${API}/${id}`, { method: "DELETE", headers: adminHeaders(), credentials: "include" })
-    cargar()
+    cargar(page)
   }
 
   const guardarPresentacion = async (p: Presentacion) => {
@@ -277,6 +286,8 @@ export default function ProductosPage() {
         </select>
       </div>
 
+      {!loading && <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 10 }}>{total} producto{total !== 1 ? "s" : ""}</div>}
+
       {/* Tabla */}
       {loading ? <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>Cargando...</div> : (
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -340,6 +351,20 @@ export default function ProductosPage() {
             })}
           </tbody>
         </table>
+      )}
+
+      {!loading && totalPages > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 20 }}>
+          <button onClick={() => cargar(page - 1)} disabled={page <= 1}
+            style={{ border: "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: "6px 14px", cursor: page <= 1 ? "default" : "pointer", opacity: page <= 1 ? 0.4 : 1, fontSize: 13 }}>
+            ← Anterior
+          </button>
+          <span style={{ fontSize: 13, color: "#6b7280" }}>Página {page} de {totalPages}</span>
+          <button onClick={() => cargar(page + 1)} disabled={page >= totalPages}
+            style={{ border: "1px solid #e5e7eb", background: "#fff", borderRadius: 8, padding: "6px 14px", cursor: page >= totalPages ? "default" : "pointer", opacity: page >= totalPages ? 0.4 : 1, fontSize: 13 }}>
+            Siguiente →
+          </button>
+        </div>
       )}
 
       {/* ── Modal crear/editar ── */}

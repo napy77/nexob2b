@@ -5,7 +5,11 @@ import { getPool } from "../../../lib/db-seq"
 // GET /admin/productos?estado=pendiente&q=azucar
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const pool = getPool()
-  const { estado, q, pasillo_id } = req.query as Record<string, string>
+  const { estado, q, pasillo_id, page, pageSize } = req.query as Record<string, string>
+
+  const pageNum = Math.max(1, parseInt(page as string, 10) || 1)
+  const pageSizeNum = Math.min(200, Math.max(1, parseInt(pageSize as string, 10) || 50))
+  const offset = (pageNum - 1) * pageSizeNum
 
   const conditions: string[] = ["p.deleted_at IS NULL"]
   const params: any[] = []
@@ -33,16 +37,27 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       (
         SELECT COUNT(*)::int FROM producto_mayorista_listing pml
         WHERE pml.producto_id = p.id AND pml.deleted_at IS NULL AND pml.activo = true
-      ) AS total_mayoristas
+      ) AS total_mayoristas,
+      COUNT(*) OVER() AS total_count
     FROM producto_maestro p
     LEFT JOIN pasillo pa ON pa.id = p.pasillo_id
     LEFT JOIN rubro ru ON ru.id = p.rubro_id
     LEFT JOIN subrubro sr ON sr.id = p.subrubro_id
     WHERE ${where}
     ORDER BY p.nombre ASC
-  `, params)
+    LIMIT $${i} OFFSET $${i + 1}
+  `, [...params, pageSizeNum, offset])
 
-  res.json({ productos: rows })
+  const total = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0
+  const productos = rows.map(({ total_count, ...r }) => r)
+
+  res.json({
+    productos,
+    total,
+    page: pageNum,
+    pageSize: pageSizeNum,
+    totalPages: Math.ceil(total / pageSizeNum),
+  })
 }
 
 // POST /admin/productos

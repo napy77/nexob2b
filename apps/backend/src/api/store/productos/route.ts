@@ -6,7 +6,11 @@ import { getPool } from "../../../lib/db-seq"
 // Si viene comercio_id, filtra por mayoristas de la zona del comercio y muestra estado de alta
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const pool = getPool()
-  const { q, pasillo_id, rubro_id, subrubro_id, comercio_id, mayorista_id } = req.query as Record<string, string>
+  const { q, pasillo_id, rubro_id, subrubro_id, comercio_id, mayorista_id, page, pageSize } = req.query as Record<string, string>
+
+  const pageNum = Math.max(1, parseInt(page as string, 10) || 1)
+  const pageSizeNum = Math.min(100, Math.max(1, parseInt(pageSize as string, 10) || 50))
+  const offset = (pageNum - 1) * pageSizeNum
 
   const conditions: string[] = [
     "p.deleted_at IS NULL",
@@ -64,6 +68,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       pa.nombre AS pasillo_nombre,
       ru.nombre AS rubro_nombre,
       sr.nombre AS subrubro_nombre,
+      COUNT(*) OVER() AS total_count,
       json_agg(
         json_build_object(
           'listing_id', pml.id,
@@ -112,8 +117,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     WHERE ${where}
     GROUP BY p.id, pa.nombre, ru.nombre, sr.nombre
     ORDER BY p.nombre ASC
-    LIMIT 100
-  `, [...params, comercio_id || null])
+    LIMIT $${i + 1} OFFSET $${i + 2}
+  `, [...params, comercio_id || null, pageSizeNum, offset])
 
-  res.json({ productos: rows })
+  const total = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0
+  const productos = rows.map(({ total_count, ...r }) => r)
+
+  res.json({
+    productos,
+    total,
+    page: pageNum,
+    pageSize: pageSizeNum,
+    totalPages: Math.ceil(total / pageSizeNum),
+  })
 }

@@ -39,7 +39,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     if (!mayorista_id) return res.status(401).json({ error: "Token inválido" })
   } catch { return res.status(401).json({ error: "Token expirado" }) }
 
-  const { q } = req.query as Record<string, string>
+  const { q, page, pageSize } = req.query as Record<string, string>
+  const pageNum = Math.max(1, parseInt(page as string, 10) || 1)
+  const pageSizeNum = Math.min(200, Math.max(1, parseInt(pageSize as string, 10) || 50))
+  const offset = (pageNum - 1) * pageSizeNum
+
   const params: any[] = [mayorista_id]
   let extra = ""
   if (q) { extra = ` AND (p.nombre ILIKE $2 OR p.ean ILIKE $2 OR p.marca ILIKE $2)`; params.push(`%${q}%`) }
@@ -50,6 +54,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       p.ean, p.nombre, p.descripcion, p.marca, p.unidad_base, p.alicuota_iva, p.estado AS producto_estado,
       p.imagen_url, p.pasillo_id, p.rubro_id, p.subrubro_id,
       pa.nombre AS pasillo_nombre,
+      COUNT(*) OVER() AS total_count,
       (
         SELECT COALESCE(json_agg(
           json_build_object(
@@ -78,9 +83,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     WHERE pml.mayorista_id = $1 AND pml.deleted_at IS NULL AND p.deleted_at IS NULL ${extra}
     GROUP BY pml.id, p.id, pa.nombre
     ORDER BY p.nombre ASC
-  `, params)
+    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+  `, [...params, pageSizeNum, offset])
 
-  res.json({ listings: rows })
+  const total = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0
+  const listings = rows.map(({ total_count, ...r }) => r)
+
+  res.json({
+    listings,
+    total,
+    page: pageNum,
+    pageSize: pageSizeNum,
+    totalPages: Math.ceil(total / pageSizeNum),
+  })
 }
 
 // POST /store/mayoristas/me/catalogo — vincular producto o proponer nuevo

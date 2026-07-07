@@ -79,7 +79,10 @@ export default function CatalogoTab() {
   // Productos
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [comercioId, setComercioId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
 
   // Búsqueda
   const [busqueda, setBusqueda] = useState("")
@@ -116,9 +119,10 @@ export default function CatalogoTab() {
 
   // ── Cargar productos ──────────────────────────────────────────────────────
 
-  const cargarProductos = useCallback(async () => {
+  const cargarProductos = useCallback(async (targetPage = 1) => {
     if (!token) return
-    setLoading(true)
+    const append = targetPage > 1
+    if (append) setLoadingMore(true); else setLoading(true)
     try {
       const params: Record<string, string> = {}
       if (busqueda.trim()) params.q = busqueda.trim()
@@ -126,16 +130,25 @@ export default function CatalogoTab() {
       if (rubroId) params.rubro_id = rubroId
       if (subrubroId) params.subrubro_id = subrubroId
       if (comercioId) params.comercio_id = comercioId
+      params.page = String(targetPage)
+      params.pageSize = "50"
       const data = await getProductos(token, params)
-      setProductos(data.productos || [])
+      setProductos(prev => append ? [...prev, ...(data.productos || [])] : (data.productos || []))
+      setPage(data.page || targetPage)
+      setTotalPages(data.totalPages || 1)
     } catch (e: any) {
       if (e instanceof ApiError && e.status === 401) logout()
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }, [token, busqueda, pasilloId, rubroId, subrubroId, comercioId])
 
-  useEffect(() => { cargarProductos() }, [cargarProductos])
+  useEffect(() => { cargarProductos(1) }, [cargarProductos])
+
+  const cargarMas = () => {
+    if (!loading && !loadingMore && page < totalPages) cargarProductos(page + 1)
+  }
 
   // ── Búsqueda con debounce ─────────────────────────────────────────────────
 
@@ -319,8 +332,11 @@ export default function CatalogoTab() {
             columnWrapperStyle={{ gap: 10 }}
             contentContainerStyle={{ padding: 10, gap: 10, paddingBottom: 40 }}
             refreshing={loading}
-            onRefresh={cargarProductos}
+            onRefresh={() => cargarProductos(1)}
             renderItem={renderProducto}
+            onEndReached={cargarMas}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 16 }} color="#2563eb" /> : null}
             ListEmptyComponent={
               <View style={s.empty}>
                 <Text style={{ fontSize: 42 }}>🔍</Text>

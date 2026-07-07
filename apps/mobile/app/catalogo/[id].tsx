@@ -62,6 +62,9 @@ export default function CatalogoMayoristaScreen() {
 
   const [productos, setProductos] = useState<Producto[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const [nombreMayorista, setNombreMayorista] = useState(nombreParam || "Catálogo")
 
   // Búsqueda
@@ -92,30 +95,40 @@ export default function CatalogoMayoristaScreen() {
 
   // ── Cargar productos ──────────────────────────────────────────────────────
 
-  const cargarProductos = useCallback(async () => {
+  const cargarProductos = useCallback(async (targetPage = 1) => {
     if (!token || !id) return
-    setLoading(true)
+    const append = targetPage > 1
+    if (append) setLoadingMore(true); else setLoading(true)
     try {
       const params: Record<string, string> = { mayorista_id: id }
       if (busqueda.trim()) params.q = busqueda.trim()
       if (pasilloId) params.pasillo_id = pasilloId
       if (rubroId) params.rubro_id = rubroId
       if (subrubroId) params.subrubro_id = subrubroId
+      params.page = String(targetPage)
+      params.pageSize = "50"
       const data = await getProductos(token, params)
       const prods: Producto[] = data.productos || []
-      setProductos(prods)
+      setProductos(prev => append ? [...prev, ...prods] : prods)
+      setPage(data.page || targetPage)
+      setTotalPages(data.totalPages || 1)
       // Nombre del mayorista desde el primer producto si no vino en params
-      if (!nombreParam && prods.length > 0 && prods[0].mayoristas[0]) {
+      if (!append && !nombreParam && prods.length > 0 && prods[0].mayoristas[0]) {
         setNombreMayorista(prods[0].mayoristas[0].mayorista_nombre)
       }
     } catch (e: any) {
       if (e instanceof ApiError && e.status === 401) logout()
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }, [token, id, busqueda, pasilloId, rubroId, subrubroId])
 
-  useEffect(() => { cargarProductos() }, [cargarProductos])
+  useEffect(() => { cargarProductos(1) }, [cargarProductos])
+
+  const cargarMas = () => {
+    if (!loading && !loadingMore && page < totalPages) cargarProductos(page + 1)
+  }
 
   // ── Filtros ───────────────────────────────────────────────────────────────
 
@@ -285,8 +298,11 @@ export default function CatalogoMayoristaScreen() {
             columnWrapperStyle={{ gap: 10 }}
             contentContainerStyle={{ padding: 10, gap: 10, paddingBottom: 40 }}
             refreshing={loading}
-            onRefresh={cargarProductos}
+            onRefresh={() => cargarProductos(1)}
             renderItem={renderProducto}
+            onEndReached={cargarMas}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 16 }} color="#2563eb" /> : null}
             ListEmptyComponent={
               <View style={s.empty}>
                 <Text style={{ fontSize: 42 }}>🔍</Text>

@@ -31,13 +31,21 @@ export default function CatalogoMayoristaPage() {
   const router = useRouter()
   const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [q, setQ] = useState("")
   const [error, setError] = useState("")
+  const PAGE_SIZE = 50
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
   // Búsqueda EAN / nombre en maestro
   const [busqueda, setBusqueda] = useState("")
   const [resultados, setResultados] = useState<ProductoMaestro[]>([])
   const [buscando, setBuscando] = useState(false)
+  const [buscandoMas, setBuscandoMas] = useState(false)
+  const [busquedaPage, setBusquedaPage] = useState(1)
+  const [busquedaTotalPages, setBusquedaTotalPages] = useState(1)
 
   // Modal presentaciones
   const [showPres, setShowPres] = useState<Listing | null>(null)
@@ -50,30 +58,43 @@ export default function CatalogoMayoristaPage() {
   const [showNuevo, setShowNuevo] = useState(false)
   const [formNuevo, setFormNuevo] = useState({ ean: "", nombre: "", marca: "", unidad_base: "unidad", alicuota_iva: "21", descripcion: "" })
 
-  const cargar = useCallback(async () => {
-    setLoading(true)
+  const cargar = useCallback(async (targetPage = 1) => {
+    const append = targetPage > 1
+    if (append) setLoadingMore(true); else setLoading(true)
     try {
-      const params = q ? `?q=${encodeURIComponent(q)}` : ""
-      const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo${params}`, { headers: headers() })
+      const params = new URLSearchParams()
+      if (q) params.set("q", q)
+      params.set("page", String(targetPage))
+      params.set("pageSize", String(PAGE_SIZE))
+      const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo?${params}`, { headers: headers() })
       const data = await res.json()
-      setListings(data.listings || [])
+      setListings(prev => append ? [...prev, ...(data.listings || [])] : (data.listings || []))
+      setPage(data.page || targetPage)
+      setTotalPages(data.totalPages || 1)
+      setTotal(data.total ?? (data.listings || []).length)
     } catch (e: any) { setError(e.message) }
-    finally { setLoading(false) }
+    finally { setLoading(false); setLoadingMore(false) }
   }, [q])
 
-  useEffect(() => { cargar() }, [cargar])
+  useEffect(() => { cargar(1) }, [cargar])
 
-  const buscarEnMaestro = async () => {
+  const buscarEnMaestro = async (targetPage = 1) => {
     if (!busqueda.trim()) return
-    setBuscando(true)
+    const append = targetPage > 1
+    if (append) setBuscandoMas(true); else setBuscando(true)
     try {
       const isEan = /^\d{8,14}$|^NXB-/.test(busqueda.trim())
-      const params = isEan ? `?ean=${encodeURIComponent(busqueda)}` : `?q=${encodeURIComponent(busqueda)}`
-      const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/buscar${params}`, { headers: headers() })
+      const params = new URLSearchParams()
+      if (isEan) params.set("ean", busqueda); else params.set("q", busqueda)
+      params.set("page", String(targetPage))
+      params.set("pageSize", String(PAGE_SIZE))
+      const res = await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/buscar?${params}`, { headers: headers() })
       const data = await res.json()
-      setResultados(data.productos || [])
+      setResultados(prev => append ? [...prev, ...(data.productos || [])] : (data.productos || []))
+      setBusquedaPage(data.page || targetPage)
+      setBusquedaTotalPages(data.totalPages || 1)
     } catch (e: any) { setError(e.message) }
-    finally { setBuscando(false) }
+    finally { setBuscando(false); setBuscandoMas(false) }
   }
 
   const vincularProducto = async (producto_id: string) => {
@@ -205,10 +226,10 @@ export default function CatalogoMayoristaPage() {
           <p className="text-sm font-semibold text-gray-700 mb-3">🔍 Agregar producto del catálogo maestro</p>
           <div className="flex gap-3">
             <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && buscarEnMaestro()}
+              onKeyDown={e => e.key === "Enter" && buscarEnMaestro(1)}
               placeholder="Escaneá o ingresá EAN, o buscá por nombre..."
               className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-            <button onClick={buscarEnMaestro} disabled={buscando || !busqueda.trim()}
+            <button onClick={() => buscarEnMaestro(1)} disabled={buscando || !busqueda.trim()}
               className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60">
               {buscando ? "..." : "Buscar"}
             </button>
@@ -236,6 +257,14 @@ export default function CatalogoMayoristaPage() {
                   </div>
                 )
               })}
+              {busquedaPage < busquedaTotalPages && (
+                <div className="flex justify-center pt-1">
+                  <button onClick={() => buscarEnMaestro(busquedaPage + 1)} disabled={buscandoMas}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50">
+                    {buscandoMas ? "Cargando..." : "Ver más resultados"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {resultados.length === 0 && busqueda && !buscando && (
@@ -247,8 +276,11 @@ export default function CatalogoMayoristaPage() {
         </div>
 
         {/* Filtro mis productos */}
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Filtrar mis productos..."
-          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <div className="flex items-center justify-between mb-4">
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Filtrar mis productos..."
+            className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm mr-3 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <span className="text-sm text-gray-400 shrink-0">{listings.length} de {total}</span>
+        </div>
 
         {/* Lista de listings */}
         {loading ? (
@@ -311,6 +343,14 @@ export default function CatalogoMayoristaPage() {
                 )}
               </div>
             ))}
+            {page < totalPages && (
+              <div className="flex justify-center pt-2">
+                <button onClick={() => cargar(page + 1)} disabled={loadingMore}
+                  className="text-sm font-medium text-blue-600 bg-white border border-blue-200 rounded-xl px-5 py-2.5 hover:bg-blue-50 disabled:opacity-50 transition-colors">
+                  {loadingMore ? "Cargando..." : "Cargar más productos"}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
