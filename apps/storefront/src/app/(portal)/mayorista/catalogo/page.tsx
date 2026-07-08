@@ -10,7 +10,7 @@ const token = () => (typeof localStorage !== "undefined" ? localStorage.getItem(
 const headers = () => ({ "Authorization": `Bearer ${token()}`, "x-publishable-api-key": PUB_KEY, "Content-Type": "application/json" })
 
 type Presentacion = {
-  id: string; presentacion_id: string; nombre: string; factor: number
+  mp_id: string | null; presentacion_id: string; nombre: string; factor: number
   ean_propio: string | null; peso_g: number | null; orden: number
   precio: number; precio_lista: number | null; stock: number; cantidad_minima: number; activo: boolean
 }
@@ -146,10 +146,11 @@ export default function CatalogoMayoristaPage() {
     try {
       let newMpId = mp_id
       if (mp_id) {
-        await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/${listing_id}/presentaciones/${mp_id}`, {
+        const r = await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/${listing_id}/presentaciones/${mp_id}`, {
           method: "PUT", headers: headers(),
           body: JSON.stringify({ precio: parseFloat(vals.precio), precio_lista: vals.precio_lista ? parseFloat(vals.precio_lista) : null, stock: parseInt(vals.stock || "0"), cantidad_minima: parseInt(vals.cantidad_minima || "1") }),
         })
+        if (!r.ok) { const d = await r.json(); throw new Error(d.error || "Error al guardar") }
       } else {
         const r = await fetch(`${BACKEND_URL}/store/mayoristas/me/catalogo/${listing_id}/presentaciones`, {
           method: "POST", headers: headers(),
@@ -332,7 +333,7 @@ export default function CatalogoMayoristaPage() {
                 {l.presentaciones.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {l.presentaciones.map(p => (
-                      <span key={p.id} className={`text-xs px-3 py-1 rounded-full font-medium ${p.activo ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-400"}`}>
+                      <span key={p.presentacion_id} className={`text-xs px-3 py-1 rounded-full font-medium ${p.activo ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-400"}`}>
                         {p.nombre} → {fmt(p.precio)} · Stock: {p.stock}
                       </span>
                     ))}

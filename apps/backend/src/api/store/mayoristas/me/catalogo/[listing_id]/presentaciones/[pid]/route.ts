@@ -15,7 +15,6 @@ const getMayoristaId = (req: MedusaRequest): string | null => {
 // PUT /store/mayoristas/me/catalogo/:listing_id/presentaciones/:pid
 export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   const pool = getPool()
-  const svc: any = req.scope.resolve(PRODUCTO_LISTING_MODULE)
   const mayorista_id = getMayoristaId(req)
   if (!mayorista_id) return res.status(401).json({ error: "Sin autenticación" })
 
@@ -30,14 +29,22 @@ export const PUT = async (req: MedusaRequest, res: MedusaResponse) => {
   `, [pid, mayorista_id, listing_id])
   if (!mp) return res.status(404).json({ error: "No encontrado" })
 
-  const updates: Record<string, any> = {}
-  if (body.precio !== undefined) updates.precio = parseFloat(String(body.precio))
-  if (body.precio_lista !== undefined) updates.precio_lista = body.precio_lista ? parseFloat(String(body.precio_lista)) : null
-  if (body.stock !== undefined) updates.stock = parseInt(String(body.stock))
-  if (body.cantidad_minima !== undefined) updates.cantidad_minima = parseInt(String(body.cantidad_minima))
-  if (body.activo !== undefined) updates.activo = !!body.activo
+  const precio = body.precio !== undefined ? parseFloat(String(body.precio)) : null
+  const precio_lista = body.precio_lista ? parseFloat(String(body.precio_lista)) : null
+  const stock = body.stock !== undefined ? parseInt(String(body.stock)) : 0
+  const cantidad_minima = body.cantidad_minima !== undefined ? parseInt(String(body.cantidad_minima)) : 1
+  const activo = body.activo !== undefined ? !!body.activo : true
 
-  const updated = await svc.updateProductoMayoristaPresentacions({ id: pid }, updates)
+  await pool.query(
+    `UPDATE producto_mayorista_presentacion
+     SET precio = $1, precio_lista = $2, stock = $3, cantidad_minima = $4, activo = $5, updated_at = now()
+     WHERE id = $6`,
+    [precio, precio_lista, stock, cantidad_minima, activo, pid]
+  )
+
+  const { rows: [updated] } = await pool.query(
+    `SELECT * FROM producto_mayorista_presentacion WHERE id = $1`, [pid]
+  )
   res.json({ presentacion: updated })
 }
 
