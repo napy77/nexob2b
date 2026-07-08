@@ -7,11 +7,18 @@
 -- Uso (en el servidor, desde cualquier directorio, usando paths absolutos):
 --   psql "postgres://nexob2b:nexob2b_secure_2026@localhost/nexob2b_db" -f verificacion-combinada.sql
 
-CREATE TEMP TABLE staging_dia_ean (ean text);
-\copy staging_dia_ean (ean) FROM '/var/www/nexob2b/nexob2b/apps/backend/src/migration-scripts/update-producto-maestro-dia/data.csv' WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
+-- Mismas 8 columnas que sus respectivos data.csv (\copy exige que calce la cantidad de campos)
+CREATE TEMP TABLE staging_dia_ean (
+  ean text, pasillo text, rubro text, subrubro text,
+  descripcion text, marca text, imagen_url text, nombre_dia text
+);
+\copy staging_dia_ean FROM '/var/www/nexob2b/nexob2b/apps/backend/src/migration-scripts/update-producto-maestro-dia/data.csv' WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
 
-CREATE TEMP TABLE staging_supertop_ean (ean text);
-\copy staging_supertop_ean (ean) FROM '/var/www/nexob2b/nexob2b/apps/backend/src/migration-scripts/update-producto-maestro-supertop/data.csv' WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
+CREATE TEMP TABLE staging_supertop_ean (
+  ean text, pasillo text, rubro text, subrubro text,
+  descripcion text, marca text, imagen_url text, nombre_supertop text
+);
+\copy staging_supertop_ean FROM '/var/www/nexob2b/nexob2b/apps/backend/src/migration-scripts/update-producto-maestro-supertop/data.csv' WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
 
 -- Estado general de toda la tabla
 SELECT
