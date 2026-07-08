@@ -8,9 +8,11 @@ export async function PUT(req: MedusaRequest, res: MedusaResponse) {
     const body = req.body as any
     const nombre = body?.nombre
     const activo = body?.activo
+    const pasillo_id = body?.pasillo_id
     const update: any = { id }
     if (nombre !== undefined) update.nombre = nombre.trim()
     if (activo !== undefined) update.activo = activo
+    if (pasillo_id !== undefined) update.pasillo_id = pasillo_id || null
     const rubro = await svc.updateRubros(update)
     return res.json({ rubro })
   } catch (err: any) {

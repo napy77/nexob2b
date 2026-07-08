@@ -58,9 +58,23 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const taxonomiaService: any = req.scope.resolve(TAXONOMIA_MODULE)
 
   // Tipos impositivos para resolver precio_con_impuestos según condicion_fiscal
-  const tiposImpositivos = await taxonomiaService.listTipoImpositivos({})
+  const [tiposImpositivos, rubrosDB, pasillosDB] = await Promise.all([
+    taxonomiaService.listTipoImpositivos({}),
+    taxonomiaService.listRubros({}),
+    taxonomiaService.listPasillos({}),
+  ])
   const tipoMap: Record<string, { precio_con_impuestos: boolean }> = {}
   tiposImpositivos.forEach((t: any) => { tipoMap[t.nombre] = t })
+
+  // Mapa: nombre_rubro (lowercase) → nombre_pasillo (derivado de taxonomy)
+  const pasilloNombreMap: Record<string, string> = {}
+  pasillosDB.forEach((p: any) => { pasilloNombreMap[p.id] = p.nombre })
+  const rubToPasillo: Record<string, string> = {}
+  rubrosDB.forEach((r: any) => {
+    if (r.pasillo_id && pasilloNombreMap[r.pasillo_id]) {
+      rubToPasillo[r.nombre.toLowerCase()] = pasilloNombreMap[r.pasillo_id]
+    }
+  })
 
   // precio_con_impuestos del comercio logueado
   const comercio_precio_con_impuestos: boolean =
@@ -149,8 +163,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       ? resolverContacto(solicitudMap[m?.id], vendedorMap, m)
       : { contacto_nombre: null, contacto_celular: null, contacto_email: null, es_vendedor: false }
 
+    // Pasillo: usar el del producto, o derivarlo del rubro vía taxonomía
+    const pasilloFinal = p.pasillo || (p.rubro ? rubToPasillo[p.rubro.toLowerCase()] : null) || null
+
     return {
       ...p,
+      pasillo: pasilloFinal,
       precio: mostrarPrecio ? p.precio : null,
       alicuota_iva: p.alicuota_iva ?? 21,
       mayorista: {

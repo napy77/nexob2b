@@ -3,7 +3,7 @@ import { useState, useEffect } from "react"
 const API = "/admin/taxonomia"
 
 type Item = { id: string; nombre: string; activo: boolean; rubro_id?: string }
-type Rubro = Item
+type Rubro = Item & { pasillo_id?: string | null; pasillo_nombre?: string | null }
 type Subrubro = Item & { rubro_id: string }
 type Pasillo = Item
 type TipoImpositivo = Item & { descripcion?: string; precio_con_impuestos: boolean }
@@ -339,6 +339,7 @@ export default function TaxonomiaPage() {
   const [error, setError] = useState("")
   const [rubroFiltro, setRubroFiltro] = useState("")
   const [nuevoRubroId, setNuevoRubroId] = useState("")
+  const [nuevoRubroPasilloId, setNuevoRubroPasilloId] = useState("")
   const [nuevoTipoDesc, setNuevoTipoDesc] = useState("")
   const [nuevoTipoPrecio, setNuevoTipoPrecio] = useState(true)
   const [nuevoTipoNombre, setNuevoTipoNombre] = useState("")
@@ -367,11 +368,15 @@ export default function TaxonomiaPage() {
 
   // --- Rubros ---
   const addRubro = (nombre: string) =>
-    apiFetch(`${API}/rubros`, { method: "POST", body: JSON.stringify({ nombre }) })
+    apiFetch(`${API}/rubros`, { method: "POST", body: JSON.stringify({ nombre, pasillo_id: nuevoRubroPasilloId || null }) })
       .then(cargar).catch((e) => alert(e.message))
 
   const editRubro = (item: Item, nombre: string) =>
     apiFetch(`${API}/rubros/${item.id}`, { method: "PUT", body: JSON.stringify({ nombre }) })
+      .then(cargar).catch((e) => alert(e.message))
+
+  const cambiarPasilloRubro = (rubro: Rubro, pasillo_id: string | null) =>
+    apiFetch(`${API}/rubros/${rubro.id}`, { method: "PUT", body: JSON.stringify({ pasillo_id: pasillo_id || null }) })
       .then(cargar).catch((e) => alert(e.message))
 
   const toggleRubro = (item: Item) =>
@@ -525,10 +530,47 @@ export default function TaxonomiaPage() {
         <p style={{ color: "#9ca3af", fontSize: 14 }}>Cargando...</p>
       ) : tab === "rubros" ? (
         <>
-          <AddForm placeholder="Nuevo rubro..." onAdd={addRubro} />
+          <AddForm
+            placeholder="Nuevo rubro..."
+            onAdd={addRubro}
+            extraFields={
+              <select
+                value={nuevoRubroPasilloId}
+                onChange={(e) => setNuevoRubroPasilloId(e.target.value)}
+                style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 12px", fontSize: 14, minWidth: 160 }}
+              >
+                <option value="">-- Pasillo (opc.) --</option>
+                {pasillos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+            }
+          />
           {rubros.length === 0
             ? <p style={{ color: "#9ca3af", fontSize: 14 }}>Sin rubros todavía.</p>
-            : <ItemList items={rubros} onToggle={toggleRubro} onEdit={editRubro} onDelete={deleteRubro} />
+            : <ItemList
+                items={rubros}
+                onToggle={toggleRubro}
+                onEdit={editRubro}
+                onDelete={deleteRubro}
+                renderExtra={(item) => {
+                  const r = item as Rubro
+                  return (
+                    <select
+                      value={r.pasillo_id || ""}
+                      onChange={(e) => cambiarPasilloRubro(r, e.target.value || null)}
+                      style={{
+                        border: "1px solid #e5e7eb", borderRadius: 6,
+                        padding: "3px 8px", fontSize: 12, color: r.pasillo_id ? "#374151" : "#9ca3af",
+                        background: r.pasillo_id ? "#f0fdf4" : "#f9fafb",
+                        cursor: "pointer",
+                      }}
+                      title="Cambiar pasillo de este rubro"
+                    >
+                      <option value="">Sin pasillo</option>
+                      {pasillos.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </select>
+                  )
+                }}
+              />
           }
         </>
       ) : tab === "subrubros" ? (
