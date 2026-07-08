@@ -51,7 +51,7 @@ type Producto = {
 }
 
 type Vista = "lista" | "grilla-chica" | "grilla-grande"
-type TaxItem = { id: string; nombre: string }
+type TaxItem = { id: string; nombre: string; pasillo_id?: string | null }
 
 type MayoristaInfo = {
   id: string
@@ -316,7 +316,12 @@ function ProductosComercioInner() {
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-xs font-semibold text-gray-400 w-16 shrink-0">Pasillo</span>
               {pasillos.map(p => (
-                <button key={p.id} onClick={() => setPasilloId(pasilloId === p.id ? null : p.id)}
+                <button key={p.id} onClick={() => {
+                  const next = pasilloId === p.id ? null : p.id
+                  setPasilloId(next)
+                  setRubroId(null)
+                  setSubrubroId(null)
+                }}
                   className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
                     pasilloId === p.id ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
                   }`}>
@@ -326,11 +331,11 @@ function ProductosComercioInner() {
             </div>
           )}
 
-          {/* Rubros */}
-          {!mayorista_id && rubros.length > 0 && (
-            <div className="flex flex-wrap gap-2 items-center">
+          {/* Rubros — solo cuando hay pasillo activo */}
+          {!mayorista_id && pasilloId && rubros.filter(r => r.pasillo_id === pasilloId).length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center ml-4">
               <span className="text-xs font-semibold text-gray-400 w-16 shrink-0">Rubro</span>
-              {rubros.map(r => (
+              {rubros.filter(r => r.pasillo_id === pasilloId).map(r => (
                 <button key={r.id} onClick={() => {
                   setRubroId(rubroId === r.id ? null : r.id)
                   setSubrubroId(null)
@@ -346,7 +351,7 @@ function ProductosComercioInner() {
 
           {/* Subrubros — solo si hay rubro activo */}
           {rubroId && subrubros.filter(s => s.rubro_id === rubroId).length > 0 && (
-            <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center ml-8">
               <span className="text-xs font-semibold text-gray-400 w-16 shrink-0">Subrubro</span>
               {subrubros.filter(s => s.rubro_id === rubroId).map(s => (
                 <button key={s.id} onClick={() => setSubrubroId(subrubroId === s.id ? null : s.id)}
