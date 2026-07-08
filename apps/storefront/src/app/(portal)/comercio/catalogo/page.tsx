@@ -119,11 +119,14 @@ export default function CatalogoProductosPage() {
     ? productos.filter((p) => p.mayorista.id === mayoristaFiltro)
     : productos
 
-  const rubros = [...new Set(productosFiltradosPorMayorista.map((p) => p.rubro).filter(Boolean))] as string[]
-  const subrubros = rubroActivo
-    ? [...new Set(productosFiltradosPorMayorista.filter((p) => p.rubro === rubroActivo).map((p) => p.subrubro).filter(Boolean))] as string[]
+  // Cascada: Pasillo → Rubro → Subrubro
+  const pasillos = [...new Set(productosFiltradosPorMayorista.map((p) => p.pasillo).filter(Boolean))].sort() as string[]
+  const rubros = pasilloActivo
+    ? [...new Set(productosFiltradosPorMayorista.filter((p) => p.pasillo === pasilloActivo).map((p) => p.rubro).filter(Boolean))].sort() as string[]
     : []
-  const pasillos = [...new Set(productosFiltradosPorMayorista.map((p) => p.pasillo).filter(Boolean))] as string[]
+  const subrubros = rubroActivo
+    ? [...new Set(productosFiltradosPorMayorista.filter((p) => p.pasillo === pasilloActivo && p.rubro === rubroActivo).map((p) => p.subrubro).filter(Boolean))].sort() as string[]
+    : []
 
   // Filtrado completo
   const filtrados = productosFiltradosPorMayorista.filter((p) => {
@@ -149,7 +152,7 @@ export default function CatalogoProductosPage() {
     return acc
   }, {} as Record<string, Producto[]>)
 
-  const hayFiltros = !!(busqueda || mayoristaFiltro || rubroActivo || subrubroActivo || pasilloActivo)
+  const hayFiltros = !!(busqueda || mayoristaFiltro || pasilloActivo || rubroActivo || subrubroActivo)
 
   const limpiarFiltros = () => {
     setBusqueda("")
@@ -229,7 +232,7 @@ export default function CatalogoProductosPage() {
         {/* Filtro por mayorista */}
         {mayoristas.length > 1 && (
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-medium text-gray-400">Mayorista:</span>
+            <span className="text-xs font-medium text-gray-400 whitespace-nowrap">Mayorista:</span>
             {mayoristas.map((m) => (
               <button key={m.id} onClick={() => {
                 setMayoristaFiltro(mayoristaFiltro === m.id ? null : m.id)
@@ -246,10 +249,31 @@ export default function CatalogoProductosPage() {
           </div>
         )}
 
-        {/* Filtro por rubro */}
-        {rubros.length > 0 && (
+        {/* 1️⃣ Filtro por Pasillo */}
+        {pasillos.length > 0 && (
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-medium text-gray-400">Rubro:</span>
+            <span className="text-xs font-medium text-gray-400 whitespace-nowrap">Pasillo:</span>
+            {pasillos.map((p) => (
+              <button key={p} onClick={() => {
+                setPasilloActivo(pasilloActivo === p ? null : p)
+                setRubroActivo(null)
+                setSubrubroActivo(null)
+              }}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
+                  pasilloActivo === p
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
+                }`}>
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 2️⃣ Filtro por Rubro — solo aparece si hay un Pasillo seleccionado */}
+        {pasilloActivo && rubros.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center pl-4 border-l-2 border-emerald-200">
+            <span className="text-xs font-medium text-gray-400 whitespace-nowrap">Rubro:</span>
             {rubros.map((r) => (
               <button key={r} onClick={() => {
                 setRubroActivo(rubroActivo === r ? null : r)
@@ -266,10 +290,10 @@ export default function CatalogoProductosPage() {
           </div>
         )}
 
-        {/* Filtro por subrubro */}
-        {subrubros.length > 0 && (
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-medium text-gray-400">Subrubro:</span>
+        {/* 3️⃣ Filtro por Subrubro — solo aparece si hay un Rubro seleccionado */}
+        {rubroActivo && subrubros.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center pl-8 border-l-2 border-blue-200">
+            <span className="text-xs font-medium text-gray-400 whitespace-nowrap">Subrubro:</span>
             {subrubros.map((s) => (
               <button key={s} onClick={() => setSubrubroActivo(subrubroActivo === s ? null : s)}
                 className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
@@ -278,23 +302,6 @@ export default function CatalogoProductosPage() {
                     : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300"
                 }`}>
                 {s}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Filtro por pasillo */}
-        {pasillos.length > 1 && (
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-medium text-gray-400">Pasillo:</span>
-            {pasillos.map((p) => (
-              <button key={p} onClick={() => setPasilloActivo(pasilloActivo === p ? null : p)}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
-                  pasilloActivo === p
-                    ? "bg-emerald-600 text-white border-emerald-600"
-                    : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
-                }`}>
-                {p}
               </button>
             ))}
           </div>
