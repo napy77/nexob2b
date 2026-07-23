@@ -3,7 +3,7 @@ import { model } from "@medusajs/framework/utils"
 const Transporte = model.define("transporte", {
   id: model.id().primaryKey(),
   nombre: model.text(),
-  tipo: model.enum(["retiro", "envio_propio", "correo", "flete", "moto"]).default("envio_propio"),
+  tipo: model.enum(["retiro", "envio_propio", "correo", "flete", "moto", "nexoflex"]).default("envio_propio"),
   descripcion: model.text().nullable(),
   icono: model.text().nullable(),
   activo: model.boolean().default(true),

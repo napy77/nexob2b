@@ -225,6 +225,7 @@ Authorization: Bearer <token>  (opcional, pero si se envía calcula tiene_alta)
 | `rubro_id` | string | Filtrar por rubro |
 | `subrubro_id` | string | Filtrar por subrubro |
 | `mayorista_id` | string | Filtrar solo a productos de un mayorista específico |
+| `incluir_sin_mayorista` | `"true"` | Agrega también los productos maestros aprobados que ningún mayorista lista, con `"mayoristas": []`. Lo usa NexoPOS para dar de alta stock comprado fuera de NexoB2B (solo la ficha del producto). Se ignora si viene `mayorista_id`. |
 
 **Ejemplo — catálogo de un mayorista específico:**
 ```

@@ -4,9 +4,12 @@ import { getPool } from "../../../lib/db-seq"
 // GET /store/productos?q=azucar&pasillo_id=xx&comercio_id=xx
 // Catálogo unificado: un producto → múltiples mayoristas con sus presentaciones
 // Si viene comercio_id, filtra por mayoristas de la zona del comercio y muestra estado de alta
+// Con incluir_sin_mayorista=true agrega además los productos maestros aprobados
+// que ningún mayorista lista (mayoristas: []) — lo usa NexoPOS para dar de alta
+// stock comprado fuera de NexoB2B, donde solo importa la ficha del producto
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const pool = getPool()
-  const { q, pasillo_id, rubro_id, subrubro_id, comercio_id, mayorista_id, page, pageSize } = req.query as Record<string, string>
+  const { q, pasillo_id, rubro_id, subrubro_id, comercio_id, mayorista_id, incluir_sin_mayorista, page, pageSize } = req.query as Record<string, string>
 
   const pageNum = Math.max(1, parseInt(page as string, 10) || 1)
   const pageSizeNum = Math.min(100, Math.max(1, parseInt(pageSize as string, 10) || 50))
@@ -120,8 +123,65 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     LIMIT $${i + 1} OFFSET $${i + 2}
   `, [...params, comercio_id || null, pageSizeNum, offset])
 
-  const total = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0
-  const productos = rows.map(({ total_count, ...r }) => r)
+  let total = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0
+  let productos = rows.map(({ total_count, ...r }) => r)
+
+  // Productos maestros aprobados sin listing activo/aprobado con presentaciones:
+  // se agregan al final con mayoristas: []. No aplica el filtro de zona
+  // (no hay mayorista) ni tiene sentido combinado con mayorista_id.
+  if (incluir_sin_mayorista === "true" && !mayorista_id) {
+    const conds: string[] = [
+      "p.deleted_at IS NULL",
+      "p.estado = 'aprobado'",
+      `NOT EXISTS (
+        SELECT 1 FROM producto_mayorista_listing pml
+        WHERE pml.producto_id = p.id AND pml.deleted_at IS NULL AND pml.activo = true AND pml.aprobado = true
+          AND EXISTS (
+            SELECT 1 FROM producto_mayorista_presentacion pmp
+            WHERE pmp.listing_id = pml.id AND pmp.deleted_at IS NULL AND pmp.activo = true
+          )
+      )`,
+    ]
+    const params2: any[] = []
+    let j = 1
+    if (q) {
+      conds.push(`(p.nombre ILIKE $${j} OR p.ean ILIKE $${j} OR p.marca ILIKE $${j})`)
+      params2.push(`%${q}%`); j++
+    }
+    if (pasillo_id) { conds.push(`p.pasillo_id = $${j++}`); params2.push(pasillo_id) }
+    if (rubro_id) { conds.push(`p.rubro_id = $${j++}`); params2.push(rubro_id) }
+    if (subrubro_id) { conds.push(`p.subrubro_id = $${j++}`); params2.push(subrubro_id) }
+
+    const { rows: sinMayorista } = await pool.query(`
+      SELECT
+        p.id,
+        p.ean,
+        p.nombre,
+        p.descripcion,
+        p.marca,
+        p.unidad_base,
+        p.alicuota_iva,
+        p.imagen_url,
+        p.pasillo_id,
+        p.rubro_id,
+        p.subrubro_id,
+        pa.nombre AS pasillo_nombre,
+        ru.nombre AS rubro_nombre,
+        sr.nombre AS subrubro_nombre,
+        COUNT(*) OVER() AS total_count,
+        '[]'::json AS mayoristas
+      FROM producto_maestro p
+      LEFT JOIN pasillo pa ON pa.id = p.pasillo_id
+      LEFT JOIN rubro ru ON ru.id = p.rubro_id
+      LEFT JOIN subrubro sr ON sr.id = p.subrubro_id
+      WHERE ${conds.join(" AND ")}
+      ORDER BY p.nombre ASC
+      LIMIT $${j} OFFSET $${j + 1}
+    `, [...params2, pageSizeNum, offset])
+
+    total += sinMayorista.length > 0 ? parseInt(sinMayorista[0].total_count, 10) : 0
+    productos = [...productos, ...sinMayorista.map(({ total_count, ...r }) => r)]
+  }
 
   res.json({
     productos,
